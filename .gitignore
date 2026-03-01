@@ -1,0 +1,23 @@
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code
+.claude/
+
+# Scripts (local dev only, not needed on server)
+scripts/
+
+# Excel source files
+*.xlsx
+*.xls
+
+# Environment
+.env

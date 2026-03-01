@@ -1,0 +1,231 @@
+<?php
+/**
+ * DARN Dashboard - Shpenzimet (Expenses)
+ * Input form with proper field formats: date, number, dropdown
+ */
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/layout.php';
+
+$db = getDB();
+
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 100;
+$offset = ($page - 1) * $perPage;
+
+$filterType = $_GET['lloji'] ?? '';
+$filterPayment = $_GET['pagesa'] ?? '';
+
+$where = [];
+$params = [];
+if ($filterType) { $where[] = "LOWER(TRIM(lloji_i_transaksionit)) = LOWER(TRIM(?))"; $params[] = $filterType; }
+if ($filterPayment) { $where[] = "LOWER(TRIM(lloji_i_pageses)) = LOWER(TRIM(?))"; $params[] = $filterPayment; }
+$whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+$totalRows = $db->prepare("SELECT COUNT(*) FROM shpenzimet {$whereSQL}");
+$totalRows->execute($params);
+$totalRows = $totalRows->fetchColumn();
+$totalPages = ceil($totalRows / $perPage);
+
+$stmt = $db->prepare("SELECT * FROM shpenzimet {$whereSQL} ORDER BY data_e_pageses DESC, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$stmt->execute($params);
+$rows = $stmt->fetchAll();
+
+// Totals — respect active filters
+$summWhere = $whereSQL ? $whereSQL . " AND " : "WHERE ";
+$totalCashStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_pageses))='cash'");
+$totalCashStmt->execute($params);
+$totalCash = $totalCashStmt->fetchColumn();
+$totalBankeStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_pageses))='bank'");
+$totalBankeStmt->execute($params);
+$totalBanke = $totalBankeStmt->fetchColumn();
+$totalPlinStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_transaksionit))='pagesa per plin'");
+$totalPlinStmt->execute($params);
+$totalPlin = $totalPlinStmt->fetchColumn();
+$totalShpenzimStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_transaksionit))='shpenzim'");
+$totalShpenzimStmt->execute($params);
+$totalShpenzim = $totalShpenzimStmt->fetchColumn();
+
+// Dropdown options from data
+$llojetTrans = $db->query("SELECT DISTINCT lloji_i_transaksionit FROM shpenzimet WHERE lloji_i_transaksionit IS NOT NULL ORDER BY lloji_i_transaksionit")->fetchAll(PDO::FETCH_COLUMN);
+$llojetPag = $db->query("SELECT DISTINCT lloji_i_pageses FROM shpenzimet WHERE lloji_i_pageses IS NOT NULL ORDER BY lloji_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
+$arsyet = $db->query("SELECT DISTINCT arsyetimi FROM shpenzimet WHERE arsyetimi IS NOT NULL ORDER BY arsyetimi")->fetchAll(PDO::FETCH_COLUMN);
+
+// Fatura e rregullte value (Excel cell B2 = sum of fatura cash expenses)
+$faturaCash = $db->query("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE fatura_e_rregullte IS NOT NULL AND fatura_e_rregullte != ''")->fetchColumn();
+
+$transJSON = json_encode($llojetTrans);
+$pagJSON = json_encode($llojetPag);
+
+ob_start();
+?>
+
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="label">Total Shpenzime Cash</div>
+        <div class="value">&euro; <?= eur($totalCash) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Total Shpenzime Banke</div>
+        <div class="value">&euro; <?= eur($totalBanke) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Pagesa per plin</div>
+        <div class="value">&euro; <?= eur($totalPlin) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Shpenzime tjera</div>
+        <div class="value">&euro; <?= eur($totalShpenzim) ?></div>
+    </div>
+</div>
+
+<!-- Input Form -->
+<div class="card">
+    <div class="card-header">
+        <h3><i class="fas fa-plus-circle"></i> Shto shpenzim të ri</h3>
+    </div>
+    <div class="card-body padded">
+        <form class="ajax-form" action="/api/insert.php" method="POST">
+            <input type="hidden" name="_table" value="shpenzimet">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data e pagesës *</label>
+                    <input type="date" name="data_e_pageses" required value="<?= date('Y-m-d') ?>">
+                </div>
+                <div class="form-group">
+                    <label>Shuma (€) *</label>
+                    <input type="number" name="shuma" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Arsyetimi / Kategoria</label>
+                    <select name="arsyetimi">
+                        <option value="">-- Zgjidh --</option>
+                        <?php foreach ($arsyet as $a): ?><option value="<?= e($a) ?>"><?= e($a) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Lloji i pagesës *</label>
+                    <select name="lloji_i_pageses" required>
+                        <option value="">-- Zgjidh --</option>
+                        <?php foreach ($llojetPag as $l): ?><option value="<?= e($l) ?>"><?= e($l) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Lloji i transaksionit *</label>
+                    <select name="lloji_i_transaksionit" required>
+                        <option value="">-- Zgjidh --</option>
+                        <?php foreach ($llojetTrans as $l): ?><option value="<?= e($l) ?>"><?= e($l) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Përshkrim i detajuar</label>
+                    <input type="text" name="pershkrim_i_detajuar">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nafta në litra</label>
+                    <input type="number" name="nafta_ne_litra" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Numri i faturës</label>
+                    <input type="text" name="numri_i_fatures">
+                </div>
+                <div class="form-group">
+                    <label>Faturë e rregullt</label>
+                    <select name="fatura_e_rregullte">
+                        <option value="">Jo</option>
+                        <option value="Po">Po</option>
+                    </select>
+                </div>
+                <div class="form-group" style="justify-content:flex-end;">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Ruaj shpenzimin</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="card">
+    <div class="card-header">
+        <h3>Shpenzimet (<?= num($totalRows) ?> rreshta)</h3>
+    </div>
+    <div class="filters">
+        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;">
+            <div class="form-group">
+                <label>Lloji transaksionit</label>
+                <select name="lloji">
+                    <option value="">Të gjitha</option>
+                    <?php foreach ($llojetTrans as $l): ?>
+                    <option value="<?= e($l) ?>" <?= $filterType === $l ? 'selected' : '' ?>><?= e($l) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Pagesa</label>
+                <select name="pagesa">
+                    <option value="">Të gjitha</option>
+                    <?php foreach ($llojetPag as $l): ?>
+                    <option value="<?= e($l) ?>" <?= $filterPayment === $l ? 'selected' : '' ?>><?= e($l) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
+            <a href="shpenzimet.php" class="btn btn-outline btn-sm">Pastro</a>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="table-wrapper">
+            <table class="data-table" data-table="shpenzimet">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th class="num">Shuma</th>
+                        <th>Arsyetimi</th>
+                        <th>Lloji pagesës</th>
+                        <th>Lloji transaksionit</th>
+                        <th>Përshkrim</th>
+                        <th class="num">Nafta (L)</th>
+                        <th>Nr. Faturës</th>
+                        <th>Fat. rregullt</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($rows as $r): ?>
+                    <tr data-id="<?= $r['id'] ?>">
+                        <td class="editable" data-field="data_e_pageses" data-type="date"><?= $r['data_e_pageses'] ?></td>
+                        <td class="amount editable" data-field="shuma" data-type="number"><?= eur($r['shuma']) ?></td>
+                        <td class="editable" data-field="arsyetimi"><?= e($r['arsyetimi']) ?></td>
+                        <td class="editable" data-field="lloji_i_pageses" data-type="select" data-options="<?= e($pagJSON) ?>"><?= e($r['lloji_i_pageses']) ?></td>
+                        <td class="editable" data-field="lloji_i_transaksionit" data-type="select" data-options="<?= e($transJSON) ?>"><?= e($r['lloji_i_transaksionit']) ?></td>
+                        <td class="editable" data-field="pershkrim_i_detajuar"><?= e($r['pershkrim_i_detajuar']) ?></td>
+                        <td class="num editable" data-field="nafta_ne_litra" data-type="number"><?= $r['nafta_ne_litra'] ?: '' ?></td>
+                        <td class="editable" data-field="numri_i_fatures"><?= e($r['numri_i_fatures']) ?></td>
+                        <td class="editable" data-field="fatura_e_rregullte" data-type="select" data-options="<?= e(json_encode(['Po'])) ?>"><?= e($r['fatura_e_rregullte']) ?></td>
+                        <td><button class="btn btn-danger btn-sm" onclick="deleteRow('shpenzimet',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if ($totalPages > 1): ?>
+        <div class="pagination">
+            <div class="info">Faqja <?= $page ?>/<?= $totalPages ?> (<?= num($totalRows) ?> rreshta)</div>
+            <div class="pages">
+                <?php if ($page > 1): ?><a href="?<?= http_build_query(array_merge($_GET, ['page' => $page-1])) ?>">&laquo;</a><?php endif; ?>
+                <?php for ($i = max(1,$page-3); $i <= min($totalPages,$page+3); $i++): ?>
+                <?= $i === $page ? "<span class='current'>{$i}</span>" : "<a href='?" . http_build_query(array_merge($_GET, ['page' => $i])) . "'>{$i}</a>" ?>
+                <?php endfor; ?>
+                <?php if ($page < $totalPages): ?><a href="?<?= http_build_query(array_merge($_GET, ['page' => $page+1])) ?>">&raquo;</a><?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php
+$content = ob_get_clean();
+renderLayout('Shpenzimet', 'shpenzimet', $content);
