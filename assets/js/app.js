@@ -92,7 +92,8 @@ function startRowEdit(row) {
             input = document.createElement('input');
             input.type = type === 'number' ? 'number' : type === 'date' ? 'date' : 'text';
             if (type === 'number') {
-                input.value = rawText.replace(/[€,\s]/g, '');
+                const stripped = rawText.replace(/[€,\s]/g, '');
+                input.value = (stripped === '-' || stripped === '—' || stripped === '') ? '' : stripped;
                 input.step = '0.01';
             } else {
                 input.value = rawText;
@@ -189,8 +190,12 @@ async function saveRowEdit(row) {
         const origText = orig ? orig.text : '';
         const type = td.dataset.type || 'text';
 
-        // For number fields compare the stripped original
-        const origCompare = type === 'number' ? origText.replace(/[€,\s]/g, '') : origText;
+        // For number fields compare the stripped original (treat dash as empty)
+        let origCompare = origText;
+        if (type === 'number') {
+            const stripped = origText.replace(/[€,\s]/g, '');
+            origCompare = (stripped === '-' || stripped === '—') ? '' : stripped;
+        }
 
         if (newVal !== origCompare) {
             changes.push({ field, value: newVal });
@@ -419,9 +424,10 @@ function compareValues(a, b, dir) {
         return dir === 'asc' ? cmp : -cmp;
     }
 
-    // Mixed types: dates > numbers > text
+    // Mixed types: dates > numbers > text (respect sort direction)
     const priority = { date: 3, number: 2, text: 1 };
-    return priority[a.type] - priority[b.type];
+    const cmp = priority[a.type] - priority[b.type];
+    return dir === 'asc' ? cmp : -cmp;
 }
 
 function initTableSort() {

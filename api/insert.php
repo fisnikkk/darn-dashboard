@@ -149,8 +149,20 @@ try {
 
     $sql = "INSERT INTO {$table} (" . implode(',', $fields) . ") VALUES (" . implode(',', $placeholders) . ")";
     $db->prepare($sql)->execute($values);
+    $newId = $db->lastInsertId();
 
-    echo json_encode(['success' => true, 'id' => $db->lastInsertId(), 'reload' => true,
+    // After inserting a gjendja_bankare row, recalculate ALL bilanci from scratch
+    // (handles backdated entries where the new row isn't the latest by date)
+    if ($table === 'gjendja_bankare') {
+        $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+        $running = 0;
+        foreach ($all as $r) {
+            $running = round($running + (float)$r['kredi'] - (float)$r['debia'], 2);
+            $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
+        }
+    }
+
+    echo json_encode(['success' => true, 'id' => $newId, 'reload' => true,
                        'message' => 'U shtua me sukses']);
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
