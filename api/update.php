@@ -3,15 +3,27 @@ require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
 
 $input = json_decode(file_get_contents('php://input'), true);
-if (!$input || !isset($input['table'], $input['id'], $input['field'])) {
+if (!$input || !isset($input['table'], $input['id'])) {
     echo json_encode(['success' => false, 'error' => 'Missing parameters']);
     exit;
 }
 
+// Support batch mode: changes: [{field, value}, ...] OR single field/value
 $table = $input['table'];
 $id = (int)$input['id'];
-$field = $input['field'];
-$value = $input['value'];
+$changes = [];
+if (isset($input['changes']) && is_array($input['changes'])) {
+    $changes = $input['changes'];
+} elseif (isset($input['field'])) {
+    $changes = [['field' => $input['field'], 'value' => $input['value']]];
+} else {
+    echo json_encode(['success' => false, 'error' => 'Missing field or changes']);
+    exit;
+}
+
+// For backwards compat, set $field/$value from first change (used in single-field logic)
+$field = $changes[0]['field'];
+$value = $changes[0]['value'];
 
 $allowed = [
     'distribuimi' => ['klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa',
@@ -36,13 +48,22 @@ $allowed = [
     'depo' => ['data','produkti','sasia','cmimi'],
 ];
 
-if (!isset($allowed[$table]) || !in_array($field, $allowed[$table])) {
-    echo json_encode(['success' => false, 'error' => 'Field not allowed']);
+if (!isset($allowed[$table])) {
+    echo json_encode(['success' => false, 'error' => 'Table not allowed']);
     exit;
+}
+// Validate all fields in the batch
+foreach ($changes as $ch) {
+    if (!in_array($ch['field'], $allowed[$table])) {
+        echo json_encode(['success' => false, 'error' => 'Field not allowed: ' . $ch['field']]);
+        exit;
+    }
 }
 
 try {
     $db = getDB();
+
+    // Special case: toggle verified (single-field only)
     if ($field === 'e_kontrolluar' && $value === 'toggle') {
         $stmt = $db->prepare("SELECT e_kontrolluar FROM {$table} WHERE id = ?");
         $stmt->execute([$id]);
@@ -51,40 +72,44 @@ try {
         echo json_encode(['success' => true, 'verified' => (bool)$newVal]);
         exit;
     }
-    if ($value === '' || $value === null) $value = null;
-    $db->prepare("UPDATE {$table} SET {$field} = ? WHERE id = ?")->execute([$value, $id]);
 
-    // Auto-recalculate sasia_ne_litra when kg changes in plini_depo
-    if ($table === 'plini_depo' && $field === 'kg' && $value !== null) {
-        $newLitra = round((float)$value * 1.95, 2);
-        $db->prepare("UPDATE plini_depo SET sasia_ne_litra = ? WHERE id = ?")->execute([$newLitra, $id]);
+    // Wrap everything in a transaction so batch updates are atomic
+    $db->beginTransaction();
+
+    // Track which fields were changed for auto-recalc triggers
+    $changedFields = [];
+    foreach ($changes as $ch) {
+        $f = $ch['field'];
+        $v = $ch['value'];
+        if ($v === '' || $v === null) $v = null;
+        $db->prepare("UPDATE {$table} SET {$f} = ? WHERE id = ?")->execute([$v, $id]);
+        $changedFields[] = $f;
     }
 
-    // Auto-recalculate bilanci when debia or kredi changes in gjendja_bankare
-    // Cascades to ALL subsequent rows so the running balance stays correct
-    if ($table === 'gjendja_bankare' && in_array($field, ['debia', 'kredi'])) {
-        $row = $db->prepare("SELECT data, debia, kredi FROM gjendja_bankare WHERE id = ?");
-        $row->execute([$id]);
-        $current = $row->fetch();
-        // Get the bilanci of the previous row (by date/id order)
-        $prevStmt = $db->prepare("SELECT COALESCE(bilanci, 0) FROM gjendja_bankare WHERE (data < ? OR (data = ? AND id < ?)) ORDER BY data DESC, id DESC LIMIT 1");
-        $prevStmt->execute([$current['data'], $current['data'], $id]);
-        $prevBilanci = (float)$prevStmt->fetchColumn();
-        $newBilanci = round($prevBilanci + (float)$current['kredi'] - (float)$current['debia'], 2);
-        $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$newBilanci, $id]);
+    // Auto-recalculate sasia_ne_litra when kg changes in plini_depo
+    if ($table === 'plini_depo' && in_array('kg', $changedFields)) {
+        $cur = $db->prepare("SELECT kg FROM plini_depo WHERE id = ?");
+        $cur->execute([$id]);
+        $kgVal = $cur->fetchColumn();
+        if ($kgVal !== null) {
+            $newLitra = round((float)$kgVal * 1.95, 2);
+            $db->prepare("UPDATE plini_depo SET sasia_ne_litra = ? WHERE id = ?")->execute([$newLitra, $id]);
+        }
+    }
 
-        // Cascade: recalculate bilanci for all rows AFTER the edited row
-        $cascadeStmt = $db->prepare("SELECT id, debia, kredi FROM gjendja_bankare WHERE (data > ? OR (data = ? AND id > ?)) ORDER BY data ASC, id ASC");
-        $cascadeStmt->execute([$current['data'], $current['data'], $id]);
-        $runningBilanci = $newBilanci;
-        foreach ($cascadeStmt->fetchAll() as $cRow) {
-            $runningBilanci = round($runningBilanci + (float)$cRow['kredi'] - (float)$cRow['debia'], 2);
-            $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$runningBilanci, $cRow['id']]);
+    // Auto-recalculate bilanci when debia, kredi, or data changes in gjendja_bankare
+    if ($table === 'gjendja_bankare' && array_intersect(['debia', 'kredi', 'data'], $changedFields)) {
+        // Recalculate ALL rows from the beginning (safest, handles any ordering)
+        $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+        $running = 0;
+        foreach ($all as $r) {
+            $running = round($running + (float)$r['kredi'] - (float)$r['debia'], 2);
+            $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
         }
     }
 
     // Auto-recalculate pagesa & litrat_total when sasia, litra, or cmimi changes in distribuimi
-    if ($table === 'distribuimi' && in_array($field, ['sasia', 'litra', 'cmimi'])) {
+    if ($table === 'distribuimi' && array_intersect(['sasia', 'litra', 'cmimi'], $changedFields)) {
         $row = $db->prepare("SELECT sasia, litra, cmimi FROM distribuimi WHERE id = ?");
         $row->execute([$id]);
         $cur = $row->fetch();
@@ -97,7 +122,7 @@ try {
     }
 
     // Auto-recalculate totali when cilindra_sasia or cmimi changes in shitje_produkteve
-    if ($table === 'shitje_produkteve' && in_array($field, ['cilindra_sasia', 'cmimi'])) {
+    if ($table === 'shitje_produkteve' && array_intersect(['cilindra_sasia', 'cmimi'], $changedFields)) {
         $row = $db->prepare("SELECT cilindra_sasia, cmimi FROM shitje_produkteve WHERE id = ?");
         $row->execute([$id]);
         $cur = $row->fetch();
@@ -106,7 +131,7 @@ try {
     }
 
     // Auto-recalculate vlera when sasia or cmimi changes in stoku_zyrtar
-    if ($table === 'stoku_zyrtar' && in_array($field, ['sasia', 'cmimi'])) {
+    if ($table === 'stoku_zyrtar' && array_intersect(['sasia', 'cmimi'], $changedFields)) {
         $row = $db->prepare("SELECT sasia, cmimi FROM stoku_zyrtar WHERE id = ?");
         $row->execute([$id]);
         $cur = $row->fetch();
@@ -114,7 +139,9 @@ try {
         $db->prepare("UPDATE stoku_zyrtar SET vlera = ? WHERE id = ?")->execute([$newVlera, $id]);
     }
 
+    $db->commit();
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {
+    if ($db->inTransaction()) $db->rollBack();
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

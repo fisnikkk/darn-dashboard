@@ -206,32 +206,23 @@ async function saveRowEdit(row) {
     const saveBtn = row.querySelector('.row-save-btn');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
 
-    let allSuccess = true;
-    for (const change of changes) {
-        try {
-            const resp = await fetch('/api/update.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ table, id, field: change.field, value: change.value })
-            });
-            const data = await resp.json();
-            if (!data.success) {
-                allSuccess = false;
-                showToast('Gabim: ' + (data.error || ''), 'error');
-                break;
-            }
-        } catch (e) {
-            allSuccess = false;
-            showToast('Gabim ne ruajtje', 'error');
-            break;
+    try {
+        const resp = await fetch('/api/update.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table, id, changes })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.success) {
+            showToast('U ruajt me sukses');
+            setTimeout(() => location.reload(), 400);
+        } else {
+            showToast('Gabim: ' + (data.error || ''), 'error');
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-check"></i> Ruaj'; }
         }
-    }
-
-    if (allSuccess) {
-        showToast('U ruajt me sukses');
-        // Reload page to get proper formatting (badges, numbers, calculated columns)
-        setTimeout(() => location.reload(), 400);
-    } else {
+    } catch (e) {
+        showToast('Gabim ne ruajtje', 'error');
         if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-check"></i> Ruaj'; }
     }
 }
@@ -244,7 +235,7 @@ function toggleHighlight(id, table) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, id, field: 'e_kontrolluar', value: 'toggle' })
     })
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
         if (data.success) {
             const row = document.querySelector(`tr[data-id="${id}"]`);
@@ -266,7 +257,7 @@ function initForms() {
             const submitBtn = this.querySelector('button[type="submit"]');
             if (submitBtn) { submitBtn.disabled = true; submitBtn.dataset.origHtml = submitBtn.innerHTML; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke ruajtur...'; }
             fetch(this.action, { method: 'POST', body: new FormData(this) })
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => {
                 if (data.success) {
                     showToast(data.message || 'U shtua me sukses');
@@ -296,12 +287,12 @@ function deleteRow(table, id) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, id })
     })
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
         if (data.success) {
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            if (row) row.remove();
             showToast('U fshi');
+            // Reload to update footer totals, running balances, etc.
+            setTimeout(() => location.reload(), 400);
         } else {
             showToast('Gabim: ' + (data.error || ''), 'error');
         }
@@ -508,7 +499,8 @@ function initTableSort() {
                     const parsed = new Map();
                     visibleRows.forEach(row => {
                         const cell = row.cells[colIndex];
-                        const text = cell ? cell.textContent.trim() : '';
+                        // Use data-sort-value if present (for custom sort keys like YYYY-MM)
+                        const text = (cell && cell.dataset.sortValue) ? cell.dataset.sortValue : (cell ? cell.textContent.trim() : '');
                         parsed.set(row, parseSortValue(text));
                     });
 
@@ -529,6 +521,38 @@ function initTableSort() {
     });
 }
 
+/* ---- "Add new" select-to-input swap ---- */
+
+function initAddNewSelects() {
+    document.querySelectorAll('select[id$="-select"]').forEach(select => {
+        select.addEventListener('change', function() {
+            if (this.value !== '__new__') return;
+
+            const group = this.closest('.form-group');
+            const name = this.name;
+
+            // Hide the select
+            this.style.display = 'none';
+            this.removeAttribute('name');
+
+            // Create text input + cancel button wrapper
+            const wrap = document.createElement('div');
+            wrap.className = 'add-new-wrap';
+            wrap.innerHTML = `<input type="text" name="${name}" placeholder="Shkruaj kategorinë e re..." required autofocus>
+                <button type="button" class="btn btn-outline btn-sm add-new-cancel" title="Anulo"><i class="fas fa-times"></i></button>`;
+            group.appendChild(wrap);
+
+            wrap.querySelector('input').focus();
+            wrap.querySelector('.add-new-cancel').addEventListener('click', function() {
+                select.value = '';
+                select.style.display = '';
+                select.setAttribute('name', name);
+                wrap.remove();
+            });
+        });
+    });
+}
+
 /* ---- Init on page load ---- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -536,6 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initForms();
     initTableSearch();
     initTableSort();
+    initAddNewSelects();
     document.querySelectorAll('.modal-overlay').forEach(o => {
         o.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('active'); });
     });

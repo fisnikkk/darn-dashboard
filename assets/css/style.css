@@ -283,6 +283,26 @@ table.summary-table tbody td.amount { text-align: center; font-size: 0.95rem; fo
     box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
 
+/* Add-new inline input */
+.add-new-wrap {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.add-new-wrap input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+.add-new-cancel {
+    flex-shrink: 0;
+    padding: 6px 8px !important;
+}
+
 /* Buttons */
 .btn {
     padding: 8px 16px;

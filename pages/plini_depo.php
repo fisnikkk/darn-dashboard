@@ -131,7 +131,6 @@ ob_start();
             <table class="data-table" data-table="plini_depo">
                 <thead>
                     <tr>
-                        <th>Nr. Faturës</th>
                         <th>Data</th>
                         <th class="num">kg</th>
                         <th class="num">Litra</th>
@@ -162,7 +161,6 @@ ob_start();
                     $litra = $r['sasia_ne_litra'] !== null ? (float)$r['sasia_ne_litra'] : (float)$r['kg'] * 1.95;
                     ?>
                     <tr data-id="<?= $r['id'] ?>">
-                        <td class="editable" data-field="nr_i_fatures"><?= e($r['nr_i_fatures']) ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="num editable" data-field="kg" data-type="number"><?= eur($r['kg']) ?></td>
                         <td class="num"><?= eur($litra) ?></td>

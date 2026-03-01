@@ -193,7 +193,7 @@ ob_start();
                     $label = ($monthNames[$parts[1]] ?? $parts[1]) . ' ' . $parts[0];
                     ?>
                     <tr>
-                        <td style="font-weight:600;white-space:nowrap;"><?= $label ?></td>
+                        <td style="font-weight:600;white-space:nowrap;" data-sort-value="<?= $d['muaji'] ?>-01"><?= $label ?></td>
                         <td class="amount">&euro; <?= eur($d['shitje']) ?></td>
                         <td class="amount">&euro; <?= eur($d['blerje']) ?></td>
                         <td class="amount">&euro; <?= eur($d['shpenzime']) ?></td>

@@ -89,9 +89,10 @@ ob_start();
             <div class="form-row">
                 <div class="form-group">
                     <label>Mënyra pagesës</label>
-                    <select name="menyra_pageses">
+                    <select name="menyra_pageses" id="pagesa-select">
                         <option value="">-- Zgjidh --</option>
                         <?php foreach ($payTypes as $p): ?><option value="<?= e($p) ?>"><?= e($p) ?></option><?php endforeach; ?>
+                        <option value="__new__">+ Shto të re...</option>
                     </select>
                 </div>
                 <div class="form-group">

@@ -30,28 +30,34 @@ $stmt = $db->prepare("SELECT * FROM shpenzimet {$whereSQL} ORDER BY data_e_pages
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
-// Totals — respect active filters
-$summWhere = $whereSQL ? $whereSQL . " AND " : "WHERE ";
-$totalCashStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_pageses))='cash'");
-$totalCashStmt->execute($params);
+// Totals — each card uses only the OTHER filter dimension to avoid contradictions
+// Cash/Bank cards: only apply the transaction-type filter (not payment-type, since they ARE the payment breakdown)
+// Plin/Shpenzim cards: only apply the payment-type filter (not transaction-type, since they ARE the transaction breakdown)
+$cashBankWhere = '';
+$cashBankParams = [];
+if ($filterType) { $cashBankWhere = "AND LOWER(TRIM(lloji_i_transaksionit)) = LOWER(TRIM(?))"; $cashBankParams[] = $filterType; }
+
+$plinShpenzimWhere = '';
+$plinShpenzimParams = [];
+if ($filterPayment) { $plinShpenzimWhere = "AND LOWER(TRIM(lloji_i_pageses)) = LOWER(TRIM(?))"; $plinShpenzimParams[] = $filterPayment; }
+
+$totalCashStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' {$cashBankWhere}");
+$totalCashStmt->execute($cashBankParams);
 $totalCash = $totalCashStmt->fetchColumn();
-$totalBankeStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_pageses))='bank'");
-$totalBankeStmt->execute($params);
+$totalBankeStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='bank' {$cashBankWhere}");
+$totalBankeStmt->execute($cashBankParams);
 $totalBanke = $totalBankeStmt->fetchColumn();
-$totalPlinStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_transaksionit))='pagesa per plin'");
-$totalPlinStmt->execute($params);
+$totalPlinStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit))='pagesa per plin' {$plinShpenzimWhere}");
+$totalPlinStmt->execute($plinShpenzimParams);
 $totalPlin = $totalPlinStmt->fetchColumn();
-$totalShpenzimStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet {$summWhere}LOWER(TRIM(lloji_i_transaksionit))='shpenzim'");
-$totalShpenzimStmt->execute($params);
+$totalShpenzimStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit))='shpenzim' {$plinShpenzimWhere}");
+$totalShpenzimStmt->execute($plinShpenzimParams);
 $totalShpenzim = $totalShpenzimStmt->fetchColumn();
 
 // Dropdown options from data
 $llojetTrans = $db->query("SELECT DISTINCT lloji_i_transaksionit FROM shpenzimet WHERE lloji_i_transaksionit IS NOT NULL ORDER BY lloji_i_transaksionit")->fetchAll(PDO::FETCH_COLUMN);
 $llojetPag = $db->query("SELECT DISTINCT lloji_i_pageses FROM shpenzimet WHERE lloji_i_pageses IS NOT NULL ORDER BY lloji_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
 $arsyet = $db->query("SELECT DISTINCT arsyetimi FROM shpenzimet WHERE arsyetimi IS NOT NULL ORDER BY arsyetimi")->fetchAll(PDO::FETCH_COLUMN);
-
-// Fatura e rregullte value (Excel cell B2 = sum of fatura cash expenses)
-$faturaCash = $db->query("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE fatura_e_rregullte IS NOT NULL AND fatura_e_rregullte != ''")->fetchColumn();
 
 $transJSON = json_encode($llojetTrans);
 $pagJSON = json_encode($llojetPag);
@@ -95,11 +101,12 @@ ob_start();
                     <label>Shuma (€) *</label>
                     <input type="number" name="shuma" step="0.01" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="arsyet-group">
                     <label>Arsyetimi / Kategoria</label>
-                    <select name="arsyetimi">
+                    <select name="arsyetimi" id="arsyet-select">
                         <option value="">-- Zgjidh --</option>
                         <?php foreach ($arsyet as $a): ?><option value="<?= e($a) ?>"><?= e($a) ?></option><?php endforeach; ?>
+                        <option value="__new__">+ Shto të re...</option>
                     </select>
                 </div>
             </div>
@@ -204,7 +211,7 @@ ob_start();
                         <td class="editable" data-field="pershkrim_i_detajuar"><?= e($r['pershkrim_i_detajuar']) ?></td>
                         <td class="num editable" data-field="nafta_ne_litra" data-type="number"><?= $r['nafta_ne_litra'] ?: '' ?></td>
                         <td class="editable" data-field="numri_i_fatures"><?= e($r['numri_i_fatures']) ?></td>
-                        <td class="editable" data-field="fatura_e_rregullte" data-type="select" data-options="<?= e(json_encode(['Po'])) ?>"><?= e($r['fatura_e_rregullte']) ?></td>
+                        <td class="editable" data-field="fatura_e_rregullte" data-type="select" data-options="<?= e(json_encode(['Po','Jo'])) ?>"><?= e($r['fatura_e_rregullte']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('shpenzimet',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
                     <?php endforeach; ?>

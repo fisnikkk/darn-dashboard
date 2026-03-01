@@ -100,9 +100,10 @@ ob_start();
             </div>
             <div class="form-row">
                 <div class="form-group"><label>Lloji i nxemjes</label>
-                    <select name="lloji_i_nxemjes">
+                    <select name="lloji_i_nxemjes" id="nxemje-select">
                         <option value="">-- Zgjidh --</option>
                         <?php foreach ($llojet as $l): ?><option value="<?= e($l) ?>"><?= e($l) ?></option><?php endforeach; ?>
+                        <option value="__new__">+ Shto të re...</option>
                     </select>
                 </div>
                 <div class="form-group"><label>Koment</label><input type="text" name="koment"></div>

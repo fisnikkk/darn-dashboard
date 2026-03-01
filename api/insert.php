@@ -41,7 +41,7 @@ try {
     $placeholders = [];
     
     foreach ($schemas[$table] as $col) {
-        if (isset($_POST[$col]) && $_POST[$col] !== '') {
+        if (isset($_POST[$col]) && $_POST[$col] !== '' && $_POST[$col] !== '__new__') {
             $fields[] = $col;
             $values[] = $_POST[$col];
             $placeholders[] = '?';

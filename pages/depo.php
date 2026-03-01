@@ -15,14 +15,6 @@ $db = getDB();
 // All depo entries
 $rows = $db->query("SELECT * FROM depo ORDER BY data ASC, id ASC")->fetchAll();
 
-// Total sold per product from shitje_produkteve (case-insensitive)
-$soldByProduct = $db->query("
-    SELECT LOWER(produkti) as prod, SUM(cilindra_sasia) as total_sold
-    FROM shitje_produkteve
-    WHERE produkti IS NOT NULL
-    GROUP BY LOWER(produkti)
-")->fetchAll(PDO::FETCH_KEY_PAIR);
-
 // Mapping from depo product names to shitje_produkteve search keys
 // Based on Excel SUMIF formulas — uses LIKE '%key%' for flexible matching
 $searchKeyMap = [
@@ -35,12 +27,20 @@ $searchKeyMap = [
 ];
 
 // Auto-detect: for any depo product NOT in searchKeyMap, try matching by name
-// This ensures new products added to depo still get matched to sales
 $allDepoProducts = $db->query("SELECT DISTINCT LOWER(produkti) as prod FROM depo WHERE produkti IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
 foreach ($allDepoProducts as $prod) {
     if (!isset($searchKeyMap[$prod])) {
-        $searchKeyMap[$prod] = $prod; // use the product name itself as the search key
+        $searchKeyMap[$prod] = $prod;
     }
+}
+
+// Total sold per product from shitje_produkteve using LIKE matching
+// Each search key is matched with LIKE '%key%' to mirror Excel SUMIF behavior
+$soldByProduct = [];
+$soldStmt = $db->prepare("SELECT COALESCE(SUM(cilindra_sasia), 0) FROM shitje_produkteve WHERE LOWER(produkti) LIKE ?");
+foreach (array_unique(array_values($searchKeyMap)) as $searchKey) {
+    $soldStmt->execute(['%' . strtolower($searchKey) . '%']);
+    $soldByProduct[$searchKey] = (int)$soldStmt->fetchColumn();
 }
 
 // Manual adjustments from Excel (hardcoded in formulas like G2=D2-F2-620)
