@@ -15,6 +15,24 @@ $offset = ($page - 1) * $perPage;
 $filterType = $_GET['lloji'] ?? '';
 $filterPayment = $_GET['pagesa'] ?? '';
 
+// Server-side sorting
+$sortCol = $_GET['sort'] ?? 'data_e_pageses';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC');
+$allowedSorts = ['data_e_pageses','shuma','arsyetimi','lloji_i_pageses','lloji_i_transaksionit','pershkrim_i_detajuar','nafta_ne_litra','numri_i_fatures','fatura_e_rregullte'];
+if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data_e_pageses';
+if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+function sortThShp($col, $label, $currentSort, $currentDir, $class = '') {
+    $isActive = ($currentSort === $col);
+    $newDir = ($isActive && $currentDir === 'ASC') ? 'DESC' : 'ASC';
+    $params = array_merge($_GET, ['sort' => $col, 'dir' => $newDir, 'page' => 1]);
+    $url = '?' . http_build_query($params);
+    $icon = $isActive ? ($currentDir === 'ASC' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+    $activeStyle = $isActive ? 'color:var(--primary);font-weight:600;' : '';
+    $classes = trim(($class ? $class . ' ' : '') . 'server-sort');
+    return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
+}
+
 $where = [];
 $params = [];
 if ($filterType) { $where[] = "LOWER(TRIM(lloji_i_transaksionit)) = LOWER(TRIM(?))"; $params[] = $filterType; }
@@ -26,7 +44,7 @@ $totalRows->execute($params);
 $totalRows = $totalRows->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
 
-$stmt = $db->prepare("SELECT * FROM shpenzimet {$whereSQL} ORDER BY data_e_pageses DESC, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$stmt = $db->prepare("SELECT * FROM shpenzimet {$whereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
@@ -185,18 +203,18 @@ ob_start();
     </div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="shpenzimet">
+            <table class="data-table" data-table="shpenzimet" data-server-sort="true">
                 <thead>
                     <tr>
-                        <th>Data</th>
-                        <th class="num">Shuma</th>
-                        <th>Arsyetimi</th>
-                        <th>Lloji pagesës</th>
-                        <th>Lloji transaksionit</th>
-                        <th>Përshkrim</th>
-                        <th class="num">Nafta (L)</th>
-                        <th>Nr. Faturës</th>
-                        <th>Fat. rregullt</th>
+                        <?= sortThShp('data_e_pageses', 'Data', $sortCol, $sortDir) ?>
+                        <?= sortThShp('shuma', 'Shuma', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThShp('arsyetimi', 'Arsyetimi', $sortCol, $sortDir) ?>
+                        <?= sortThShp('lloji_i_pageses', 'Lloji pagesës', $sortCol, $sortDir) ?>
+                        <?= sortThShp('lloji_i_transaksionit', 'Lloji transaksionit', $sortCol, $sortDir) ?>
+                        <?= sortThShp('pershkrim_i_detajuar', 'Përshkrim', $sortCol, $sortDir) ?>
+                        <?= sortThShp('nafta_ne_litra', 'Nafta (L)', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThShp('numri_i_fatures', 'Nr. Faturës', $sortCol, $sortDir) ?>
+                        <?= sortThShp('fatura_e_rregullte', 'Fat. rregullt', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
                 </thead>
