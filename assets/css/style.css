@@ -79,7 +79,7 @@ body {
     color: #fff;
     border-left-color: var(--sidebar-active);
 }
-.nav-item i { width: 20px; text-align: center; font-size: 0.9rem; }
+.nav-item i { width: 24px; min-width: 24px; text-align: center; font-size: 0.9rem; }
 
 /* Main Content */
 .main-content {
@@ -160,7 +160,19 @@ body {
 .card-body.padded { padding: 20px; }
 
 /* Data Table */
-.table-wrapper { overflow-x: auto; max-width: 100%; }
+.table-wrapper {
+    overflow-x: auto;
+    max-width: 100%;
+    /* Fade hint when content overflows right */
+    background:
+        linear-gradient(to right, var(--card-bg) 30%, transparent) left center,
+        linear-gradient(to left, var(--card-bg) 30%, transparent) right center,
+        linear-gradient(to right, rgba(0,0,0,0.08), transparent) left center,
+        linear-gradient(to left, rgba(0,0,0,0.08), transparent) right center;
+    background-size: 20px 100%, 20px 100%, 10px 100%, 10px 100%;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+}
 table.data-table {
     min-width: 100%;
     width: max-content;
@@ -523,9 +535,12 @@ th.sort-desc .sort-icon { opacity: 1; }
     .sidebar.mobile-open {
         transform: translateX(0);
     }
+    .sidebar .sidebar-header { padding: 14px 16px; text-align: left; }
     .sidebar .sidebar-header h2 { font-size: 1.1rem; }
     .sidebar .sidebar-header small { display: block; }
+    .sidebar .nav-item { justify-content: flex-start; padding: 9px 16px; }
     .sidebar .nav-item span { display: inline; }
+    .sidebar .nav-item i { width: 24px; min-width: 24px; font-size: 0.9rem; }
 
     /* Overlay backdrop when sidebar is open */
     .sidebar-backdrop {
@@ -562,9 +577,36 @@ th.sort-desc .sort-icon { opacity: 1; }
     table.data-table tbody td { padding: 3px 5px; }
     .table-wrapper { -webkit-overflow-scrolling: touch; }
 
-    /* Summary tables (overview page) — stack on mobile */
-    table.summary-table thead th { font-size: 0.58rem; padding: 4px 3px; }
-    table.summary-table tbody td.amount { font-size: 0.8rem; padding: 6px 3px; }
+    /* Summary tables (overview page) — stack vertically on mobile */
+    table.summary-table,
+    table.summary-table thead,
+    table.summary-table tbody,
+    table.summary-table tr,
+    table.summary-table th,
+    table.summary-table td {
+        display: block;
+        width: 100%;
+    }
+    table.summary-table thead tr { display: none; }
+    table.summary-table tbody tr { display: flex; flex-direction: column; }
+    table.summary-table tbody td.amount {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        font-size: 0.9rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    table.summary-table tbody td.amount::before {
+        content: attr(data-label);
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        flex-shrink: 0;
+        max-width: 50%;
+    }
 
     /* Cards */
     .card { margin-bottom: 12px; }

@@ -139,12 +139,12 @@ ob_start();
             </thead>
             <tbody>
                 <tr>
-                    <td class="amount">&euro; <?= eur($payments['cash']) ?></td>
-                    <td class="amount">&euro; <?= eur($payments['fature_cash']) ?></td>
-                    <td class="amount">&euro; <?= eur($payments['fature_banke']) ?></td>
-                    <td class="amount">&euro; <?= eur($payments['bank']) ?></td>
-                    <td class="amount">&euro; <?= eur($payments['no_payment']) ?></td>
-                    <td class="amount">&euro; <?= eur($dhurateResidual) ?></td>
+                    <td class="amount" data-label="Cash (Pagesa pa fature)">&euro; <?= eur($payments['cash']) ?></td>
+                    <td class="amount" data-label="Fature te rregullte cash">&euro; <?= eur($payments['fature_cash']) ?></td>
+                    <td class="amount" data-label="Fature te rregullte banke">&euro; <?= eur($payments['fature_banke']) ?></td>
+                    <td class="amount" data-label="Bank (ende e papaguar)">&euro; <?= eur($payments['bank']) ?></td>
+                    <td class="amount" data-label="Te papaguara">&euro; <?= eur($payments['no_payment']) ?></td>
+                    <td class="amount" data-label="Dhurate (residual)">&euro; <?= eur($dhurateResidual) ?></td>
                 </tr>
             </tbody>
         </table>
@@ -230,10 +230,10 @@ ob_start();
             </thead>
             <tbody>
                 <tr>
-                    <td class="amount"><?= eur($litraBlera) ?> L</td>
-                    <td class="amount"><?= eur($litraFaturuara) ?> L</td>
-                    <td class="amount"><?= eur($litraShitura) ?> L</td>
-                    <td class="amount"><?= eur($litraBlera - $litraFaturuara) ?> L</td>
+                    <td class="amount" data-label="Litra te blera (me fature)"><?= eur($litraBlera) ?> L</td>
+                    <td class="amount" data-label="Litra te faturuara te klienti"><?= eur($litraFaturuara) ?> L</td>
+                    <td class="amount" data-label="Litra te shitura"><?= eur($litraShitura) ?> L</td>
+                    <td class="amount" data-label="Litra qe mund te faturohen"><?= eur($litraBlera - $litraFaturuara) ?> L</td>
                 </tr>
             </tbody>
         </table>
