@@ -2,6 +2,22 @@
    DARN Dashboard - Core JavaScript
    ============================================================ */
 
+/* ---- Mobile sidebar toggle ---- */
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    if (window.innerWidth <= 768) {
+        sidebar.classList.toggle('mobile-open');
+        backdrop.classList.toggle('active');
+    } else {
+        sidebar.classList.toggle('collapsed');
+    }
+}
+function closeMobileSidebar() {
+    document.getElementById('sidebar').classList.remove('mobile-open');
+    document.getElementById('sidebarBackdrop').classList.remove('active');
+}
+
 function showToast(message, type = 'success') {
     let toast = document.getElementById('toast');
     if (!toast) {

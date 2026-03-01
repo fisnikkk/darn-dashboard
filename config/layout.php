@@ -49,10 +49,13 @@ function renderLayout($pageTitle, $currentPage, $content) {
         </nav>
     </aside>
 
+    <!-- Sidebar backdrop for mobile -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileSidebar()"></div>
+
     <!-- Main Content -->
     <main class="main-content">
         <header class="top-bar">
-            <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">
+            <button class="menu-toggle" onclick="toggleSidebar()">
                 <i class="fas fa-bars"></i>
             </button>
             <h1><?= htmlspecialchars($pageTitle) ?></h1>
