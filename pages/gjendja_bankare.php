@@ -9,7 +9,7 @@ require_once __DIR__ . '/../config/layout.php';
 $db = getDB();
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
-if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
+if (!in_array($perPage, [100, 500, 1000, 5000])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 
 // Server-side sorting
@@ -32,10 +32,12 @@ function sortThGB($col, $label, $currentSort, $currentDir, $class = '') {
 
 // Multi-select column filters
 $fGbLloji = getFilterParam('f_lloji');
+$fGbValuta = getFilterParam('f_valuta');
 
 $gbWhere = [];
 $gbParams = [];
 if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 $gbWhereSQL = $gbWhere ? 'WHERE ' . implode(' AND ', $gbWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM gjendja_bankare {$gbWhereSQL}");
@@ -52,6 +54,7 @@ $deponime = $db->query("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare WHERE
 
 $llojet = $db->query("SELECT DISTINCT lloji FROM gjendja_bankare WHERE lloji IS NOT NULL ORDER BY lloji")->fetchAll(PDO::FETCH_COLUMN);
 $llojiJSON = json_encode($llojet);
+$gbValutat = $db->query("SELECT DISTINCT valuta FROM gjendja_bankare WHERE valuta IS NOT NULL AND valuta != '' ORDER BY valuta")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -80,7 +83,7 @@ ob_start();
                         <?= sortThGB('data_valutes', 'Data Valutës', $sortCol, $sortDir) ?>
                         <?= sortThGB('ora', 'Ora', $sortCol, $sortDir) ?>
                         <?= sortThGB('shpjegim', 'Shpjegim', $sortCol, $sortDir) ?>
-                        <?= sortThGB('valuta', 'Valuta', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThGB('valuta', 'Valuta', $sortCol, $sortDir), 'f_valuta', $gbValutat) ?>
                         <?= sortThGB('debia', 'Debi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('kredi', 'Kredi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>

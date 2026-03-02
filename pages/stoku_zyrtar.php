@@ -10,8 +10,24 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
-// All entries
-$rows = $db->query("SELECT * FROM stoku_zyrtar ORDER BY data ASC, id ASC")->fetchAll();
+// Multi-select column filters
+$fSzKodi = getFilterParam('f_kodi');
+$fSzDest = getFilterParam('f_dest');
+
+$szWhere = [];
+$szParams = [];
+if ($fSzKodi) { $fin = buildFilterIn($fSzKodi, 'kodi'); $szWhere[] = $fin['sql']; $szParams = array_merge($szParams, $fin['params']); }
+if ($fSzDest) { $fin = buildFilterIn($fSzDest, 'kodi_2'); $szWhere[] = $fin['sql']; $szParams = array_merge($szParams, $fin['params']); }
+$szWhereSQL = $szWhere ? 'WHERE ' . implode(' AND ', $szWhere) : '';
+
+// Distinct values for filters
+$szKodiVals = $db->query("SELECT DISTINCT kodi FROM stoku_zyrtar WHERE kodi IS NOT NULL ORDER BY kodi")->fetchAll(PDO::FETCH_COLUMN);
+$szDestVals = $db->query("SELECT DISTINCT kodi_2 FROM stoku_zyrtar WHERE kodi_2 IS NOT NULL AND kodi_2 != '' ORDER BY kodi_2")->fetchAll(PDO::FETCH_COLUMN);
+
+// All entries (with filters)
+$szStmt = $db->prepare("SELECT * FROM stoku_zyrtar {$szWhereSQL} ORDER BY data ASC, id ASC");
+$szStmt->execute($szParams);
+$rows = $szStmt->fetchAll();
 
 // Stoku momental per product code (SUMIFS equivalent)
 $stokuPerKodi = $db->query("
@@ -106,8 +122,8 @@ ob_start();
                 <thead>
                     <tr>
                         <th>Data</th>
-                        <th>Kodi</th>
-                        <th>Destinacioni</th>
+                        <th data-filter="f_kodi" data-filter-values="<?= e(json_encode($szKodiVals, JSON_UNESCAPED_UNICODE)) ?>">Kodi</th>
+                        <th data-filter="f_dest" data-filter-values="<?= e(json_encode($szDestVals, JSON_UNESCAPED_UNICODE)) ?>">Destinacioni</th>
                         <th>Përshkrimi</th>
                         <th>Njësi</th>
                         <th class="num">Sasia</th>

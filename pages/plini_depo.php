@@ -10,7 +10,7 @@ $db = getDB();
 
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
-if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
+if (!in_array($perPage, [100, 500, 1000, 5000])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 
 // Server-side sorting

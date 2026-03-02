@@ -13,8 +13,18 @@ $db = getDB();
 // Date filter (mirrors Excel cell M1)
 $dateDeri = $_GET['date'] ?? date('Y-m-d');
 
+// Multi-select column filters
+$fBorxhKlienti = getFilterParam('f_klienti');
+
+$borxhWhere = [];
+$borxhParams = [];
+if ($fBorxhKlienti) { $fin = buildFilterIn($fBorxhKlienti, 'klienti'); $borxhWhere[] = $fin['sql']; $borxhParams = array_merge($borxhParams, $fin['params']); }
+$borxhWhereSQL = $borxhWhere ? 'WHERE ' . implode(' AND ', $borxhWhere) : '';
+
+// Distinct clients for filter
+$borxhKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
+
 // Core query: debt by client and payment type up to the filter date
-// This replaces ~7,500 SUMIFS formulas from the Excel (836 clients × 9 formulas each)
 $stmt = $db->prepare("
     SELECT
         MIN(klienti) AS klienti,
@@ -28,11 +38,12 @@ $stmt = $db->prepare("
         -- Borxhi deri datën: Bank payments only up to filter date
         SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'bank' AND data <= ? THEN pagesa ELSE 0 END) AS borxhi_bank_deri
     FROM distribuimi
+    {$borxhWhereSQL}
     GROUP BY LOWER(klienti)
     HAVING total > 0
     ORDER BY MIN(klienti)
 ");
-$stmt->execute([$dateDeri]);
+$stmt->execute(array_merge([$dateDeri], $borxhParams));
 $debts = $stmt->fetchAll();
 
 // Totals
@@ -63,7 +74,7 @@ ob_start();
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Klienti</th>
+                        <th data-filter="f_klienti" data-filter-values="<?= e(json_encode($borxhKlientet, JSON_UNESCAPED_UNICODE)) ?>">Klienti</th>
                         <th class="num">Cash</th>
                         <th class="num">Bank</th>
                         <th class="num">Faturë banke</th>

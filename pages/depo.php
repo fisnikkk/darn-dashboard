@@ -12,8 +12,21 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
-// All depo entries
-$rows = $db->query("SELECT * FROM depo ORDER BY data ASC, id ASC")->fetchAll();
+// Multi-select column filters
+$fDepoProdukti = getFilterParam('f_produkti');
+
+$depoWhere = [];
+$depoParams = [];
+if ($fDepoProdukti) { $fin = buildFilterIn($fDepoProdukti, 'produkti'); $depoWhere[] = $fin['sql']; $depoParams = array_merge($depoParams, $fin['params']); }
+$depoWhereSQL = $depoWhere ? 'WHERE ' . implode(' AND ', $depoWhere) : '';
+
+// Distinct products for filter
+$depoProduktet = $db->query("SELECT DISTINCT produkti FROM depo WHERE produkti IS NOT NULL ORDER BY produkti")->fetchAll(PDO::FETCH_COLUMN);
+
+// All depo entries (with filters)
+$depoStmt = $db->prepare("SELECT * FROM depo {$depoWhereSQL} ORDER BY data ASC, id ASC");
+$depoStmt->execute($depoParams);
+$rows = $depoStmt->fetchAll();
 
 // Mapping from depo product names to shitje_produkteve search keys
 // Based on Excel SUMIF formulas — uses LIKE '%key%' for flexible matching
@@ -141,7 +154,7 @@ ob_start();
                 <thead>
                     <tr>
                         <th>Data</th>
-                        <th>Produkti</th>
+                        <th data-filter="f_produkti" data-filter-values="<?= e(json_encode($depoProduktet, JSON_UNESCAPED_UNICODE)) ?>">Produkti</th>
                         <th class="num">Sasia</th>
                         <th class="num">Çmimi</th>
                         <th></th>

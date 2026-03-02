@@ -141,6 +141,7 @@ sort($clients);
 
 // Distinct values for Excel-like column filters
 $distMenyraVals = $db->query("SELECT DISTINCT menyra_e_pageses FROM distribuimi WHERE menyra_e_pageses IS NOT NULL AND menyra_e_pageses != '' ORDER BY menyra_e_pageses")->fetchAll(PDO::FETCH_COLUMN);
+$distFaturaVals = $db->query("SELECT DISTINCT fatura_e_derguar FROM distribuimi WHERE fatura_e_derguar IS NOT NULL AND fatura_e_derguar != '' ORDER BY fatura_e_derguar")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -246,7 +247,7 @@ ob_start();
                         <?= sortTh('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
                         <?= sortTh('pagesa', 'Pagesa', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
-                        <?= sortTh('fatura_e_derguar', 'Fatura e dërguar', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortTh('fatura_e_derguar', 'Fatura e dërguar', $sortCol, $sortDir), 'f_fatura', $distFaturaVals) ?>
                         <?= sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir) ?>
                         <th>Koment</th>
                         <?= sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num') ?>
