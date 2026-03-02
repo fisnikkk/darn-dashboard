@@ -76,10 +76,8 @@ $bankBalance = $db->query("SELECT COALESCE(bilanci, 0) FROM gjendja_bankare ORDE
 // Product sales cash
 $produkteCash = $db->query("SELECT COALESCE(SUM(totali), 0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash'")->fetchColumn();
 
-// Excel L3: Pare cash vetem nga plini = Cash + Fature cash - Shpenzime cash
-// Calculated from 2022-08-28 onwards per Albulena's requirement
-// Hardcoded additions from pre-system period: +66.4+16.6+34.7+164.2 = +281.9
-$pareCashPlin = $paymentsFrom['cash'] + $paymentsFrom['fature_cash'] - $shpenzimCashFrom + 281.9;
+// Excel L3: Pare cash vetem nga plini = G3 + H3 - U3 (ALL-TIME, no date filter)
+$pareCashPlin = $payments['cash'] + $payments['fature_cash'] - $shpenzimCashAll;
 
 // Excel P3: Total pare cash nga plin dhe produkte
 $totalPareCash = $pareCashPlin + $produkteCash;
@@ -177,7 +175,7 @@ ob_start();
     <div class="summary-card">
         <div class="label">Pare cash nga plini</div>
         <div class="value <?= $pareCashPlin >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($pareCashPlin) ?></div>
-        <small style="color:var(--text-muted);">Nga 28/08/2022 + 281.90 para-sistem</small>
+        <small style="color:var(--text-muted);">Cash + Faturë cash - Shpenzimet cash</small>
     </div>
     <div class="summary-card">
         <div class="label">Pare ne banke</div>
