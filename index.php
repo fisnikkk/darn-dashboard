@@ -70,8 +70,8 @@ $shpenzimCashPaDeponime = $db->query("
     AND LOWER(TRIM(lloji_i_transaksionit)) NOT IN ('deponim i pazarit', 'deponim nga banka ne arke per pagese te plinit ne famgas')
 ")->fetchColumn();
 
-// Bank balance = latest bilanci value (not SUM of credits-debits)
-$bankBalance = $db->query("SELECT COALESCE(bilanci, 0) FROM gjendja_bankare ORDER BY data DESC, id DESC LIMIT 1")->fetchColumn() ?: 0;
+// Bank balance = SUM of all debits + credits (matches Excel M3: =SUM(F)+SUM(G))
+$bankBalance = $db->query("SELECT COALESCE(SUM(debia), 0) + COALESCE(SUM(kredi), 0) FROM gjendja_bankare")->fetchColumn() ?: 0;
 
 // Product sales cash
 $produkteCash = $db->query("SELECT COALESCE(SUM(totali), 0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash'")->fetchColumn();
