@@ -6,7 +6,7 @@ $total = $db->query("SELECT SUM(shuma) as t, COUNT(*) as c FROM shpenzimet WHERE
 echo "DB cash shpenzimet: {$total['t']} ({$total['c']} rows)\n\n";
 
 echo "Rows with date AFTER 2026-02-09:\n";
-$r = $db->query("SELECT id, data, shuma, lloji_i_pageses, pershkrimi FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' AND data > '2026-02-09' ORDER BY data");
+$r = $db->query("SELECT id, data_e_pageses as data, shuma, lloji_i_pageses, pershkrimi FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' AND data_e_pageses > '2026-02-09' ORDER BY data_e_pageses");
 $sum = 0;
 while ($row = $r->fetch()) {
     $sum += $row['shuma'];
