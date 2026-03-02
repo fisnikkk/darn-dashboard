@@ -59,9 +59,11 @@ function sortTh($col, $label, $currentSort, $currentDir, $class = '') {
 }
 
 // Build WHERE clause
+$filterRowId = trim($_GET['row_id'] ?? '');
 $where = [];
 $params = [];
-if ($filterClient) { $where[] = "LOWER(TRIM(d.klienti)) LIKE LOWER(TRIM(?))"; $params[] = "%{$filterClient}%"; }
+if ($filterRowId) { $where[] = "(d.row_nr = ? OR d.id = ?)"; $params[] = $filterRowId; $params[] = $filterRowId; }
+if ($filterClient) { $where[] = "d.klienti = ?"; $params[] = $filterClient; }
 if ($filterDateFrom) { $where[] = "d.data >= ?"; $params[] = $filterDateFrom; }
 if ($filterDateTo) { $where[] = "d.data <= ?"; $params[] = $filterDateTo; }
 if ($filterPayment) { $where[] = "LOWER(TRIM(d.menyra_e_pageses)) = LOWER(TRIM(?))"; $params[] = $filterPayment; }
@@ -203,13 +205,17 @@ ob_start();
             <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
             <?php endif; ?>
             <div class="form-group">
+                <label># / ID</label>
+                <input type="text" name="row_id" value="<?= e($_GET['row_id'] ?? '') ?>" placeholder="Kërko ID..." style="width:90px;">
+            </div>
+            <div class="form-group">
                 <label>Klienti</label>
-                <input type="text" name="klienti" value="<?= e($filterClient) ?>" placeholder="Kërko klient..." list="clientList">
-                <datalist id="clientList">
+                <select name="klienti" style="min-width:160px;">
+                    <option value="">Të gjithë</option>
                     <?php foreach ($clients as $c): ?>
-                    <option value="<?= e($c) ?>">
+                    <option value="<?= e($c) ?>" <?= $filterClient === $c ? 'selected' : '' ?>><?= e($c) ?></option>
                     <?php endforeach; ?>
-                </datalist>
+                </select>
             </div>
             <div class="form-group">
                 <label>Data nga</label>
