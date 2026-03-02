@@ -13,6 +13,9 @@ $perPage = (int)($_GET['per_page'] ?? 100);
 if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 $filterBash = $_GET['bashkepunim'] ?? '';
+// Multi-select column filters
+$fBashk = getFilterParam('f_bashk');
+$fQyteti = getFilterParam('f_qyteti');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
@@ -32,8 +35,12 @@ function sortThKt($col, $label, $currentSort, $currentDir, $class = '') {
     return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
 }
 
-$where = $filterBash ? "WHERE LOWER(TRIM(bashkepunim)) = LOWER(TRIM(?))" : "";
-$params = $filterBash ? [$filterBash] : [];
+$whereArr = [];
+$params = [];
+if ($filterBash) { $whereArr[] = "LOWER(TRIM(bashkepunim)) = LOWER(TRIM(?))"; $params[] = $filterBash; }
+if ($fBashk) { $fin = buildFilterIn($fBashk, 'bashkepunim'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fQyteti) { $fin = buildFilterIn($fQyteti, 'qyteti'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+$where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM kontrata {$where}");
 $stmt->execute($params);
@@ -58,6 +65,10 @@ $avgPerMonth = $db->query("
     WHERE sasia > 0
     GROUP BY LOWER(klienti)
 ")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+// Distinct values for column filters
+$bashkValues = $db->query("SELECT DISTINCT bashkepunim FROM kontrata WHERE bashkepunim IS NOT NULL AND bashkepunim != '' ORDER BY bashkepunim")->fetchAll(PDO::FETCH_COLUMN);
+$qytetValues = $db->query("SELECT DISTINCT qyteti FROM kontrata WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -115,8 +126,8 @@ ob_start();
                         <?= sortThKt('name_from_database', 'Emri (DB)', $sortCol, $sortDir) ?>
                         <?= sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num') ?>
                         <th class="num">Sipas distribuimit</th><th class="num">Diferencë</th>
-                        <?= sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir) ?>
-                        <?= sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir), 'f_bashk', $bashkValues) ?>
+                        <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
                         <th>Rruga</th><th>Nr. Unik</th>
                         <th>Përfaqësuesi</th><th>Tel.</th><th>Email</th>
                         <th>Grup njoftues</th><th>Kontratë e vjetër</th><th>Lloji bocave</th>

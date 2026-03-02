@@ -46,3 +46,33 @@ function num($val) {
 function e($str) {
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
+
+/**
+ * Inject data-filter attributes into a <th> HTML string for Excel-like column filters.
+ */
+function withFilter($thHtml, $filterName, $filterValues) {
+    $attr = ' data-filter="' . e($filterName) . '" data-filter-values="' . e(json_encode($filterValues, JSON_UNESCAPED_UNICODE)) . '"';
+    return preg_replace('/<th\b/', '<th' . $attr, $thHtml, 1);
+}
+
+/**
+ * Read multi-select filter params from URL.
+ * Returns array of selected values, or empty array if no filter active.
+ */
+function getFilterParam($name) {
+    return $_GET[$name] ?? [];
+}
+
+/**
+ * Build WHERE IN clause for a multi-select filter.
+ * Returns ['sql' => '...', 'params' => [...]] or null if no filter active.
+ */
+function buildFilterIn($filterValues, $column, $tableAlias = '') {
+    if (empty($filterValues)) return null;
+    $col = $tableAlias ? "{$tableAlias}.{$column}" : $column;
+    $placeholders = implode(',', array_fill(0, count($filterValues), '?'));
+    return [
+        'sql' => "{$col} IN ({$placeholders})",
+        'params' => array_values($filterValues)
+    ];
+}

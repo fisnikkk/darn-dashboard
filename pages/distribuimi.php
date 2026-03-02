@@ -22,6 +22,10 @@ $filterClient = $_GET['klienti'] ?? '';
 $filterDateFrom = $_GET['date_from'] ?? '';
 $filterDateTo = $_GET['date_to'] ?? '';
 $filterPayment = $_GET['payment'] ?? '';
+// Multi-select column filters
+$fKlienti = getFilterParam('f_klienti');
+$fMenyra = getFilterParam('f_menyra');
+$fStatusi = getFilterParam('f_fatura');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
 if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
@@ -53,6 +57,10 @@ if ($filterClient) { $where[] = "LOWER(TRIM(d.klienti)) LIKE LOWER(TRIM(?))"; $p
 if ($filterDateFrom) { $where[] = "d.data >= ?"; $params[] = $filterDateFrom; }
 if ($filterDateTo) { $where[] = "d.data <= ?"; $params[] = $filterDateTo; }
 if ($filterPayment) { $where[] = "LOWER(TRIM(d.menyra_e_pageses)) = LOWER(TRIM(?))"; $params[] = $filterPayment; }
+// Multi-select column filters
+if ($fKlienti) { $fin = buildFilterIn($fKlienti, 'klienti', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fMenyra) { $fin = buildFilterIn($fMenyra, 'menyra_e_pageses', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fStatusi) { $fin = buildFilterIn($fStatusi, 'fatura_e_derguar', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // Count total rows
@@ -130,6 +138,9 @@ $distClientsAll = $db->query("SELECT DISTINCT klienti FROM distribuimi ORDER BY 
 $kontrataClientsAll = $db->query("SELECT DISTINCT name_from_database FROM kontrata WHERE name_from_database IS NOT NULL AND name_from_database != '' ORDER BY name_from_database")->fetchAll(PDO::FETCH_COLUMN);
 $clients = array_unique(array_merge($distClientsAll, $kontrataClientsAll));
 sort($clients);
+
+// Distinct values for Excel-like column filters
+$distMenyraVals = $db->query("SELECT DISTINCT menyra_e_pageses FROM distribuimi WHERE menyra_e_pageses IS NOT NULL AND menyra_e_pageses != '' ORDER BY menyra_e_pageses")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -224,7 +235,7 @@ ob_start();
                     <tr>
                         <th style="width:30px;"><input type="checkbox" id="selectAll" title="Zgjidh te gjitha"></th>
                         <?= sortTh('row_nr', '#', $sortCol, $sortDir) ?>
-                        <?= sortTh('klienti', 'Klienti', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortTh('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $distClientsAll) ?>
                         <?= sortTh('data', 'Data', $sortCol, $sortDir) ?>
                         <?= sortTh('sasia', 'Sasia', $sortCol, $sortDir, 'num') ?>
                         <?= sortTh('boca_te_kthyera', 'Boca të kthyera', $sortCol, $sortDir, 'num') ?>
@@ -233,7 +244,7 @@ ob_start();
                         <?= sortTh('litra', 'Litra', $sortCol, $sortDir, 'num') ?>
                         <?= sortTh('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
                         <?= sortTh('pagesa', 'Pagesa', $sortCol, $sortDir, 'num') ?>
-                        <?= sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
                         <?= sortTh('fatura_e_derguar', 'Fatura e dërguar', $sortCol, $sortDir) ?>
                         <?= sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir) ?>
                         <th>Koment</th>

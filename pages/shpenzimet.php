@@ -15,6 +15,10 @@ $offset = ($page - 1) * $perPage;
 
 $filterType = $_GET['lloji'] ?? '';
 $filterPayment = $_GET['pagesa'] ?? '';
+// Multi-select column filters
+$fArsyetimi = getFilterParam('f_arsyetimi');
+$fLlojiPag = getFilterParam('f_lloji_pag');
+$fLlojiTrans = getFilterParam('f_lloji_trans');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data_e_pageses';
@@ -38,6 +42,10 @@ $where = [];
 $params = [];
 if ($filterType) { $where[] = "LOWER(TRIM(lloji_i_transaksionit)) = LOWER(TRIM(?))"; $params[] = $filterType; }
 if ($filterPayment) { $where[] = "LOWER(TRIM(lloji_i_pageses)) = LOWER(TRIM(?))"; $params[] = $filterPayment; }
+// Multi-select column filters
+if ($fArsyetimi) { $fin = buildFilterIn($fArsyetimi, 'arsyetimi'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fLlojiPag) { $fin = buildFilterIn($fLlojiPag, 'lloji_i_pageses'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fLlojiTrans) { $fin = buildFilterIn($fLlojiTrans, 'lloji_i_transaksionit'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $totalRows = $db->prepare("SELECT COUNT(*) FROM shpenzimet {$whereSQL}");
@@ -217,9 +225,9 @@ ob_start();
                     <tr>
                         <?= sortThShp('data_e_pageses', 'Data', $sortCol, $sortDir) ?>
                         <?= sortThShp('shuma', 'Shuma', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThShp('arsyetimi', 'Arsyetimi', $sortCol, $sortDir) ?>
-                        <?= sortThShp('lloji_i_pageses', 'Lloji pagesës', $sortCol, $sortDir) ?>
-                        <?= sortThShp('lloji_i_transaksionit', 'Lloji transaksionit', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThShp('arsyetimi', 'Arsyetimi', $sortCol, $sortDir), 'f_arsyetimi', $arsyet) ?>
+                        <?= withFilter(sortThShp('lloji_i_pageses', 'Lloji pagesës', $sortCol, $sortDir), 'f_lloji_pag', $llojetPag) ?>
+                        <?= withFilter(sortThShp('lloji_i_transaksionit', 'Lloji transaksionit', $sortCol, $sortDir), 'f_lloji_trans', $llojetTrans) ?>
                         <?= sortThShp('pershkrim_i_detajuar', 'Përshkrim', $sortCol, $sortDir) ?>
                         <?= sortThShp('nafta_ne_litra', 'Nafta (L)', $sortCol, $sortDir, 'num') ?>
                         <?= sortThShp('numri_i_fatures', 'Nr. Faturës', $sortCol, $sortDir) ?>

@@ -30,9 +30,27 @@ function sortThSP($col, $label, $currentSort, $currentDir, $class = '') {
     return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
 }
 
-$totalRows = $db->query("SELECT COUNT(*) FROM shitje_produkteve")->fetchColumn();
+// Multi-select column filters
+$fSpKlienti = getFilterParam('f_klienti');
+$fSpProdukti = getFilterParam('f_produkti');
+$fSpMenyra = getFilterParam('f_menyra');
+$fSpStatusi = getFilterParam('f_statusi');
+
+$spWhere = [];
+$spParams = [];
+if ($fSpKlienti) { $fin = buildFilterIn($fSpKlienti, 'klienti'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpProdukti) { $fin = buildFilterIn($fSpProdukti, 'produkti'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpMenyra) { $fin = buildFilterIn($fSpMenyra, 'menyra_pageses'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpStatusi) { $fin = buildFilterIn($fSpStatusi, 'statusi_i_pageses'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+$spWhereSQL = $spWhere ? 'WHERE ' . implode(' AND ', $spWhere) : '';
+
+$cntStmt = $db->prepare("SELECT COUNT(*) FROM shitje_produkteve {$spWhereSQL}");
+$cntStmt->execute($spParams);
+$totalRows = $cntStmt->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
-$rows = $db->query("SELECT * FROM shitje_produkteve ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
+$rowsStmt = $db->prepare("SELECT * FROM shitje_produkteve {$spWhereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$rowsStmt->execute($spParams);
+$rows = $rowsStmt->fetchAll();
 
 $totalCash = $db->query("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash'")->fetchColumn();
 $totalAll = $db->query("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve")->fetchColumn();
@@ -47,6 +65,8 @@ sort($allClients);
 $produktet = $db->query("SELECT DISTINCT produkti FROM shitje_produkteve WHERE produkti IS NOT NULL ORDER BY produkti")->fetchAll(PDO::FETCH_COLUMN);
 $payTypes = $db->query("SELECT DISTINCT menyra_pageses FROM shitje_produkteve WHERE menyra_pageses IS NOT NULL ORDER BY menyra_pageses")->fetchAll(PDO::FETCH_COLUMN);
 $payJSON = json_encode($payTypes);
+$spClients = $db->query("SELECT DISTINCT klienti FROM shitje_produkteve WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
+$statusiVals = $db->query("SELECT DISTINCT statusi_i_pageses FROM shitje_produkteve WHERE statusi_i_pageses IS NOT NULL AND statusi_i_pageses != '' ORDER BY statusi_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -153,15 +173,15 @@ ob_start();
                     <tr>
                         <?= sortThSP('data', 'Data', $sortCol, $sortDir) ?>
                         <?= sortThSP('cilindra_sasia', 'Sasia', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThSP('produkti', 'Produkti', $sortCol, $sortDir) ?>
-                        <?= sortThSP('klienti', 'Klienti', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThSP('produkti', 'Produkti', $sortCol, $sortDir), 'f_produkti', $produktet) ?>
+                        <?= withFilter(sortThSP('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $spClients) ?>
                         <?= sortThSP('adresa', 'Adresa', $sortCol, $sortDir) ?>
                         <?= sortThSP('qyteti', 'Qyteti', $sortCol, $sortDir) ?>
                         <?= sortThSP('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThSP('totali', 'Totali', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThSP('menyra_pageses', 'Pagesa', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThSP('menyra_pageses', 'Pagesa', $sortCol, $sortDir), 'f_menyra', $payTypes) ?>
                         <?= sortThSP('koment', 'Koment', $sortCol, $sortDir) ?>
-                        <?= sortThSP('statusi_i_pageses', 'Statusi', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThSP('statusi_i_pageses', 'Statusi', $sortCol, $sortDir), 'f_statusi', $statusiVals) ?>
                         <th></th>
                     </tr>
                 </thead>

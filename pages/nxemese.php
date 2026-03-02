@@ -26,6 +26,9 @@ $totalTerren = $db->query("SELECT COALESCE(SUM(te_dhena) - SUM(te_marra), 0) FRO
 // Filters
 $filterClient = $_GET['klienti'] ?? '';
 $filterLloji = $_GET['lloji'] ?? '';
+// Multi-select column filters
+$fNxKlienti = getFilterParam('f_klienti');
+$fNxLloji = getFilterParam('f_lloji');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
@@ -50,6 +53,9 @@ $nxWhere = [];
 $nxParams = [];
 if ($filterClient) { $nxWhere[] = "LOWER(TRIM(klienti)) LIKE LOWER(TRIM(?))"; $nxParams[] = "%{$filterClient}%"; }
 if ($filterLloji) { $nxWhere[] = "LOWER(TRIM(lloji_i_nxemjes)) = LOWER(TRIM(?))"; $nxParams[] = $filterLloji; }
+// Multi-select column filters
+if ($fNxKlienti) { $fin = buildFilterIn($fNxKlienti, 'klienti'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
+if ($fNxLloji) { $fin = buildFilterIn($fNxLloji, 'lloji_i_nxemjes'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
 $nxWhereSQL = $nxWhere ? 'WHERE ' . implode(' AND ', $nxWhere) : '';
 
 // All transactions (with filters)
@@ -176,11 +182,11 @@ ob_start();
             <table class="data-table" data-table="nxemese" data-server-sort="true">
                 <thead><tr>
                     <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
-                    <?= sortThNx('klienti', 'Klienti', $sortCol, $sortDir) ?>
+                    <?= withFilter(sortThNx('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $klientet) ?>
                     <?= sortThNx('te_dhena', 'Dhënë', $sortCol, $sortDir, 'num') ?>
                     <?= sortThNx('te_marra', 'Marrë', $sortCol, $sortDir, 'num') ?>
                     <th class="num">Në stok</th><th class="num">Total terren</th>
-                    <?= sortThNx('lloji_i_nxemjes', 'Lloji', $sortCol, $sortDir) ?>
+                    <?= withFilter(sortThNx('lloji_i_nxemjes', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
                     <?= sortThNx('koment', 'Koment', $sortCol, $sortDir) ?>
                     <th></th>
                 </tr></thead>

@@ -8,6 +8,24 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
+// Auto-create changelog table if it doesn't exist
+try {
+    $db->query("SELECT 1 FROM changelog LIMIT 1");
+} catch (PDOException $e) {
+    $db->exec("CREATE TABLE IF NOT EXISTS changelog (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        action_type VARCHAR(20) NOT NULL,
+        table_name VARCHAR(64) NOT NULL,
+        row_id INT,
+        field_name VARCHAR(64),
+        old_value TEXT,
+        new_value TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_table (table_name),
+        INDEX idx_created (created_at)
+    )");
+}
+
 // Pagination
 $perPage = 100;
 $page = max(1, (int)($_GET['page'] ?? 1));

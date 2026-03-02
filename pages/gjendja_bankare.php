@@ -30,9 +30,21 @@ function sortThGB($col, $label, $currentSort, $currentDir, $class = '') {
     return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
 }
 
-$totalRows = $db->query("SELECT COUNT(*) FROM gjendja_bankare")->fetchColumn();
+// Multi-select column filters
+$fGbLloji = getFilterParam('f_lloji');
+
+$gbWhere = [];
+$gbParams = [];
+if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+$gbWhereSQL = $gbWhere ? 'WHERE ' . implode(' AND ', $gbWhere) : '';
+
+$cntStmt = $db->prepare("SELECT COUNT(*) FROM gjendja_bankare {$gbWhereSQL}");
+$cntStmt->execute($gbParams);
+$totalRows = $cntStmt->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
-$rows = $db->query("SELECT * FROM gjendja_bankare ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
+$rowsStmt = $db->prepare("SELECT * FROM gjendja_bankare {$gbWhereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$rowsStmt->execute($gbParams);
+$rows = $rowsStmt->fetchAll();
 
 $totalDebi = $db->query("SELECT COALESCE(SUM(debia),0) FROM gjendja_bankare")->fetchColumn();
 $totalKredi = $db->query("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare")->fetchColumn();
@@ -73,7 +85,7 @@ ob_start();
                         <?= sortThGB('kredi', 'Kredi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir) ?>
-                        <?= sortThGB('lloji', 'Lloji', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
                         <th></th>
                     </tr>
                 </thead>

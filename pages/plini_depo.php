@@ -31,10 +31,26 @@ function sortThPD($col, $label, $currentSort, $currentDir, $class = '') {
     return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
 }
 
-$totalRows = $db->query("SELECT COUNT(*) FROM plini_depo")->fetchColumn();
+// Multi-select column filters
+$fPdMenyra = getFilterParam('f_menyra');
+$fPdCash = getFilterParam('f_cash');
+$fPdFurn = getFilterParam('f_furnitori');
+
+$pdWhere = [];
+$pdParams = [];
+if ($fPdMenyra) { $fin = buildFilterIn($fPdMenyra, 'menyra_e_pageses'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdCash) { $fin = buildFilterIn($fPdCash, 'cash_banke'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdFurn) { $fin = buildFilterIn($fPdFurn, 'furnitori'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+$pdWhereSQL = $pdWhere ? 'WHERE ' . implode(' AND ', $pdWhere) : '';
+
+$cntStmt = $db->prepare("SELECT COUNT(*) FROM plini_depo {$pdWhereSQL}");
+$cntStmt->execute($pdParams);
+$totalRows = $cntStmt->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
 
-$rows = $db->query("SELECT * FROM plini_depo ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
+$rowsStmt = $db->prepare("SELECT * FROM plini_depo {$pdWhereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$rowsStmt->execute($pdParams);
+$rows = $rowsStmt->fetchAll();
 
 $totalBlerje = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo")->fetchColumn();
 $blerjeFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='me fature'")->fetchColumn();
@@ -156,9 +172,9 @@ ob_start();
                         <?= sortThPD('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThPD('faturat_e_pranuara', 'Faturat', $sortCol, $sortDir, 'num') ?>
                         <?= sortThPD('dalje_pagesat_sipas_bankes', 'Dalje/Banke', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThPD('menyra_e_pageses', 'Mënyra', $sortCol, $sortDir) ?>
-                        <?= sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir) ?>
-                        <?= sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThPD('menyra_e_pageses', 'Mënyra', $sortCol, $sortDir), 'f_menyra', $menyratPag) ?>
+                        <?= withFilter(sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir), 'f_cash', $cashBanke) ?>
+                        <?= withFilter(sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir), 'f_furnitori', $furnitoret) ?>
                         <?= sortThPD('koment', 'Koment', $sortCol, $sortDir) ?>
                         <th class="num">Gjendja</th>
                         <th></th>

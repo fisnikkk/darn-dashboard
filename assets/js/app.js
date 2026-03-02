@@ -593,6 +593,176 @@ function initAddNewSelects() {
     });
 }
 
+/* ---- Excel-like Column Filters ---- */
+
+function initColumnFilters() {
+    // Find all th[data-filter] elements — each has a JSON list of distinct values
+    // and the URL param name to use
+    document.querySelectorAll('th[data-filter]').forEach(th => {
+        const paramName = th.dataset.filter;      // e.g. "f_menyra_e_pageses"
+        let values = [];
+        try { values = JSON.parse(th.dataset.filterValues || '[]'); } catch(e) {}
+        if (!values.length) return;
+
+        // Read currently active filter from URL
+        const url = new URL(window.location);
+        const activeFilters = url.searchParams.getAll(paramName + '[]');
+
+        // Build filter button
+        const wrap = document.createElement('span');
+        wrap.className = 'col-filter-wrap';
+        const btn = document.createElement('button');
+        btn.className = 'col-filter-btn' + (activeFilters.length ? ' active' : '');
+        btn.innerHTML = '<i class="fas fa-filter"></i>';
+        btn.title = 'Filtro';
+        btn.type = 'button';
+
+        // Build dropdown
+        const dropdown = document.createElement('div');
+        dropdown.className = 'col-filter-dropdown';
+        dropdown.innerHTML = `
+            <div class="col-filter-search"><input type="text" placeholder="Kërko..." autocomplete="off"></div>
+            <div class="col-filter-list"></div>
+            <div class="col-filter-actions">
+                <button type="button" class="cf-cancel">Anulo</button>
+                <button type="button" class="cf-clear">Pastro</button>
+                <button type="button" class="cf-ok">OK</button>
+            </div>
+        `;
+
+        const list = dropdown.querySelector('.col-filter-list');
+        const searchInput = dropdown.querySelector('.col-filter-search input');
+
+        // Determine initial check state: if no active filters, all are checked (no filter)
+        const hasActive = activeFilters.length > 0;
+
+        // Build "Select All" item
+        const selectAllItem = document.createElement('div');
+        selectAllItem.className = 'col-filter-item select-all';
+        selectAllItem.innerHTML = `<input type="checkbox" ${!hasActive ? 'checked' : ''}><label>(Zgjidh të gjitha)</label>`;
+        list.appendChild(selectAllItem);
+        const selectAllCb = selectAllItem.querySelector('input');
+
+        // Build items for each value
+        const items = [];
+        values.forEach(val => {
+            const displayVal = val || '(Bosh)';
+            const isChecked = !hasActive || activeFilters.includes(val);
+            const item = document.createElement('div');
+            item.className = 'col-filter-item';
+            item.dataset.value = val;
+            item.innerHTML = `<input type="checkbox" ${isChecked ? 'checked' : ''}><label>${escHtml(displayVal)}</label>`;
+            list.appendChild(item);
+            items.push(item);
+
+            // Click on label/item toggles checkbox
+            item.addEventListener('click', function(e) {
+                if (e.target.tagName === 'INPUT') return;
+                const cb = this.querySelector('input');
+                cb.checked = !cb.checked;
+                updateSelectAll();
+            });
+        });
+
+        function updateSelectAll() {
+            const allChecked = items.every(it => it.querySelector('input').checked);
+            selectAllCb.checked = allChecked;
+        }
+
+        // Select All toggle
+        selectAllItem.addEventListener('click', function(e) {
+            if (e.target.tagName === 'INPUT') {
+                items.forEach(it => it.querySelector('input').checked = selectAllCb.checked);
+                return;
+            }
+            selectAllCb.checked = !selectAllCb.checked;
+            items.forEach(it => it.querySelector('input').checked = selectAllCb.checked);
+        });
+
+        // Search within filter values
+        searchInput.addEventListener('input', function() {
+            const q = this.value.toLowerCase();
+            items.forEach(it => {
+                const text = it.querySelector('label').textContent.toLowerCase();
+                it.style.display = text.includes(q) ? '' : 'none';
+            });
+        });
+
+        // OK button - apply filter
+        dropdown.querySelector('.cf-ok').addEventListener('click', function() {
+            const allChecked = items.every(it => it.querySelector('input').checked);
+            const noneChecked = items.every(it => !it.querySelector('input').checked);
+
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete(paramName + '[]');
+            newUrl.searchParams.set('page', '1');
+
+            if (!allChecked && !noneChecked) {
+                items.forEach(it => {
+                    if (it.querySelector('input').checked) {
+                        newUrl.searchParams.append(paramName + '[]', it.dataset.value);
+                    }
+                });
+            }
+            // If all checked or none checked, remove filter entirely
+            window.location.href = newUrl.toString();
+        });
+
+        // Cancel button
+        dropdown.querySelector('.cf-cancel').addEventListener('click', function() {
+            dropdown.classList.remove('open');
+        });
+
+        // Clear button - remove this filter
+        dropdown.querySelector('.cf-clear').addEventListener('click', function() {
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete(paramName + '[]');
+            newUrl.searchParams.set('page', '1');
+            window.location.href = newUrl.toString();
+        });
+
+        // Toggle dropdown
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Close any other open dropdowns
+            document.querySelectorAll('.col-filter-dropdown.open').forEach(d => {
+                if (d !== dropdown) d.classList.remove('open');
+            });
+            dropdown.classList.toggle('open');
+            if (dropdown.classList.contains('open')) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+                // Check if dropdown goes off-screen right
+                setTimeout(() => {
+                    const rect = dropdown.getBoundingClientRect();
+                    if (rect.right > window.innerWidth - 10) {
+                        dropdown.classList.add('align-right');
+                    }
+                }, 0);
+                setTimeout(() => searchInput.focus(), 50);
+            }
+        });
+
+        // Close on outside click
+        dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+
+        wrap.appendChild(btn);
+        wrap.appendChild(dropdown);
+        th.appendChild(wrap);
+    });
+
+    // Global: close all filter dropdowns on outside click
+    document.addEventListener('click', function() {
+        document.querySelectorAll('.col-filter-dropdown.open').forEach(d => d.classList.remove('open'));
+    });
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
 /* ---- Init on page load ---- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -601,6 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTableSearch();
     initTableSort();
     initAddNewSelects();
+    initColumnFilters();
     document.querySelectorAll('.modal-overlay').forEach(o => {
         o.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('active'); });
     });
