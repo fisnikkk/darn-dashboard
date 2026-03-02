@@ -28,7 +28,7 @@ $fMenyra = getFilterParam('f_menyra');
 $fStatusi = getFilterParam('f_fatura');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
-if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
+if (!in_array($perPage, [100, 500, 1000, 5000])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 
 // Server-side sorting
@@ -208,7 +208,8 @@ ob_start();
                 <select name="per_page">
                     <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
                     <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
-                    <option value="99999" <?= $perPage==99999?'selected':'' ?>>Të gjitha</option>
+                    <option value="1000" <?= $perPage==1000?'selected':'' ?>>1000</option>
+                    <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
