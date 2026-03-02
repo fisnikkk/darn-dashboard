@@ -601,6 +601,29 @@ function initAddNewSelects() {
     });
 }
 
+/* ---- Client-side filter helper ---- */
+
+function applyClientFilters(table) {
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    const allRows = tbody.querySelectorAll('tr');
+    const filters = table._clientFilters || {};
+
+    allRows.forEach(row => {
+        let visible = true;
+        for (const key of Object.keys(filters)) {
+            const filter = filters[key];
+            const cell = row.cells[filter.colIdx];
+            const val = cell ? cell.textContent.trim() : '';
+            if (!filter.selectedValues.has(val)) {
+                visible = false;
+                break;
+            }
+        }
+        row.style.display = visible ? '' : 'none';
+    });
+}
+
 /* ---- Excel-like Column Filters ---- */
 
 function initColumnFilters() {
@@ -701,6 +724,29 @@ function initColumnFilters() {
             const allChecked = items.every(it => it.querySelector('input').checked);
             const noneChecked = items.every(it => !it.querySelector('input').checked);
 
+            // Client-side filter mode (for calculated columns)
+            if (th.dataset.filterMode === 'client') {
+                const colIdx = parseInt(th.dataset.filterCol, 10);
+                const table = th.closest('table');
+                if (!table._clientFilters) table._clientFilters = {};
+
+                if (allChecked || noneChecked) {
+                    delete table._clientFilters[paramName];
+                } else {
+                    const selectedValues = new Set();
+                    items.forEach(it => {
+                        if (it.querySelector('input').checked) selectedValues.add(it.dataset.value);
+                    });
+                    table._clientFilters[paramName] = { colIdx, selectedValues };
+                }
+
+                applyClientFilters(table);
+                dropdown.classList.remove('open');
+                btn.classList.toggle('active', !allChecked && !noneChecked);
+                return;
+            }
+
+            // Server-side filter (URL-based)
             const newUrl = new URL(window.location);
             newUrl.searchParams.delete(paramName + '[]');
             newUrl.searchParams.set('page', '1');
@@ -723,6 +769,19 @@ function initColumnFilters() {
 
         // Clear button - remove this filter
         dropdown.querySelector('.cf-clear').addEventListener('click', function() {
+            // Client-side filter mode
+            if (th.dataset.filterMode === 'client') {
+                const table = th.closest('table');
+                if (table._clientFilters) delete table._clientFilters[paramName];
+                applyClientFilters(table);
+                items.forEach(it => it.querySelector('input').checked = true);
+                selectAllCb.checked = true;
+                btn.classList.remove('active');
+                dropdown.classList.remove('open');
+                return;
+            }
+
+            // Server-side filter
             const newUrl = new URL(window.location);
             newUrl.searchParams.delete(paramName + '[]');
             newUrl.searchParams.set('page', '1');

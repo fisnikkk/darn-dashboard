@@ -16,12 +16,12 @@ $filterBash = $_GET['bashkepunim'] ?? '';
 // Multi-select column filters
 $fBashk = getFilterParam('f_bashk');
 $fQyteti = getFilterParam('f_qyteti');
-$fBiznesi = getFilterParam('f_biznesi');
 $fNameDb = getFilterParam('f_name_db');
 $fRruga = getFilterParam('f_rruga');
 $fPerfaq = getFilterParam('f_perfaq');
 $fLlojiBoca = getFilterParam('f_lloji_boca');
 $fGrupNjoft = getFilterParam('f_grup_njoft');
+$fStok = getFilterParam('f_stok');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
@@ -46,12 +46,12 @@ $params = [];
 if ($filterBash) { $whereArr[] = "LOWER(TRIM(bashkepunim)) = LOWER(TRIM(?))"; $params[] = $filterBash; }
 if ($fBashk) { $fin = buildFilterIn($fBashk, 'bashkepunim'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fQyteti) { $fin = buildFilterIn($fQyteti, 'qyteti'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
-if ($fBiznesi) { $fin = buildFilterIn($fBiznesi, 'biznesi'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fNameDb) { $fin = buildFilterIn($fNameDb, 'name_from_database'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fRruga) { $fin = buildFilterIn($fRruga, 'rruga'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fPerfaq) { $fin = buildFilterIn($fPerfaq, 'perfaqesuesi'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLlojiBoca) { $fin = buildFilterIn($fLlojiBoca, 'lloji_i_bocave'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fGrupNjoft) { $fin = buildFilterIn($fGrupNjoft, 'ne_grup_njoftues'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fStok) { $fin = buildFilterIn($fStok, 'CAST(numri_ne_stok_sipas_kontrates AS CHAR)'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM kontrata {$where}");
@@ -78,15 +78,31 @@ $avgPerMonth = $db->query("
     GROUP BY LOWER(klienti)
 ")->fetchAll(PDO::FETCH_KEY_PAIR);
 
+// Collect distinct calculated values for client-side filters (Sipas distribuimit, Diferenca)
+$distValues = [];
+$diffValues = [];
+foreach ($rows as $r) {
+    $name = $r['name_from_database'] ?: $r['biznesi'];
+    $nameKey = strtolower($name);
+    $bocaDist = (int)($bocaBiznesi[$nameKey] ?? 0);
+    $diff = (int)$r['numri_ne_stok_sipas_kontrates'] - $bocaDist;
+    $distValues[(string)$bocaDist] = true;
+    $diffValues[(string)$diff] = true;
+}
+$distFilterVals = array_keys($distValues);
+usort($distFilterVals, function($a, $b) { return (int)$a - (int)$b; });
+$diffFilterVals = array_keys($diffValues);
+usort($diffFilterVals, function($a, $b) { return (int)$a - (int)$b; });
+
 // Distinct values for column filters
 $bashkValues = $db->query("SELECT DISTINCT bashkepunim FROM kontrata WHERE bashkepunim IS NOT NULL AND bashkepunim != '' ORDER BY bashkepunim")->fetchAll(PDO::FETCH_COLUMN);
 $qytetValues = $db->query("SELECT DISTINCT qyteti FROM kontrata WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
-$biznesiVals = $db->query("SELECT DISTINCT biznesi FROM kontrata WHERE biznesi IS NOT NULL AND biznesi != '' ORDER BY biznesi")->fetchAll(PDO::FETCH_COLUMN);
 $nameDbVals = $db->query("SELECT DISTINCT name_from_database FROM kontrata WHERE name_from_database IS NOT NULL AND name_from_database != '' ORDER BY name_from_database")->fetchAll(PDO::FETCH_COLUMN);
 $rrugaVals = $db->query("SELECT DISTINCT rruga FROM kontrata WHERE rruga IS NOT NULL AND rruga != '' ORDER BY rruga LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 $perfaqVals = $db->query("SELECT DISTINCT perfaqesuesi FROM kontrata WHERE perfaqesuesi IS NOT NULL AND perfaqesuesi != '' ORDER BY perfaqesuesi")->fetchAll(PDO::FETCH_COLUMN);
 $llojiBocaVals = $db->query("SELECT DISTINCT lloji_i_bocave FROM kontrata WHERE lloji_i_bocave IS NOT NULL AND lloji_i_bocave != '' ORDER BY lloji_i_bocave")->fetchAll(PDO::FETCH_COLUMN);
 $grupNjoftVals = $db->query("SELECT DISTINCT ne_grup_njoftues FROM kontrata WHERE ne_grup_njoftues IS NOT NULL AND ne_grup_njoftues != '' ORDER BY ne_grup_njoftues")->fetchAll(PDO::FETCH_COLUMN);
+$stokVals = $db->query("SELECT DISTINCT CAST(numri_ne_stok_sipas_kontrates AS CHAR) as v FROM kontrata WHERE numri_ne_stok_sipas_kontrates IS NOT NULL ORDER BY numri_ne_stok_sipas_kontrates+0")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -141,11 +157,10 @@ ob_start();
                     <tr>
                         <?= sortThKt('nr_i_kontrates', 'Nr', $sortCol, $sortDir) ?>
                         <?= sortThKt('data', 'Data', $sortCol, $sortDir) ?>
-                        <?= withFilter(sortThKt('biznesi', 'Biznesi', $sortCol, $sortDir), 'f_biznesi', $biznesiVals) ?>
-                        <?= withFilter(sortThKt('name_from_database', 'Emri (DB)', $sortCol, $sortDir), 'f_name_db', $nameDbVals) ?>
-                        <?= sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num') ?>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Sipas distribuimit <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Diferencë <i class="fas fa-sort"></i></th>
+                        <?= withFilter(sortThKt('name_from_database', 'Emri', $sortCol, $sortDir), 'f_name_db', $nameDbVals) ?>
+                        <?= withFilter(sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num'), 'f_stok', $stokVals) ?>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_sipas_dist" data-filter-values="<?= e(json_encode($distFilterVals)) ?>" data-filter-mode="client" data-filter-col="4">Sipas distribuimit <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_diferenca" data-filter-values="<?= e(json_encode($diffFilterVals)) ?>" data-filter-mode="client" data-filter-col="5">Diferencë <i class="fas fa-sort"></i></th>
                         <?= withFilter(sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir), 'f_bashk', $bashkValues) ?>
                         <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
                         <?= withFilter(sortThKt('rruga', 'Rruga', $sortCol, $sortDir), 'f_rruga', $rrugaVals) ?>
@@ -158,8 +173,8 @@ ob_start();
                         <?= withFilter(sortThKt('lloji_i_bocave', 'Lloji bocave', $sortCol, $sortDir), 'f_lloji_boca', $llojiBocaVals) ?>
                         <?= sortThKt('bocat_e_paguara', 'Bocat e paguara', $sortCol, $sortDir) ?>
                         <?= sortThKt('data_rregullatoret', 'Data rregullatorët', $sortCol, $sortDir) ?>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;color:var(--danger)">Ditë pa marrë <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 20)" style="cursor:pointer;user-select:none;">Mesatare/muaj <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 18)" style="cursor:pointer;user-select:none;color:var(--danger)">Ditë pa marrë <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;">Mesatare/muaj <i class="fas fa-sort"></i></th>
                         <?= sortThKt('koment', 'Koment', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
@@ -176,7 +191,6 @@ ob_start();
                     <tr data-id="<?= $r['id'] ?>" <?= $dite && $dite > 90 ? 'style="background:#fef2f2;"' : '' ?>>
                         <td><?= $r['nr_i_kontrates'] ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
-                        <td class="editable" data-field="biznesi"><?= e($r['biznesi']) ?></td>
                         <td class="editable" data-field="name_from_database" style="color:var(--primary);font-weight:500;"><?= e($r['name_from_database']) ?></td>
                         <td class="num editable" data-field="numri_ne_stok_sipas_kontrates" data-type="number"><?= (int)$r['numri_ne_stok_sipas_kontrates'] ?></td>
                         <td class="num" style="font-weight:600;color:var(--primary);"><?= (int)$bocaDist ?></td>
@@ -233,8 +247,8 @@ ob_start();
                     <div class="form-group"><label>Data</label><input type="date" name="data" value="<?= date('Y-m-d') ?>"></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>Biznesi *</label><input type="text" name="biznesi" required></div>
-                    <div class="form-group"><label>Name from database</label><input type="text" name="name_from_database"></div>
+                    <div class="form-group"><label>Emri / Biznesi *</label><input type="text" name="biznesi" required></div>
+                    <div class="form-group"><label>Emri (DB)</label><input type="text" name="name_from_database"></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>Stok kontratë</label><input type="number" name="numri_ne_stok_sipas_kontrates" value="0"></div>
