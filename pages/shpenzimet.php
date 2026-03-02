@@ -19,6 +19,9 @@ $filterPayment = $_GET['pagesa'] ?? '';
 $fArsyetimi = getFilterParam('f_arsyetimi');
 $fLlojiPag = getFilterParam('f_lloji_pag');
 $fLlojiTrans = getFilterParam('f_lloji_trans');
+$fPershkrim = getFilterParam('f_pershkrim');
+$fNrFatur = getFilterParam('f_nr_fatur');
+$fFatRregullt = getFilterParam('f_fat_rreg');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data_e_pageses';
@@ -46,6 +49,9 @@ if ($filterPayment) { $where[] = "LOWER(TRIM(lloji_i_pageses)) = LOWER(TRIM(?))"
 if ($fArsyetimi) { $fin = buildFilterIn($fArsyetimi, 'arsyetimi'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLlojiPag) { $fin = buildFilterIn($fLlojiPag, 'lloji_i_pageses'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLlojiTrans) { $fin = buildFilterIn($fLlojiTrans, 'lloji_i_transaksionit'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fPershkrim) { $fin = buildFilterIn($fPershkrim, 'pershkrim_i_detajuar'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fNrFatur) { $fin = buildFilterIn($fNrFatur, 'numri_i_fatures'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fFatRregullt) { $fin = buildFilterIn($fFatRregullt, 'fatura_e_rregullte'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $totalRows = $db->prepare("SELECT COUNT(*) FROM shpenzimet {$whereSQL}");
@@ -85,6 +91,9 @@ $totalShpenzim = $totalShpenzimStmt->fetchColumn();
 $llojetTrans = $db->query("SELECT DISTINCT lloji_i_transaksionit FROM shpenzimet WHERE lloji_i_transaksionit IS NOT NULL ORDER BY lloji_i_transaksionit")->fetchAll(PDO::FETCH_COLUMN);
 $llojetPag = $db->query("SELECT DISTINCT lloji_i_pageses FROM shpenzimet WHERE lloji_i_pageses IS NOT NULL ORDER BY lloji_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
 $arsyet = $db->query("SELECT DISTINCT arsyetimi FROM shpenzimet WHERE arsyetimi IS NOT NULL ORDER BY arsyetimi")->fetchAll(PDO::FETCH_COLUMN);
+$pershkrimVals = $db->query("SELECT DISTINCT pershkrim_i_detajuar FROM shpenzimet WHERE pershkrim_i_detajuar IS NOT NULL AND pershkrim_i_detajuar != '' ORDER BY pershkrim_i_detajuar LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$nrFaturVals = $db->query("SELECT DISTINCT numri_i_fatures FROM shpenzimet WHERE numri_i_fatures IS NOT NULL AND numri_i_fatures != '' ORDER BY numri_i_fatures LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$fatRregulltVals = $db->query("SELECT DISTINCT fatura_e_rregullte FROM shpenzimet WHERE fatura_e_rregullte IS NOT NULL AND fatura_e_rregullte != '' ORDER BY fatura_e_rregullte")->fetchAll(PDO::FETCH_COLUMN);
 
 $transJSON = json_encode($llojetTrans);
 $pagJSON = json_encode($llojetPag);
@@ -229,10 +238,10 @@ ob_start();
                         <?= withFilter(sortThShp('arsyetimi', 'Arsyetimi', $sortCol, $sortDir), 'f_arsyetimi', $arsyet) ?>
                         <?= withFilter(sortThShp('lloji_i_pageses', 'Lloji pagesës', $sortCol, $sortDir), 'f_lloji_pag', $llojetPag) ?>
                         <?= withFilter(sortThShp('lloji_i_transaksionit', 'Lloji transaksionit', $sortCol, $sortDir), 'f_lloji_trans', $llojetTrans) ?>
-                        <?= sortThShp('pershkrim_i_detajuar', 'Përshkrim', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThShp('pershkrim_i_detajuar', 'Përshkrim', $sortCol, $sortDir), 'f_pershkrim', $pershkrimVals) ?>
                         <?= sortThShp('nafta_ne_litra', 'Nafta (L)', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThShp('numri_i_fatures', 'Nr. Faturës', $sortCol, $sortDir) ?>
-                        <?= sortThShp('fatura_e_rregullte', 'Fat. rregullt', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThShp('numri_i_fatures', 'Nr. Faturës', $sortCol, $sortDir), 'f_nr_fatur', $nrFaturVals) ?>
+                        <?= withFilter(sortThShp('fatura_e_rregullte', 'Fat. rregullt', $sortCol, $sortDir), 'f_fat_rreg', $fatRregulltVals) ?>
                         <th></th>
                     </tr>
                 </thead>

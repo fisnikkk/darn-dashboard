@@ -16,6 +16,12 @@ $filterBash = $_GET['bashkepunim'] ?? '';
 // Multi-select column filters
 $fBashk = getFilterParam('f_bashk');
 $fQyteti = getFilterParam('f_qyteti');
+$fBiznesi = getFilterParam('f_biznesi');
+$fNameDb = getFilterParam('f_name_db');
+$fRruga = getFilterParam('f_rruga');
+$fPerfaq = getFilterParam('f_perfaq');
+$fLlojiBoca = getFilterParam('f_lloji_boca');
+$fGrupNjoft = getFilterParam('f_grup_njoft');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
@@ -40,6 +46,12 @@ $params = [];
 if ($filterBash) { $whereArr[] = "LOWER(TRIM(bashkepunim)) = LOWER(TRIM(?))"; $params[] = $filterBash; }
 if ($fBashk) { $fin = buildFilterIn($fBashk, 'bashkepunim'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fQyteti) { $fin = buildFilterIn($fQyteti, 'qyteti'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fBiznesi) { $fin = buildFilterIn($fBiznesi, 'biznesi'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fNameDb) { $fin = buildFilterIn($fNameDb, 'name_from_database'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fRruga) { $fin = buildFilterIn($fRruga, 'rruga'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fPerfaq) { $fin = buildFilterIn($fPerfaq, 'perfaqesuesi'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fLlojiBoca) { $fin = buildFilterIn($fLlojiBoca, 'lloji_i_bocave'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fGrupNjoft) { $fin = buildFilterIn($fGrupNjoft, 'ne_grup_njoftues'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM kontrata {$where}");
@@ -69,6 +81,12 @@ $avgPerMonth = $db->query("
 // Distinct values for column filters
 $bashkValues = $db->query("SELECT DISTINCT bashkepunim FROM kontrata WHERE bashkepunim IS NOT NULL AND bashkepunim != '' ORDER BY bashkepunim")->fetchAll(PDO::FETCH_COLUMN);
 $qytetValues = $db->query("SELECT DISTINCT qyteti FROM kontrata WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
+$biznesiVals = $db->query("SELECT DISTINCT biznesi FROM kontrata WHERE biznesi IS NOT NULL AND biznesi != '' ORDER BY biznesi")->fetchAll(PDO::FETCH_COLUMN);
+$nameDbVals = $db->query("SELECT DISTINCT name_from_database FROM kontrata WHERE name_from_database IS NOT NULL AND name_from_database != '' ORDER BY name_from_database")->fetchAll(PDO::FETCH_COLUMN);
+$rrugaVals = $db->query("SELECT DISTINCT rruga FROM kontrata WHERE rruga IS NOT NULL AND rruga != '' ORDER BY rruga LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$perfaqVals = $db->query("SELECT DISTINCT perfaqesuesi FROM kontrata WHERE perfaqesuesi IS NOT NULL AND perfaqesuesi != '' ORDER BY perfaqesuesi")->fetchAll(PDO::FETCH_COLUMN);
+$llojiBocaVals = $db->query("SELECT DISTINCT lloji_i_bocave FROM kontrata WHERE lloji_i_bocave IS NOT NULL AND lloji_i_bocave != '' ORDER BY lloji_i_bocave")->fetchAll(PDO::FETCH_COLUMN);
+$grupNjoftVals = $db->query("SELECT DISTINCT ne_grup_njoftues FROM kontrata WHERE ne_grup_njoftues IS NOT NULL AND ne_grup_njoftues != '' ORDER BY ne_grup_njoftues")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -123,15 +141,20 @@ ob_start();
                     <tr>
                         <?= sortThKt('nr_i_kontrates', 'Nr', $sortCol, $sortDir) ?>
                         <?= sortThKt('data', 'Data', $sortCol, $sortDir) ?>
-                        <?= sortThKt('biznesi', 'Biznesi', $sortCol, $sortDir) ?>
-                        <?= sortThKt('name_from_database', 'Emri (DB)', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('biznesi', 'Biznesi', $sortCol, $sortDir), 'f_biznesi', $biznesiVals) ?>
+                        <?= withFilter(sortThKt('name_from_database', 'Emri (DB)', $sortCol, $sortDir), 'f_name_db', $nameDbVals) ?>
                         <?= sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num') ?>
                         <th class="num">Sipas distribuimit</th><th class="num">Diferencë</th>
                         <?= withFilter(sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir), 'f_bashk', $bashkValues) ?>
                         <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
-                        <th>Rruga</th><th>Nr. Unik</th>
-                        <th>Përfaqësuesi</th><th>Tel.</th><th>Email</th>
-                        <th>Grup njoftues</th><th>Kontratë e vjetër</th><th>Lloji bocave</th>
+                        <th data-filter="f_rruga" data-filter-values="<?= e(json_encode($rrugaVals, JSON_UNESCAPED_UNICODE)) ?>">Rruga</th>
+                        <th>Nr. Unik</th>
+                        <th data-filter="f_perfaq" data-filter-values="<?= e(json_encode($perfaqVals, JSON_UNESCAPED_UNICODE)) ?>">Përfaqësuesi</th>
+                        <th>Tel.</th>
+                        <th>Email</th>
+                        <th data-filter="f_grup_njoft" data-filter-values="<?= e(json_encode($grupNjoftVals, JSON_UNESCAPED_UNICODE)) ?>">Grup njoftues</th>
+                        <th>Kontratë e vjetër</th>
+                        <th data-filter="f_lloji_boca" data-filter-values="<?= e(json_encode($llojiBocaVals, JSON_UNESCAPED_UNICODE)) ?>">Lloji bocave</th>
                         <th>Bocat e paguara</th><th>Data rregullatorët</th>
                         <th class="num" style="color:var(--danger)">Ditë pa marrë</th>
                         <th class="num">Mesatare/muaj</th>

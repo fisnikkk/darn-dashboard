@@ -33,11 +33,15 @@ function sortThGB($col, $label, $currentSort, $currentDir, $class = '') {
 // Multi-select column filters
 $fGbLloji = getFilterParam('f_lloji');
 $fGbValuta = getFilterParam('f_valuta');
+$fGbShpjegim = getFilterParam('f_shpjegim');
+$fGbDeftesa = getFilterParam('f_deftesa');
 
 $gbWhere = [];
 $gbParams = [];
 if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+if ($fGbShpjegim) { $fin = buildFilterIn($fGbShpjegim, 'shpjegim'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+if ($fGbDeftesa) { $fin = buildFilterIn($fGbDeftesa, 'deftesa'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 $gbWhereSQL = $gbWhere ? 'WHERE ' . implode(' AND ', $gbWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM gjendja_bankare {$gbWhereSQL}");
@@ -55,6 +59,8 @@ $deponime = $db->query("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare WHERE
 $llojet = $db->query("SELECT DISTINCT lloji FROM gjendja_bankare WHERE lloji IS NOT NULL ORDER BY lloji")->fetchAll(PDO::FETCH_COLUMN);
 $llojiJSON = json_encode($llojet);
 $gbValutat = $db->query("SELECT DISTINCT valuta FROM gjendja_bankare WHERE valuta IS NOT NULL AND valuta != '' ORDER BY valuta")->fetchAll(PDO::FETCH_COLUMN);
+$gbShpjegimVals = $db->query("SELECT DISTINCT shpjegim FROM gjendja_bankare WHERE shpjegim IS NOT NULL AND shpjegim != '' ORDER BY shpjegim LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$gbDeftesaVals = $db->query("SELECT DISTINCT deftesa FROM gjendja_bankare WHERE deftesa IS NOT NULL AND deftesa != '' ORDER BY deftesa LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -82,12 +88,12 @@ ob_start();
                         <?= sortThGB('data', 'Data', $sortCol, $sortDir) ?>
                         <?= sortThGB('data_valutes', 'Data Valutës', $sortCol, $sortDir) ?>
                         <?= sortThGB('ora', 'Ora', $sortCol, $sortDir) ?>
-                        <?= sortThGB('shpjegim', 'Shpjegim', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThGB('shpjegim', 'Shpjegim', $sortCol, $sortDir), 'f_shpjegim', $gbShpjegimVals) ?>
                         <?= withFilter(sortThGB('valuta', 'Valuta', $sortCol, $sortDir), 'f_valuta', $gbValutat) ?>
                         <?= sortThGB('debia', 'Debi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('kredi', 'Kredi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir), 'f_deftesa', $gbDeftesaVals) ?>
                         <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
                         <th></th>
                     </tr>

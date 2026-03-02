@@ -29,6 +29,9 @@ $filterLloji = $_GET['lloji'] ?? '';
 // Multi-select column filters
 $fNxKlienti = getFilterParam('f_klienti');
 $fNxLloji = getFilterParam('f_lloji');
+$fNxDhena = getFilterParam('f_dhena');
+$fNxMarra = getFilterParam('f_marra');
+$fNxKoment = getFilterParam('f_koment');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
@@ -56,6 +59,9 @@ if ($filterLloji) { $nxWhere[] = "LOWER(TRIM(lloji_i_nxemjes)) = LOWER(TRIM(?))"
 // Multi-select column filters
 if ($fNxKlienti) { $fin = buildFilterIn($fNxKlienti, 'klienti'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
 if ($fNxLloji) { $fin = buildFilterIn($fNxLloji, 'lloji_i_nxemjes'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
+if ($fNxDhena) { $fin = buildFilterIn($fNxDhena, 'te_dhena'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
+if ($fNxMarra) { $fin = buildFilterIn($fNxMarra, 'te_marra'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
+if ($fNxKoment) { $fin = buildFilterIn($fNxKoment, 'koment'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
 $nxWhereSQL = $nxWhere ? 'WHERE ' . implode(' AND ', $nxWhere) : '';
 
 // All transactions (with filters)
@@ -87,6 +93,9 @@ if ($allRowsAsc) {
 // Client list for dropdown
 $klientet = $db->query("SELECT DISTINCT klienti FROM nxemese ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 $llojet = $db->query("SELECT DISTINCT lloji_i_nxemjes FROM nxemese WHERE lloji_i_nxemjes IS NOT NULL ORDER BY lloji_i_nxemjes")->fetchAll(PDO::FETCH_COLUMN);
+$nxDhenaVals = $db->query("SELECT DISTINCT te_dhena FROM nxemese ORDER BY te_dhena")->fetchAll(PDO::FETCH_COLUMN);
+$nxMarraVals = $db->query("SELECT DISTINCT te_marra FROM nxemese ORDER BY te_marra")->fetchAll(PDO::FETCH_COLUMN);
+$nxKomentVals = $db->query("SELECT DISTINCT koment FROM nxemese WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -183,11 +192,11 @@ ob_start();
                 <thead><tr>
                     <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
                     <?= withFilter(sortThNx('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $klientet) ?>
-                    <?= sortThNx('te_dhena', 'Dhënë', $sortCol, $sortDir, 'num') ?>
-                    <?= sortThNx('te_marra', 'Marrë', $sortCol, $sortDir, 'num') ?>
+                    <?= withFilter(sortThNx('te_dhena', 'Dhënë', $sortCol, $sortDir, 'num'), 'f_dhena', $nxDhenaVals) ?>
+                    <?= withFilter(sortThNx('te_marra', 'Marrë', $sortCol, $sortDir, 'num'), 'f_marra', $nxMarraVals) ?>
                     <th class="num">Në stok</th><th class="num">Total terren</th>
                     <?= withFilter(sortThNx('lloji_i_nxemjes', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
-                    <?= sortThNx('koment', 'Koment', $sortCol, $sortDir) ?>
+                    <?= withFilter(sortThNx('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $nxKomentVals) ?>
                     <th></th>
                 </tr></thead>
                 <tbody>

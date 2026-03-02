@@ -35,12 +35,18 @@ function sortThPD($col, $label, $currentSort, $currentDir, $class = '') {
 $fPdMenyra = getFilterParam('f_menyra');
 $fPdCash = getFilterParam('f_cash');
 $fPdFurn = getFilterParam('f_furnitori');
+$fPdKg = getFilterParam('f_kg');
+$fPdCmimi = getFilterParam('f_cmimi');
+$fPdKoment = getFilterParam('f_koment');
 
 $pdWhere = [];
 $pdParams = [];
 if ($fPdMenyra) { $fin = buildFilterIn($fPdMenyra, 'menyra_e_pageses'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 if ($fPdCash) { $fin = buildFilterIn($fPdCash, 'cash_banke'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 if ($fPdFurn) { $fin = buildFilterIn($fPdFurn, 'furnitori'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdKg) { $fin = buildFilterIn($fPdKg, 'kg'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdCmimi) { $fin = buildFilterIn($fPdCmimi, 'cmimi'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdKoment) { $fin = buildFilterIn($fPdKoment, 'koment'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 $pdWhereSQL = $pdWhere ? 'WHERE ' . implode(' AND ', $pdWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM plini_depo {$pdWhereSQL}");
@@ -60,6 +66,9 @@ $totalKg = $db->query("SELECT COALESCE(SUM(kg),0) FROM plini_depo")->fetchColumn
 $menyratPag = ['Me fature', 'Pa fature'];
 $cashBanke = ['Cash', 'Banke'];
 $furnitoret = $db->query("SELECT DISTINCT furnitori FROM plini_depo WHERE furnitori IS NOT NULL AND furnitori != '' ORDER BY furnitori")->fetchAll(PDO::FETCH_COLUMN);
+$pdKgVals = $db->query("SELECT DISTINCT kg FROM plini_depo WHERE kg IS NOT NULL ORDER BY kg")->fetchAll(PDO::FETCH_COLUMN);
+$pdCmimiVals = $db->query("SELECT DISTINCT cmimi FROM plini_depo WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN);
+$pdKomentVals = $db->query("SELECT DISTINCT koment FROM plini_depo WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 
 $menyraJSON = json_encode($menyratPag);
 $cbJSON = json_encode($cashBanke);
@@ -167,15 +176,15 @@ ob_start();
                 <thead>
                     <tr>
                         <?= sortThPD('data', 'Data', $sortCol, $sortDir) ?>
-                        <?= sortThPD('kg', 'kg', $sortCol, $sortDir, 'num') ?>
+                        <?= withFilter(sortThPD('kg', 'kg', $sortCol, $sortDir, 'num'), 'f_kg', $pdKgVals) ?>
                         <th class="num">Litra</th>
-                        <?= sortThPD('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
+                        <?= withFilter(sortThPD('cmimi', 'Çmimi', $sortCol, $sortDir, 'num'), 'f_cmimi', $pdCmimiVals) ?>
                         <?= sortThPD('faturat_e_pranuara', 'Faturat', $sortCol, $sortDir, 'num') ?>
                         <?= sortThPD('dalje_pagesat_sipas_bankes', 'Dalje/Banke', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThPD('menyra_e_pageses', 'Mënyra', $sortCol, $sortDir), 'f_menyra', $menyratPag) ?>
                         <?= withFilter(sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir), 'f_cash', $cashBanke) ?>
                         <?= withFilter(sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir), 'f_furnitori', $furnitoret) ?>
-                        <?= sortThPD('koment', 'Koment', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThPD('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $pdKomentVals) ?>
                         <th class="num">Gjendja</th>
                         <th></th>
                     </tr>

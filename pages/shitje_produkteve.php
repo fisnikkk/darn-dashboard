@@ -35,6 +35,10 @@ $fSpKlienti = getFilterParam('f_klienti');
 $fSpProdukti = getFilterParam('f_produkti');
 $fSpMenyra = getFilterParam('f_menyra');
 $fSpStatusi = getFilterParam('f_statusi');
+$fSpAdresa = getFilterParam('f_adresa');
+$fSpQyteti = getFilterParam('f_qyteti');
+$fSpCmimi = getFilterParam('f_cmimi');
+$fSpKoment = getFilterParam('f_koment');
 
 $spWhere = [];
 $spParams = [];
@@ -42,6 +46,10 @@ if ($fSpKlienti) { $fin = buildFilterIn($fSpKlienti, 'klienti'); $spWhere[] = $f
 if ($fSpProdukti) { $fin = buildFilterIn($fSpProdukti, 'produkti'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
 if ($fSpMenyra) { $fin = buildFilterIn($fSpMenyra, 'menyra_pageses'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
 if ($fSpStatusi) { $fin = buildFilterIn($fSpStatusi, 'statusi_i_pageses'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpAdresa) { $fin = buildFilterIn($fSpAdresa, 'adresa'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpQyteti) { $fin = buildFilterIn($fSpQyteti, 'qyteti'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpCmimi) { $fin = buildFilterIn($fSpCmimi, 'cmimi'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($fSpKoment) { $fin = buildFilterIn($fSpKoment, 'koment'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
 $spWhereSQL = $spWhere ? 'WHERE ' . implode(' AND ', $spWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM shitje_produkteve {$spWhereSQL}");
@@ -67,6 +75,10 @@ $payTypes = $db->query("SELECT DISTINCT menyra_pageses FROM shitje_produkteve WH
 $payJSON = json_encode($payTypes);
 $spClients = $db->query("SELECT DISTINCT klienti FROM shitje_produkteve WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 $statusiVals = $db->query("SELECT DISTINCT statusi_i_pageses FROM shitje_produkteve WHERE statusi_i_pageses IS NOT NULL AND statusi_i_pageses != '' ORDER BY statusi_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
+$spAdresaVals = $db->query("SELECT DISTINCT adresa FROM shitje_produkteve WHERE adresa IS NOT NULL AND adresa != '' ORDER BY adresa LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$spQytetiVals = $db->query("SELECT DISTINCT qyteti FROM shitje_produkteve WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
+$spCmimiVals = $db->query("SELECT DISTINCT cmimi FROM shitje_produkteve WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN);
+$spKomentVals = $db->query("SELECT DISTINCT koment FROM shitje_produkteve WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -175,12 +187,12 @@ ob_start();
                         <?= sortThSP('cilindra_sasia', 'Sasia', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThSP('produkti', 'Produkti', $sortCol, $sortDir), 'f_produkti', $produktet) ?>
                         <?= withFilter(sortThSP('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $spClients) ?>
-                        <?= sortThSP('adresa', 'Adresa', $sortCol, $sortDir) ?>
-                        <?= sortThSP('qyteti', 'Qyteti', $sortCol, $sortDir) ?>
-                        <?= sortThSP('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
+                        <?= withFilter(sortThSP('adresa', 'Adresa', $sortCol, $sortDir), 'f_adresa', $spAdresaVals) ?>
+                        <?= withFilter(sortThSP('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $spQytetiVals) ?>
+                        <?= withFilter(sortThSP('cmimi', 'Çmimi', $sortCol, $sortDir, 'num'), 'f_cmimi', $spCmimiVals) ?>
                         <?= sortThSP('totali', 'Totali', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThSP('menyra_pageses', 'Pagesa', $sortCol, $sortDir), 'f_menyra', $payTypes) ?>
-                        <?= sortThSP('koment', 'Koment', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThSP('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $spKomentVals) ?>
                         <?= withFilter(sortThSP('statusi_i_pageses', 'Statusi', $sortCol, $sortDir), 'f_statusi', $statusiVals) ?>
                         <th></th>
                     </tr>
