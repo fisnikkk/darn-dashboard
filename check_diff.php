@@ -2,42 +2,42 @@
 require_once __DIR__.'/config/database.php';
 $db = getDB();
 
-// Shpenzimet Cash (U3) - grouped by year to find where the €7 diff is
-echo "=== SHPENZIMET CASH BY YEAR ===\n";
-$r = $db->query("SELECT YEAR(data_e_pageses) as yr, COUNT(*) as c, SUM(shuma) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' GROUP BY YEAR(data_e_pageses) ORDER BY yr");
-$grandTotal = 0; $grandCount = 0;
+// Compare cash shpenzimet by year - to find where the missing €7 row is
+echo "=== SHPENZIMET CASH BY YEAR (to compare with production) ===\n";
+$r = $db->query("SELECT YEAR(data_e_pageses) as yr, COUNT(*) as c, ROUND(SUM(shuma),2) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' GROUP BY YEAR(data_e_pageses) ORDER BY yr");
 while ($row = $r->fetch()) {
     echo "  {$row['yr']}: {$row['c']} rows, total={$row['t']}\n";
-    $grandTotal += $row['t']; $grandCount += $row['c'];
 }
-echo "  GRAND TOTAL: {$grandCount} rows, total={$grandTotal}\n\n";
 
-// Shpenzime tjera (T3) - grouped by year
-echo "=== SHPENZIME TJERA BY YEAR ===\n";
-$r = $db->query("SELECT YEAR(data_e_pageses) as yr, COUNT(*) as c, SUM(shuma) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit))='shpenzim' GROUP BY YEAR(data_e_pageses) ORDER BY yr");
-$grandTotal = 0; $grandCount = 0;
+echo "\n=== SHPENZIME TJERA BY YEAR ===\n";
+$r = $db->query("SELECT YEAR(data_e_pageses) as yr, COUNT(*) as c, ROUND(SUM(shuma),2) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit))='shpenzim' GROUP BY YEAR(data_e_pageses) ORDER BY yr");
 while ($row = $r->fetch()) {
     echo "  {$row['yr']}: {$row['c']} rows, total={$row['t']}\n";
-    $grandTotal += $row['t']; $grandCount += $row['c'];
 }
-echo "  GRAND TOTAL: {$grandCount} rows, total={$grandTotal}\n\n";
 
-// Check for whitespace issues in lloji_i_pageses
-echo "=== CASH VARIANTS (exact values) ===\n";
-$r = $db->query("SELECT lloji_i_pageses, LENGTH(lloji_i_pageses) as len, COUNT(*) as c, SUM(shuma) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' GROUP BY lloji_i_pageses, LENGTH(lloji_i_pageses)");
+// Also show cash by month for 2026 (most likely where diffs are)
+echo "\n=== SHPENZIMET CASH 2026 BY MONTH ===\n";
+$r = $db->query("SELECT MONTH(data_e_pageses) as mo, COUNT(*) as c, ROUND(SUM(shuma),2) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' AND YEAR(data_e_pageses)=2026 GROUP BY MONTH(data_e_pageses) ORDER BY mo");
 while ($row = $r->fetch()) {
-    echo "  '{$row['lloji_i_pageses']}' (len={$row['len']}): {$row['c']} rows, total={$row['t']}\n";
+    echo "  month {$row['mo']}: {$row['c']} rows, total={$row['t']}\n";
 }
 
-echo "\n=== SHPENZIM VARIANTS (exact values) ===\n";
-$r = $db->query("SELECT lloji_i_transaksionit, LENGTH(lloji_i_transaksionit) as len, COUNT(*) as c, SUM(shuma) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit))='shpenzim' GROUP BY lloji_i_transaksionit, LENGTH(lloji_i_transaksionit)");
+echo "\n=== SHPENZIME TJERA 2026 BY MONTH ===\n";
+$r = $db->query("SELECT MONTH(data_e_pageses) as mo, COUNT(*) as c, ROUND(SUM(shuma),2) as t FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit))='shpenzim' AND YEAR(data_e_pageses)=2026 GROUP BY MONTH(data_e_pageses) ORDER BY mo");
 while ($row = $r->fetch()) {
-    echo "  '{$row['lloji_i_transaksionit']}' (len={$row['len']}): {$row['c']} rows, total={$row['t']}\n";
+    echo "  month {$row['mo']}: {$row['c']} rows, total={$row['t']}\n";
 }
 
-// Check for rows where shuma has decimal issues
-echo "\n=== SMALL AMOUNT ROWS (shuma <= 10, cash) ===\n";
-$r = $db->query("SELECT id, data_e_pageses, shuma, lloji_i_transaksionit, pershkrim_i_detajuar FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' AND shuma <= 10 ORDER BY shuma");
+// Show all rows where shuma = 7 (could be the missing row)
+echo "\n=== ROWS WHERE SHUMA=7 (cash) ===\n";
+$r = $db->query("SELECT id, data_e_pageses, shuma, lloji_i_transaksionit, pershkrim_i_detajuar FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' AND shuma=7");
 while ($row = $r->fetch()) {
     echo "  ID={$row['id']} date={$row['data_e_pageses']} amount={$row['shuma']} type={$row['lloji_i_transaksionit']} desc={$row['pershkrim_i_detajuar']}\n";
+}
+
+// Show all rows where shuma contains 7 in cents (like X.07, X.70 etc)
+echo "\n=== ROWS WHERE SHUMA ENDS IN .00 AND IS EXACTLY 7 ===\n";
+$r = $db->query("SELECT id, data_e_pageses, shuma, lloji_i_transaksionit FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' AND (shuma=7 OR shuma=3.50 OR shuma=7.00)");
+while ($row = $r->fetch()) {
+    echo "  ID={$row['id']} date={$row['data_e_pageses']} amount={$row['shuma']} type={$row['lloji_i_transaksionit']}\n";
 }
