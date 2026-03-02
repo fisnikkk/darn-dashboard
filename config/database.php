@@ -21,8 +21,8 @@ function getDB() {
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
-            // MySQL 8 strict mode breaks GROUP BY queries written for MariaDB
-            $pdo->exec("SET SESSION sql_mode = REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', '')");
+            // MySQL 8 strict mode breaks GROUP BY and zero-date queries
+            $pdo->exec("SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''), 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')");
         } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
