@@ -8,12 +8,31 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 $page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 100;
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
+
+// Server-side sorting
+$sortCol = $_GET['sort'] ?? 'data';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC');
+$allowedSorts = ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji'];
+if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
+if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+function sortThGB($col, $label, $currentSort, $currentDir, $class = '') {
+    $isActive = ($currentSort === $col);
+    $newDir = ($isActive && $currentDir === 'ASC') ? 'DESC' : 'ASC';
+    $params = array_merge($_GET, ['sort' => $col, 'dir' => $newDir, 'page' => 1]);
+    $url = '?' . http_build_query($params);
+    $icon = $isActive ? ($currentDir === 'ASC' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+    $activeStyle = $isActive ? 'color:var(--primary);font-weight:600;' : '';
+    $classes = trim(($class ? $class . ' ' : '') . 'server-sort');
+    return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
+}
 
 $totalRows = $db->query("SELECT COUNT(*) FROM gjendja_bankare")->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
-$rows = $db->query("SELECT * FROM gjendja_bankare ORDER BY data DESC, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
+$rows = $db->query("SELECT * FROM gjendja_bankare ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
 
 $totalDebi = $db->query("SELECT COALESCE(SUM(debia),0) FROM gjendja_bankare")->fetchColumn();
 $totalKredi = $db->query("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare")->fetchColumn();
@@ -41,13 +60,21 @@ ob_start();
             <i class="fas fa-info-circle"></i> Kliko <strong>✓</strong> për ta markuar rreshtin si të kontrolluar (highlight me ngjyrë)
         </p>
         <div class="table-wrapper">
-            <table class="data-table" data-table="gjendja_bankare">
+            <table class="data-table" data-table="gjendja_bankare" data-server-sort="true">
                 <thead>
                     <tr>
-                        <th>✓</th><th>Data</th><th>Data Valutës</th><th>Ora</th>
-                        <th>Shpjegim</th><th>Valuta</th><th class="num">Debi</th>
-                        <th class="num">Kredi</th><th class="num">Bilanci</th>
-                        <th>Dëftesa</th><th>Lloji</th><th></th>
+                        <th>✓</th>
+                        <?= sortThGB('data', 'Data', $sortCol, $sortDir) ?>
+                        <?= sortThGB('data_valutes', 'Data Valutës', $sortCol, $sortDir) ?>
+                        <?= sortThGB('ora', 'Ora', $sortCol, $sortDir) ?>
+                        <?= sortThGB('shpjegim', 'Shpjegim', $sortCol, $sortDir) ?>
+                        <?= sortThGB('valuta', 'Valuta', $sortCol, $sortDir) ?>
+                        <?= sortThGB('debia', 'Debi', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThGB('kredi', 'Kredi', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir) ?>
+                        <?= sortThGB('lloji', 'Lloji', $sortCol, $sortDir) ?>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>

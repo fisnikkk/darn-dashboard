@@ -67,14 +67,23 @@ try {
     if ($field === 'e_kontrolluar' && $value === 'toggle') {
         $stmt = $db->prepare("SELECT e_kontrolluar FROM {$table} WHERE id = ?");
         $stmt->execute([$id]);
-        $newVal = $stmt->fetchColumn() ? 0 : 1;
+        $oldVal = $stmt->fetchColumn();
+        $newVal = $oldVal ? 0 : 1;
         $db->prepare("UPDATE {$table} SET e_kontrolluar = ? WHERE id = ?")->execute([$newVal, $id]);
+        // Log the toggle
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', ?, ?, ?, ?, ?)")
+            ->execute([$table, $id, 'e_kontrolluar', (string)$oldVal, (string)$newVal]);
         echo json_encode(['success' => true, 'verified' => (bool)$newVal]);
         exit;
     }
 
     // Wrap everything in a transaction so batch updates are atomic
     $db->beginTransaction();
+
+    // Fetch current row BEFORE any changes (for changelog)
+    $stmtCurrent = $db->prepare("SELECT * FROM {$table} WHERE id = ?");
+    $stmtCurrent->execute([$id]);
+    $currentRow = $stmtCurrent->fetch();
 
     // Track which fields were changed for auto-recalc triggers
     $changedFields = [];
@@ -84,6 +93,9 @@ try {
         if ($v === '' || $v === null) $v = null;
         $db->prepare("UPDATE {$table} SET {$f} = ? WHERE id = ?")->execute([$v, $id]);
         $changedFields[] = $f;
+        // Log the change
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', ?, ?, ?, ?, ?)")
+            ->execute([$table, $id, $f, $currentRow[$f] ?? null, $v]);
     }
 
     // Auto-recalculate sasia_ne_litra when kg changes in plini_depo

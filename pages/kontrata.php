@@ -9,9 +9,28 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 $page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 100;
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 $filterBash = $_GET['bashkepunim'] ?? '';
+
+// Server-side sorting
+$sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC');
+$allowedSorts = ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates','bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit','email','koment'];
+if (!in_array($sortCol, $allowedSorts)) $sortCol = 'nr_i_kontrates';
+if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+function sortThKt($col, $label, $currentSort, $currentDir, $class = '') {
+    $isActive = ($currentSort === $col);
+    $newDir = ($isActive && $currentDir === 'ASC') ? 'DESC' : 'ASC';
+    $params = array_merge($_GET, ['sort' => $col, 'dir' => $newDir, 'page' => 1]);
+    $url = '?' . http_build_query($params);
+    $icon = $isActive ? ($currentDir === 'ASC' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+    $activeStyle = $isActive ? 'color:var(--primary);font-weight:600;' : '';
+    $classes = trim(($class ? $class . ' ' : '') . 'server-sort');
+    return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
+}
 
 $where = $filterBash ? "WHERE LOWER(TRIM(bashkepunim)) = LOWER(TRIM(?))" : "";
 $params = $filterBash ? [$filterBash] : [];
@@ -21,7 +40,7 @@ $stmt->execute($params);
 $totalRows = $stmt->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
 
-$stmt = $db->prepare("SELECT * FROM kontrata {$where} ORDER BY nr_i_kontrates DESC, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$stmt = $db->prepare("SELECT * FROM kontrata {$where} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
@@ -60,7 +79,11 @@ ob_start();
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')"><i class="fas fa-plus"></i> Shto</button>
     </div>
     <div class="filters">
-        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;">
+        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+            <?php if ($sortCol !== 'nr_i_kontrates' || $sortDir !== 'DESC'): ?>
+            <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
+            <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
+            <?php endif; ?>
             <div class="form-group">
                 <label>Bashkëpunim</label>
                 <select name="bashkepunim">
@@ -69,24 +92,39 @@ ob_start();
                     <option value="jo" <?= $filterBash==='jo'?'selected':'' ?>>Jo</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Rreshta/faqe</label>
+                <select name="per_page">
+                    <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                    <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                    <option value="99999" <?= $perPage==99999?'selected':'' ?>>Të gjitha</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary btn-sm">Filtro</button>
             <a href="kontrata.php" class="btn btn-outline btn-sm">Pastro</a>
         </form>
     </div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="kontrata">
+            <table class="data-table" data-table="kontrata" data-server-sort="true">
                 <thead>
                     <tr>
-                        <th>Nr</th><th>Data</th><th>Biznesi</th><th>Emri (DB)</th><th class="num">Stok kontratë</th>
+                        <?= sortThKt('nr_i_kontrates', 'Nr', $sortCol, $sortDir) ?>
+                        <?= sortThKt('data', 'Data', $sortCol, $sortDir) ?>
+                        <?= sortThKt('biznesi', 'Biznesi', $sortCol, $sortDir) ?>
+                        <?= sortThKt('name_from_database', 'Emri (DB)', $sortCol, $sortDir) ?>
+                        <?= sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num') ?>
                         <th class="num">Sipas distribuimit</th><th class="num">Diferencë</th>
-                        <th>Bashkëpunim</th><th>Qyteti</th><th>Rruga</th><th>Nr. Unik</th>
+                        <?= sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir) ?>
+                        <?= sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir) ?>
+                        <th>Rruga</th><th>Nr. Unik</th>
                         <th>Përfaqësuesi</th><th>Tel.</th><th>Email</th>
                         <th>Grup njoftues</th><th>Kontratë e vjetër</th><th>Lloji bocave</th>
                         <th>Bocat e paguara</th><th>Data rregullatorët</th>
                         <th class="num" style="color:var(--danger)">Ditë pa marrë</th>
                         <th class="num">Mesatare/muaj</th>
-                        <th>Koment</th><th></th>
+                        <?= sortThKt('koment', 'Koment', $sortCol, $sortDir) ?>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>

@@ -9,13 +9,32 @@ require_once __DIR__ . '/../config/layout.php';
 $db = getDB();
 
 $page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 100;
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
+
+// Server-side sorting
+$sortCol = $_GET['sort'] ?? 'data';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC');
+$allowedSorts = ['data','nr_i_fatures','kg','cmimi','faturat_e_pranuara','dalje_pagesat_sipas_bankes','menyra_e_pageses','cash_banke','furnitori','koment','sasia_ne_litra'];
+if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
+if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+function sortThPD($col, $label, $currentSort, $currentDir, $class = '') {
+    $isActive = ($currentSort === $col);
+    $newDir = ($isActive && $currentDir === 'ASC') ? 'DESC' : 'ASC';
+    $params = array_merge($_GET, ['sort' => $col, 'dir' => $newDir, 'page' => 1]);
+    $url = '?' . http_build_query($params);
+    $icon = $isActive ? ($currentDir === 'ASC' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+    $activeStyle = $isActive ? 'color:var(--primary);font-weight:600;' : '';
+    $classes = trim(($class ? $class . ' ' : '') . 'server-sort');
+    return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
+}
 
 $totalRows = $db->query("SELECT COUNT(*) FROM plini_depo")->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
 
-$rows = $db->query("SELECT * FROM plini_depo ORDER BY data DESC, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
+$rows = $db->query("SELECT * FROM plini_depo ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
 
 $totalBlerje = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo")->fetchColumn();
 $blerjeFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='me fature'")->fetchColumn();
@@ -78,8 +97,8 @@ ob_start();
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>Faturat e pranuara (€)</label>
-                    <input type="number" name="faturat_e_pranuara" step="0.01">
+                    <label>Faturat e pranuara (€) <small style="color:var(--text-muted);">auto: kg × çmimi</small></label>
+                    <input type="number" name="faturat_e_pranuara" step="0.01" id="pd_faturat">
                 </div>
                 <div class="form-group">
                     <label>Dalje/Pagesa sipas bankes (€)</label>
@@ -128,19 +147,19 @@ ob_start();
     <div class="card-header"><h3>Plini Depo (<?= num($totalRows) ?> rreshta)</h3></div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="plini_depo">
+            <table class="data-table" data-table="plini_depo" data-server-sort="true">
                 <thead>
                     <tr>
-                        <th>Data</th>
-                        <th class="num">kg</th>
+                        <?= sortThPD('data', 'Data', $sortCol, $sortDir) ?>
+                        <?= sortThPD('kg', 'kg', $sortCol, $sortDir, 'num') ?>
                         <th class="num">Litra</th>
-                        <th class="num">Çmimi</th>
-                        <th class="num">Faturat</th>
-                        <th class="num">Dalje/Banke</th>
-                        <th>Mënyra</th>
-                        <th>Cash/Banke</th>
-                        <th>Furnitori</th>
-                        <th>Koment</th>
+                        <?= sortThPD('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThPD('faturat_e_pranuara', 'Faturat', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThPD('dalje_pagesat_sipas_bankes', 'Dalje/Banke', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThPD('menyra_e_pageses', 'Mënyra', $sortCol, $sortDir) ?>
+                        <?= sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir) ?>
+                        <?= sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir) ?>
+                        <?= sortThPD('koment', 'Koment', $sortCol, $sortDir) ?>
                         <th class="num">Gjendja</th>
                         <th></th>
                     </tr>
@@ -190,6 +209,24 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+// Auto-calculate faturat_e_pranuara = kg × cmimi for plini_depo add form
+(function() {
+    const form = document.querySelector('.ajax-form[action="/api/insert.php"]');
+    if (!form) return;
+    const kg = form.querySelector('[name="kg"]');
+    const cmimi = form.querySelector('[name="cmimi"]');
+    const faturat = document.getElementById('pd_faturat');
+    if (!kg || !cmimi || !faturat) return;
+    function recalcFaturat() {
+        const k = parseFloat(kg.value) || 0;
+        const c = parseFloat(cmimi.value) || 0;
+        if (k && c) faturat.value = (k * c).toFixed(2);
+    }
+    [kg, cmimi].forEach(el => el.addEventListener('input', recalcFaturat));
+})();
+</script>
 
 <?php
 $content = ob_get_clean();

@@ -8,12 +8,31 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 $page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 100;
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
+
+// Server-side sorting
+$sortCol = $_GET['sort'] ?? 'data';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC');
+$allowedSorts = ['data','cilindra_sasia','produkti','klienti','adresa','qyteti','cmimi','totali','menyra_pageses','koment','statusi_i_pageses'];
+if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
+if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+function sortThSP($col, $label, $currentSort, $currentDir, $class = '') {
+    $isActive = ($currentSort === $col);
+    $newDir = ($isActive && $currentDir === 'ASC') ? 'DESC' : 'ASC';
+    $params = array_merge($_GET, ['sort' => $col, 'dir' => $newDir, 'page' => 1]);
+    $url = '?' . http_build_query($params);
+    $icon = $isActive ? ($currentDir === 'ASC' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+    $activeStyle = $isActive ? 'color:var(--primary);font-weight:600;' : '';
+    $classes = trim(($class ? $class . ' ' : '') . 'server-sort');
+    return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
+}
 
 $totalRows = $db->query("SELECT COUNT(*) FROM shitje_produkteve")->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
-$rows = $db->query("SELECT * FROM shitje_produkteve ORDER BY data DESC, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
+$rows = $db->query("SELECT * FROM shitje_produkteve ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}")->fetchAll();
 
 $totalCash = $db->query("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash'")->fetchColumn();
 $totalAll = $db->query("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve")->fetchColumn();
@@ -129,12 +148,21 @@ ob_start();
     <div class="card-header"><h3>Shitje Produkteve (<?= num($totalRows) ?>)</h3></div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="shitje_produkteve">
+            <table class="data-table" data-table="shitje_produkteve" data-server-sort="true">
                 <thead>
                     <tr>
-                        <th>Data</th><th class="num">Sasia</th><th>Produkti</th><th>Klienti</th>
-                        <th>Adresa</th><th>Qyteti</th><th class="num">Çmimi</th><th class="num">Totali</th>
-                        <th>Pagesa</th><th>Koment</th><th>Statusi</th><th></th>
+                        <?= sortThSP('data', 'Data', $sortCol, $sortDir) ?>
+                        <?= sortThSP('cilindra_sasia', 'Sasia', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThSP('produkti', 'Produkti', $sortCol, $sortDir) ?>
+                        <?= sortThSP('klienti', 'Klienti', $sortCol, $sortDir) ?>
+                        <?= sortThSP('adresa', 'Adresa', $sortCol, $sortDir) ?>
+                        <?= sortThSP('qyteti', 'Qyteti', $sortCol, $sortDir) ?>
+                        <?= sortThSP('cmimi', 'Çmimi', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThSP('totali', 'Totali', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThSP('menyra_pageses', 'Pagesa', $sortCol, $sortDir) ?>
+                        <?= sortThSP('koment', 'Koment', $sortCol, $sortDir) ?>
+                        <?= sortThSP('statusi_i_pageses', 'Statusi', $sortCol, $sortDir) ?>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>

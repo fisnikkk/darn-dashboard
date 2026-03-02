@@ -23,8 +23,39 @@ $stokuPerKlient = $db->query("
 
 $totalTerren = $db->query("SELECT COALESCE(SUM(te_dhena) - SUM(te_marra), 0) FROM nxemese")->fetchColumn();
 
-// All transactions
-$rows = $db->query("SELECT * FROM nxemese ORDER BY data DESC, id DESC")->fetchAll();
+// Filters
+$filterClient = $_GET['klienti'] ?? '';
+$filterLloji = $_GET['lloji'] ?? '';
+
+// Server-side sorting
+$sortCol = $_GET['sort'] ?? 'data';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC');
+$allowedSorts = ['data','klienti','te_dhena','te_marra','lloji_i_nxemjes','koment'];
+if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
+if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+function sortThNx($col, $label, $currentSort, $currentDir, $class = '') {
+    $isActive = ($currentSort === $col);
+    $newDir = ($isActive && $currentDir === 'ASC') ? 'DESC' : 'ASC';
+    $params = array_merge($_GET, ['sort' => $col, 'dir' => $newDir]);
+    $url = '?' . http_build_query($params);
+    $icon = $isActive ? ($currentDir === 'ASC' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+    $activeStyle = $isActive ? 'color:var(--primary);font-weight:600;' : '';
+    $classes = trim(($class ? $class . ' ' : '') . 'server-sort');
+    return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
+}
+
+// Build WHERE clause
+$nxWhere = [];
+$nxParams = [];
+if ($filterClient) { $nxWhere[] = "LOWER(TRIM(klienti)) LIKE LOWER(TRIM(?))"; $nxParams[] = "%{$filterClient}%"; }
+if ($filterLloji) { $nxWhere[] = "LOWER(TRIM(lloji_i_nxemjes)) = LOWER(TRIM(?))"; $nxParams[] = $filterLloji; }
+$nxWhereSQL = $nxWhere ? 'WHERE ' . implode(' AND ', $nxWhere) : '';
+
+// All transactions (with filters)
+$nxStmt = $db->prepare("SELECT * FROM nxemese {$nxWhereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC");
+$nxStmt->execute($nxParams);
+$rows = $nxStmt->fetchAll();
 
 // Per-row running totals: Ne stok (per client) and Total ne terren (global)
 $allRowsAsc = $db->query("SELECT id FROM nxemese ORDER BY data ASC, id ASC")->fetchAll(PDO::FETCH_COLUMN);
@@ -116,10 +147,43 @@ ob_start();
 <!-- Transaction log -->
 <div class="card">
     <div class="card-header"><h3>Të gjitha lëvizjet (<?= count($rows) ?>)</h3></div>
+    <div class="filters">
+        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+            <?php if ($sortCol !== 'data' || $sortDir !== 'DESC'): ?>
+            <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
+            <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
+            <?php endif; ?>
+            <div class="form-group">
+                <label>Klienti</label>
+                <input type="text" name="klienti" value="<?= e($filterClient) ?>" placeholder="Kërko klient..." list="nxFilterList">
+                <datalist id="nxFilterList"><?php foreach ($klientet as $k): ?><option value="<?= e($k) ?>"><?php endforeach; ?></datalist>
+            </div>
+            <div class="form-group">
+                <label>Lloji</label>
+                <select name="lloji">
+                    <option value="">Të gjitha</option>
+                    <?php foreach ($llojet as $l): ?>
+                    <option value="<?= e($l) ?>" <?= $filterLloji === $l ? 'selected' : '' ?>><?= e($l) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
+            <a href="nxemese.php" class="btn btn-outline btn-sm">Pastro</a>
+        </form>
+    </div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="nxemese">
-                <thead><tr><th>Data</th><th>Klienti</th><th class="num">Dhënë</th><th class="num">Marrë</th><th class="num">Në stok</th><th class="num">Total terren</th><th>Lloji</th><th>Koment</th><th></th></tr></thead>
+            <table class="data-table" data-table="nxemese" data-server-sort="true">
+                <thead><tr>
+                    <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
+                    <?= sortThNx('klienti', 'Klienti', $sortCol, $sortDir) ?>
+                    <?= sortThNx('te_dhena', 'Dhënë', $sortCol, $sortDir, 'num') ?>
+                    <?= sortThNx('te_marra', 'Marrë', $sortCol, $sortDir, 'num') ?>
+                    <th class="num">Në stok</th><th class="num">Total terren</th>
+                    <?= sortThNx('lloji_i_nxemjes', 'Lloji', $sortCol, $sortDir) ?>
+                    <?= sortThNx('koment', 'Koment', $sortCol, $sortDir) ?>
+                    <th></th>
+                </tr></thead>
                 <tbody>
                     <?php foreach ($rows as $r): ?>
                     <tr data-id="<?= $r['id'] ?>">

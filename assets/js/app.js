@@ -43,6 +43,15 @@ function initRowEdit() {
         const lastTd = row.querySelector('td:last-child');
         if (!lastTd) return;
 
+        // Inject revert button
+        const table = row.closest('table').dataset.table;
+        const revertBtn = document.createElement('button');
+        revertBtn.className = 'btn btn-outline btn-sm row-revert-btn';
+        revertBtn.innerHTML = '<i class="fas fa-undo"></i>';
+        revertBtn.title = 'Kthe ndryshimin e fundit';
+        revertBtn.addEventListener('click', () => revertRow(table, row.dataset.id));
+        lastTd.insertBefore(revertBtn, lastTd.firstChild);
+
         // Inject edit button before existing buttons (delete)
         const editBtn = document.createElement('button');
         editBtn.className = 'btn btn-outline btn-sm row-edit-btn';
@@ -101,6 +110,10 @@ function startRowEdit(row) {
         }
 
         input.dataset.field = field;
+        // Prevent row-level keydown from stealing Backspace/Delete etc.
+        input.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== 'Escape') e.stopPropagation();
+        });
         td.textContent = '';
         td.appendChild(input);
     });
@@ -282,6 +295,27 @@ function initForms() {
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+/* ---- Revert row to previous state ---- */
+
+function revertRow(table, id) {
+    if (!confirm('Kthe ndryshimin e fundit per kete rresht?')) return;
+    fetch('/api/revert.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table, id })
+    })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || 'U kthye me sukses');
+            setTimeout(() => location.reload(), 400);
+        } else {
+            showToast(data.error || 'Nuk ka ndryshime per te kthyer', 'error');
+        }
+    })
+    .catch(() => showToast('Gabim ne server', 'error'));
+}
 
 /* ---- Delete row ---- */
 

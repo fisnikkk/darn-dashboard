@@ -51,6 +51,18 @@ $shpenzimTjera = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHER
 
 // Excel U3: ALL cash expenses (including bank deposits) — used in Pare cash formula
 $shpenzimCashAll = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'")->fetchColumn();
+
+// Cash expenses from 2022-08-28 onwards (for Pare cash formula matching Excel)
+$shpenzimCashFrom = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND data_e_pageses >= '2022-08-28'")->fetchColumn();
+
+// Payments from 2022-08-28 onwards (for Pare cash formula)
+$paymentsFrom = $db->query("
+    SELECT
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'cash' THEN pagesa ELSE 0 END), 0) as cash,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'po (fature te rregullte) cash' THEN pagesa ELSE 0 END), 0) as fature_cash
+    FROM distribuimi
+    WHERE data >= '2022-08-28'
+")->fetch();
 // Cash expenses excluding bank deposits — for reference display only
 $shpenzimCashPaDeponime = $db->query("
     SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
@@ -64,9 +76,10 @@ $bankBalance = $db->query("SELECT COALESCE(bilanci, 0) FROM gjendja_bankare ORDE
 // Product sales cash
 $produkteCash = $db->query("SELECT COALESCE(SUM(totali), 0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash'")->fetchColumn();
 
-// Excel L3: Pare cash vetem nga plini = G3 + H3 - U3
-// G3=Cash, H3=Fature cash, U3=ALL cash expenses (including deposits, matching Excel)
-$pareCashPlin = $payments['cash'] + $payments['fature_cash'] - $shpenzimCashAll;
+// Excel L3: Pare cash vetem nga plini = Cash + Fature cash - Shpenzime cash
+// Calculated from 2022-08-28 onwards per Albulena's requirement
+// Hardcoded additions from pre-system period: +66.4+16.6+34.7+164.2 = +281.9
+$pareCashPlin = $paymentsFrom['cash'] + $paymentsFrom['fature_cash'] - $shpenzimCashFrom + 281.9;
 
 // Excel P3: Total pare cash nga plin dhe produkte
 $totalPareCash = $pareCashPlin + $produkteCash;
@@ -164,7 +177,7 @@ ob_start();
     <div class="summary-card">
         <div class="label">Pare cash nga plini</div>
         <div class="value <?= $pareCashPlin >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($pareCashPlin) ?></div>
-        <small style="color:var(--text-muted);">Cash + Fature cash - Shpenzimet cash</small>
+        <small style="color:var(--text-muted);">Nga 28/08/2022 + 281.90 para-sistem</small>
     </div>
     <div class="summary-card">
         <div class="label">Pare ne banke</div>
@@ -195,11 +208,6 @@ ob_start();
     <div class="summary-card">
         <div class="label">Shpenzime tjera</div>
         <div class="value">&euro; <?= eur($shpenzimTjera) ?></div>
-    </div>
-    <div class="summary-card">
-        <div class="label">Dhurate (residual)</div>
-        <div class="value">&euro; <?= eur($dhurateResidual) ?></div>
-        <small style="color:var(--text-muted);">Shitje - pagesat e kategorizuara</small>
     </div>
     <div class="summary-card">
         <div class="label">Shpenzimet Cash</div>

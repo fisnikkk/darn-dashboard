@@ -13,9 +13,11 @@ function renderLayout($pageTitle, $currentPage, $content) {
         ['id' => 'gjendja_bankare', 'icon' => 'fa-university', 'label' => 'Gjendja Bankare'],
         ['id' => 'nxemese', 'icon' => 'fa-fire', 'label' => 'Nxemëse'],
         ['id' => 'borxhet', 'icon' => 'fa-balance-scale', 'label' => 'Borxhet'],
+        ['id' => 'log', 'icon' => 'fa-history', 'label' => 'Log'],
+        ['id' => 'snapshot', 'icon' => 'fa-database', 'label' => 'Snapshot'],
         ['id' => 'monthly_profit', 'icon' => 'fa-chart-line', 'label' => 'Monthly Profit'],
         ['id' => 'litrat', 'icon' => 'fa-tint', 'label' => 'Litrat'],
-        ['id' => 'klientet', 'icon' => 'fa-users', 'label' => 'Klientët'],
+        // Klientet tab removed per user request
         ['id' => 'stoku_zyrtar', 'icon' => 'fa-boxes', 'label' => 'Stoku Zyrtar'],
         ['id' => 'depo', 'icon' => 'fa-warehouse', 'label' => 'Depo'],
     ];

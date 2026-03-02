@@ -9,7 +9,8 @@ require_once __DIR__ . '/../config/layout.php';
 $db = getDB();
 
 $page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 100;
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 
 $filterType = $_GET['lloji'] ?? '';
@@ -195,6 +196,14 @@ ob_start();
                     <?php foreach ($llojetPag as $l): ?>
                     <option value="<?= e($l) ?>" <?= $filterPayment === $l ? 'selected' : '' ?>><?= e($l) ?></option>
                     <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Rreshta/faqe</label>
+                <select name="per_page">
+                    <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                    <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                    <option value="99999" <?= $perPage==99999?'selected':'' ?>>Të gjitha</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>

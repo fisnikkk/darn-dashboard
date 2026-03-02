@@ -41,6 +41,11 @@ foreach ($debts as $d) {
     foreach ($totals as $k => &$v) $v += (float)$d[$k];
 }
 
+// Load per-client notes (3 extra columns)
+$notesRaw = $db->query("SELECT klienti, klient_bank_cash, kush_merr_borxhin, koment FROM borxhet_notes")->fetchAll();
+$notes = [];
+foreach ($notesRaw as $n) { $notes[$n['klienti']] = $n; }
+
 ob_start();
 ?>
 
@@ -67,10 +72,16 @@ ob_start();
                         <th class="num">Dhuratë</th>
                         <th class="num" style="font-weight:700;">Total</th>
                         <th class="num" style="color:var(--danger);font-weight:700;">Borxhi Bank deri <?= date('d/m/Y', strtotime($dateDeri)) ?></th>
+                        <th>Bank/Cash</th>
+                        <th>Kush merr borxhin</th>
+                        <th>Koment</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($debts as $d): ?>
+                    <?php foreach ($debts as $d):
+                        $noteKey = strtolower($d['klienti']);
+                        $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
+                    ?>
                     <tr <?= (float)$d['borxhi_bank_deri'] > 0 ? 'style="background:#fef2f2;"' : '' ?>>
                         <td><?= e($d['klienti']) ?></td>
                         <td class="amount"><?= eur($d['cash']) ?></td>
@@ -81,6 +92,9 @@ ob_start();
                         <td class="amount"><?= eur($d['dhurate']) ?></td>
                         <td class="amount" style="font-weight:700;">&euro; <?= eur($d['total']) ?></td>
                         <td class="amount" style="font-weight:700;color:var(--danger);">&euro; <?= eur($d['borxhi_bank_deri']) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e($note['klient_bank_cash']) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e($note['kush_merr_borxhin']) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e($note['koment']) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -95,6 +109,7 @@ ob_start();
                         <td class="amount">&euro; <?= eur($totals['dhurate']) ?></td>
                         <td class="amount">&euro; <?= eur($totals['total']) ?></td>
                         <td class="amount" style="color:var(--danger);">&euro; <?= eur($totals['borxhi_bank_deri']) ?></td>
+                        <td></td><td></td><td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -103,9 +118,33 @@ ob_start();
 </div>
 
 <p style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
-    <i class="fas fa-info-circle"></i> Ky raport gjenerohet automatikisht nga të dhënat e Distribuimit. 
+    <i class="fas fa-info-circle"></i> Ky raport gjenerohet automatikisht nga të dhënat e Distribuimit.
     <?= count($debts) ?> klientë me transaksione.
+    <br>Kolonat Bank/Cash, Kush merr borxhin, dhe Koment ruhen automatikisht kur ndryshoni.
 </p>
+
+<script>
+// Auto-save borxhet notes on blur (contenteditable cells)
+document.querySelectorAll('.borxh-note').forEach(cell => {
+    cell.addEventListener('blur', function() {
+        const klienti = this.dataset.klienti;
+        const field = this.dataset.field;
+        const value = this.textContent.trim();
+        fetch('/api/borxhet_notes.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ klienti, field, value })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                this.style.background = '#f0fdf4';
+                setTimeout(() => this.style.background = '', 1000);
+            }
+        });
+    });
+});
+</script>
 
 <?php
 $content = ob_get_clean();

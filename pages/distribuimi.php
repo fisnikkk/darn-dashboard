@@ -23,7 +23,8 @@ $filterDateFrom = $_GET['date_from'] ?? '';
 $filterDateTo = $_GET['date_to'] ?? '';
 $filterPayment = $_GET['payment'] ?? '';
 $page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 100;
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 99999])) $perPage = 100;
 $offset = ($page - 1) * $perPage;
 
 // Server-side sorting
@@ -117,9 +118,8 @@ $summStmt = $db->prepare("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribuimi
 $summStmt->execute($params);
 $uniqueClients = $summStmt->fetchColumn();
 
-$stokuStmt = $db->prepare("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi d {$whereSQL}");
-$stokuStmt->execute($params);
-$stokuTotal = $stokuStmt->fetchColumn();
+// Stoku total ne terren: ALWAYS global (unfiltered) — per Albulena's requirement
+$stokuTotal = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi")->fetchColumn();
 
 // Payment types for dropdown
 $paymentTypes = ['Cash', 'Bank', 'Po (Fature te rregullte) cash', 'Po (Fature te rregullte) banke', 'No payment', 'Dhurate'];
@@ -153,6 +153,7 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3>Distribuimi - Të dhënat</h3>
+        <button class="btn btn-primary btn-sm" onclick="openModal('pasteDist')" style="margin-right:6px;"><i class="fas fa-paste"></i> Ngjit nga Excel</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">
             <i class="fas fa-plus"></i> Shto rresht
         </button>
@@ -191,17 +192,37 @@ ob_start();
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Rreshta/faqe</label>
+                <select name="per_page">
+                    <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                    <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                    <option value="99999" <?= $perPage==99999?'selected':'' ?>>Të gjitha</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
             <a href="distribuimi.php" class="btn btn-outline btn-sm">Pastro</a>
         </form>
     </div>
     
+    <!-- Bulk Action Bar -->
+    <div id="bulkBar" style="display:none;padding:10px 14px;background:#eff6ff;border-bottom:1px solid var(--border);display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span id="bulkCount" style="font-weight:600;font-size:0.85rem;"></span>
+        <select id="bulkPayment" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+            <option value="">-- Ndrysho Menyren --</option>
+            <?php foreach ($paymentTypes as $pt): ?><option value="<?= e($pt) ?>"><?= e($pt) ?></option><?php endforeach; ?>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="applyBulkPayment()"><i class="fas fa-check"></i> Apliko</button>
+        <button class="btn btn-outline btn-sm" onclick="clearBulkSelection()"><i class="fas fa-times"></i> Anulo</button>
+    </div>
+
     <!-- Data Table -->
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table" data-table="distribuimi" data-server-sort="true">
                 <thead>
                     <tr>
+                        <th style="width:30px;"><input type="checkbox" id="selectAll" title="Zgjidh te gjitha"></th>
                         <?= sortTh('row_nr', '#', $sortCol, $sortDir) ?>
                         <?= sortTh('klienti', 'Klienti', $sortCol, $sortDir) ?>
                         <?= sortTh('data', 'Data', $sortCol, $sortDir) ?>
@@ -223,6 +244,7 @@ ob_start();
                 <tbody>
                     <?php foreach ($rows as $r): ?>
                     <tr data-id="<?= $r['id'] ?>">
+                        <td><input type="checkbox" class="row-select" value="<?= $r['id'] ?>"></td>
                         <td><?= $r['row_nr'] ?: $r['id'] ?></td>
                         <td class="editable" data-field="klienti"><?= e($r['klienti']) ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
@@ -403,6 +425,193 @@ ob_start();
         </form>
     </div>
 </div>
+
+<!-- Paste from Excel Modal -->
+<div class="modal-overlay" id="pasteDist">
+    <div class="modal" style="max-width:720px;">
+        <div class="modal-header"><h3><i class="fas fa-paste"></i> Ngjit të dhëna nga Excel</h3><button class="btn btn-outline btn-sm" onclick="closeModal('pasteDist')">&times;</button></div>
+        <div class="modal-body">
+            <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
+                Kopjo rreshtat nga Excel dhe ngjiti ketu. Kolonat duhet te jene ne kete rend:<br>
+                <strong>Klienti | Data | Sasia | Boca te kthyera | Litra | Cmimi | Pagesa | Menyra e pageses | Fatura e derguar | Data fletepageses | Koment</strong>
+            </p>
+            <textarea id="pasteAreaDist" rows="10" style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;" placeholder="Ngjit ketu te dhenat nga Excel (Ctrl+V)..."></textarea>
+            <div id="pastePreviewDist" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal('pasteDist')">Anulo</button>
+            <button type="button" class="btn btn-primary" onclick="submitPastedDistData()"><i class="fas fa-save"></i> Ruaj te gjitha</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('pasteAreaDist').addEventListener('input', function() {
+    const lines = this.value.trim().split('\n').filter(l => l.trim());
+    document.getElementById('pastePreviewDist').textContent = lines.length + ' rreshta te gjetura';
+});
+
+function parseNumberDist(str) {
+    if (!str || str.trim() === '') return null;
+    // Handle European format: 1.234,56 -> 1234.56
+    let s = str.trim().replace(/[^\d.,-]/g, '');
+    if (s.includes(',') && s.includes('.')) {
+        if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+            s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+            s = s.replace(/,/g, '');
+        }
+    } else if (s.includes(',')) {
+        s = s.replace(',', '.');
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+}
+
+function parseDateDist(str) {
+    if (!str || str.trim() === '') return null;
+    const s = str.trim();
+    // Try DD/MM/YYYY or DD.MM.YYYY or DD-MM-YYYY
+    const m = s.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})$/);
+    if (m) {
+        const d = m[1].padStart(2,'0'), mo = m[2].padStart(2,'0'), y = m[3];
+        if (+mo >= 1 && +mo <= 12 && +d >= 1 && +d <= 31) return y + '-' + mo + '-' + d;
+    }
+    // Try YYYY-MM-DD (already correct)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Reject non-date strings to avoid inserting malformed data
+    return null;
+}
+
+function submitPastedDistData() {
+    const text = document.getElementById('pasteAreaDist').value.trim();
+    if (!text) { showToast('Nuk ka te dhena', 'error'); return; }
+
+    const lines = text.split('\n').filter(l => l.trim());
+    const rows = [];
+
+    for (const line of lines) {
+        const cols = line.split('\t');
+        if (cols.length < 2) continue; // Need at least klienti + data
+
+        const klienti = (cols[0] || '').trim();
+        const data = parseDateDist(cols[1]);
+        const sasia = parseNumberDist(cols[2]);
+        const boca_te_kthyera = parseNumberDist(cols[3]);
+        const litra = parseNumberDist(cols[4]);
+        const cmimi = parseNumberDist(cols[5]);
+        let pagesa = parseNumberDist(cols[6]);
+        const menyra_e_pageses = (cols[7] || '').trim();
+        const fatura_e_derguar = (cols[8] || '').trim();
+        const data_e_fletepageses = parseDateDist(cols[9]);
+        const koment = (cols[10] || '').trim();
+
+        // Auto-calculate litrat_total = sasia * litra
+        const s = sasia ?? 0;
+        const l = litra ?? 0;
+        const litrat_total = s * l;
+        const litrat_e_konvertuara = litrat_total;
+
+        // If pagesa is empty, auto-calculate: pagesa = sasia * litra * cmimi
+        if (pagesa === null) {
+            const c = cmimi ?? 0;
+            pagesa = s * l * c;
+        }
+
+        rows.push({
+            klienti: klienti || null,
+            data: data,
+            sasia: sasia,
+            boca_te_kthyera: boca_te_kthyera,
+            litra: litra,
+            cmimi: cmimi,
+            pagesa: pagesa,
+            menyra_e_pageses: menyra_e_pageses || null,
+            fatura_e_derguar: fatura_e_derguar || null,
+            data_e_fletepageses: data_e_fletepageses,
+            koment: koment || null,
+            litrat_total: litrat_total,
+            litrat_e_konvertuara: litrat_e_konvertuara
+        });
+    }
+
+    if (!rows.length) { showToast('Nuk u gjet asnje rresht valid', 'error'); return; }
+
+    fetch('/api/bulk_insert.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: 'distribuimi', rows })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message);
+            location.reload();
+        } else {
+            showToast('Gabim: ' + (data.error || ''), 'error');
+        }
+    })
+    .catch(() => showToast('Gabim ne server', 'error'));
+}
+</script>
+
+<script>
+// Bulk selection for changing payment type on multiple rows
+(function() {
+    const selectAll = document.getElementById('selectAll');
+    const bulkBar = document.getElementById('bulkBar');
+    const bulkCount = document.getElementById('bulkCount');
+    if (!selectAll || !bulkBar) return;
+
+    function updateBulkBar() {
+        const checked = document.querySelectorAll('.row-select:checked');
+        if (checked.length > 0) {
+            bulkBar.style.display = 'flex';
+            bulkCount.textContent = checked.length + ' rreshta te zgjedhur';
+        } else {
+            bulkBar.style.display = 'none';
+        }
+    }
+
+    selectAll.addEventListener('change', function() {
+        document.querySelectorAll('.row-select').forEach(cb => cb.checked = this.checked);
+        updateBulkBar();
+    });
+
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('row-select')) updateBulkBar();
+    });
+})();
+
+function clearBulkSelection() {
+    document.querySelectorAll('.row-select').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    document.getElementById('bulkBar').style.display = 'none';
+}
+
+function applyBulkPayment() {
+    const newPayment = document.getElementById('bulkPayment').value;
+    if (!newPayment) { showToast('Zgjidhni menyre pagese', 'error'); return; }
+    const ids = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => parseInt(cb.value));
+    if (!ids.length) return;
+    if (!confirm('Ndrysho menyren e pageses per ' + ids.length + ' rreshta ne "' + newPayment + '"?')) return;
+
+    // Send batch updates
+    const promises = ids.map(id =>
+        fetch('/api/update.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'distribuimi', id, changes: [{ field: 'menyra_e_pageses', value: newPayment }] })
+        }).then(r => r.json())
+    );
+
+    Promise.all(promises).then(results => {
+        const ok = results.filter(r => r.success).length;
+        showToast(ok + '/' + ids.length + ' u ndryshuan me sukses');
+        setTimeout(() => location.reload(), 500);
+    }).catch(() => showToast('Gabim ne server', 'error'));
+}
+</script>
 
 <?php
 $content = ob_get_clean();
