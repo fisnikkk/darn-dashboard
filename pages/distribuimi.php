@@ -163,7 +163,7 @@ $distBocaKthVals = $db->query("SELECT DISTINCT CAST(boca_te_kthyera AS CHAR) FRO
 $distLitraVals = $db->query("SELECT DISTINCT CAST(litra AS CHAR) FROM distribuimi WHERE litra IS NOT NULL ORDER BY litra")->fetchAll(PDO::FETCH_COLUMN);
 $distCmimiVals = $db->query("SELECT DISTINCT CAST(cmimi AS CHAR) FROM distribuimi WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN);
 $distPagesaVals = $db->query("SELECT DISTINCT CAST(pagesa AS CHAR) FROM distribuimi WHERE pagesa IS NOT NULL ORDER BY pagesa LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
-$distDataFpVals = $db->query("SELECT DISTINCT data_e_fletepageses FROM distribuimi WHERE data_e_fletepageses IS NOT NULL AND data_e_fletepageses != '' ORDER BY data_e_fletepageses")->fetchAll(PDO::FETCH_COLUMN);
+$distDataFpVals = $db->query("SELECT DISTINCT CAST(data_e_fletepageses AS CHAR) FROM distribuimi WHERE data_e_fletepageses IS NOT NULL AND data_e_fletepageses > '0000-00-00' ORDER BY data_e_fletepageses")->fetchAll(PDO::FETCH_COLUMN);
 $distKomentVals = $db->query("SELECT DISTINCT koment FROM distribuimi WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 $distLitratTotVals = $db->query("SELECT DISTINCT CAST(litrat_total AS CHAR) FROM distribuimi WHERE litrat_total IS NOT NULL ORDER BY litrat_total")->fetchAll(PDO::FETCH_COLUMN);
 
