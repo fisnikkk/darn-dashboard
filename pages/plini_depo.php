@@ -38,6 +38,9 @@ $fPdFurn = getFilterParam('f_furnitori');
 $fPdKg = getFilterParam('f_kg');
 $fPdCmimi = getFilterParam('f_cmimi');
 $fPdKoment = getFilterParam('f_koment');
+$fPdNrFat = getFilterParam('f_nr_fat');
+$fPdFaturat = getFilterParam('f_faturat');
+$fPdDalje = getFilterParam('f_dalje');
 
 $pdWhere = [];
 $pdParams = [];
@@ -47,6 +50,9 @@ if ($fPdFurn) { $fin = buildFilterIn($fPdFurn, 'furnitori'); $pdWhere[] = $fin['
 if ($fPdKg) { $fin = buildFilterIn($fPdKg, 'kg'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 if ($fPdCmimi) { $fin = buildFilterIn($fPdCmimi, 'cmimi'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 if ($fPdKoment) { $fin = buildFilterIn($fPdKoment, 'koment'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdNrFat) { $fin = buildFilterIn($fPdNrFat, 'nr_i_fatures'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdFaturat) { $fin = buildFilterIn($fPdFaturat, 'faturat_e_pranuara'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdDalje) { $fin = buildFilterIn($fPdDalje, 'dalje_pagesat_sipas_bankes'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 $pdWhereSQL = $pdWhere ? 'WHERE ' . implode(' AND ', $pdWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM plini_depo {$pdWhereSQL}");
@@ -69,6 +75,9 @@ $furnitoret = $db->query("SELECT DISTINCT furnitori FROM plini_depo WHERE furnit
 $pdKgVals = $db->query("SELECT DISTINCT kg FROM plini_depo WHERE kg IS NOT NULL ORDER BY kg")->fetchAll(PDO::FETCH_COLUMN);
 $pdCmimiVals = $db->query("SELECT DISTINCT cmimi FROM plini_depo WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN);
 $pdKomentVals = $db->query("SELECT DISTINCT koment FROM plini_depo WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$pdNrFatVals = $db->query("SELECT DISTINCT nr_i_fatures FROM plini_depo WHERE nr_i_fatures IS NOT NULL AND nr_i_fatures != '' ORDER BY nr_i_fatures")->fetchAll(PDO::FETCH_COLUMN);
+$pdFaturatVals = $db->query("SELECT DISTINCT CAST(faturat_e_pranuara AS CHAR) FROM plini_depo WHERE faturat_e_pranuara IS NOT NULL ORDER BY faturat_e_pranuara LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$pdDaljeVals = $db->query("SELECT DISTINCT CAST(dalje_pagesat_sipas_bankes AS CHAR) FROM plini_depo WHERE dalje_pagesat_sipas_bankes IS NOT NULL ORDER BY dalje_pagesat_sipas_bankes LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 
 $menyraJSON = json_encode($menyratPag);
 $cbJSON = json_encode($cashBanke);
@@ -175,12 +184,13 @@ ob_start();
             <table class="data-table" data-table="plini_depo" data-server-sort="true">
                 <thead>
                     <tr>
+                        <?= withFilter(sortThPD('nr_i_fatures', 'Nr. Faturës', $sortCol, $sortDir), 'f_nr_fat', $pdNrFatVals) ?>
                         <?= sortThPD('data', 'Data', $sortCol, $sortDir) ?>
                         <?= withFilter(sortThPD('kg', 'kg', $sortCol, $sortDir, 'num'), 'f_kg', $pdKgVals) ?>
-                        <th class="num">Litra</th>
+                        <?= sortThPD('sasia_ne_litra', 'Litra', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThPD('cmimi', 'Çmimi', $sortCol, $sortDir, 'num'), 'f_cmimi', $pdCmimiVals) ?>
-                        <?= sortThPD('faturat_e_pranuara', 'Faturat', $sortCol, $sortDir, 'num') ?>
-                        <?= sortThPD('dalje_pagesat_sipas_bankes', 'Dalje/Banke', $sortCol, $sortDir, 'num') ?>
+                        <?= withFilter(sortThPD('faturat_e_pranuara', 'Faturat e Pranuara', $sortCol, $sortDir, 'num'), 'f_faturat', $pdFaturatVals) ?>
+                        <?= withFilter(sortThPD('dalje_pagesat_sipas_bankes', 'Dalje/Banke', $sortCol, $sortDir, 'num'), 'f_dalje', $pdDaljeVals) ?>
                         <?= withFilter(sortThPD('menyra_e_pageses', 'Mënyra', $sortCol, $sortDir), 'f_menyra', $menyratPag) ?>
                         <?= withFilter(sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir), 'f_cash', $cashBanke) ?>
                         <?= withFilter(sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir), 'f_furnitori', $furnitoret) ?>
@@ -205,6 +215,7 @@ ob_start();
                     $litra = $r['sasia_ne_litra'] !== null ? (float)$r['sasia_ne_litra'] : (float)$r['kg'] * 1.95;
                     ?>
                     <tr data-id="<?= $r['id'] ?>">
+                        <td class="editable" data-field="nr_i_fatures"><?= e($r['nr_i_fatures']) ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="num editable" data-field="kg" data-type="number"><?= eur($r['kg']) ?></td>
                         <td class="num"><?= eur($litra) ?></td>

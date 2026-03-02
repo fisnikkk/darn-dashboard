@@ -29,9 +29,18 @@ ob_start();
             <table class="data-table" data-table="klientet">
                 <thead>
                     <tr>
-                        <th>Emri</th><th>Bashkëpunim</th><th>Data kontratës</th><th class="num">Stoku</th>
-                        <th>Kontakti</th><th>Adresa</th><th>Telefoni</th><th>Telefoni 2</th>
-                        <th>Regjistruar në emër</th><th>Nr. unik identifikues</th><th>Koment</th><th></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;">Emri <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Bashkëpunim <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;">Data kontratës <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;">Stoku <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Kontakti <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Adresa <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Telefoni <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;">Telefoni 2 <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;">Regjistruar në emër <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;">Nr. unik identifikues <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 10)" style="cursor:pointer;user-select:none;">Koment <i class="fas fa-sort"></i></th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -95,6 +104,27 @@ ob_start();
         </form>
     </div>
 </div>
+
+<script>
+function clientSortColumn(th, colIdx) {
+    const table = th.closest('table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const icon = th.querySelector('i');
+    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
+    th.closest('tr').querySelectorAll('th.server-sort i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
+    rows.sort((a, b) => {
+        const ta = a.cells[colIdx]?.textContent?.trim() || '';
+        const tb = b.cells[colIdx]?.textContent?.trim() || '';
+        const na = parseFloat(ta.replace(/[^0-9.\-]/g, ''));
+        const nb = parseFloat(tb.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+        return asc ? ta.localeCompare(tb) : tb.localeCompare(ta);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+</script>
 
 <?php
 $content = ob_get_clean();

@@ -194,7 +194,7 @@ ob_start();
                     <?= withFilter(sortThNx('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $klientet) ?>
                     <?= withFilter(sortThNx('te_dhena', 'Dhënë', $sortCol, $sortDir, 'num'), 'f_dhena', $nxDhenaVals) ?>
                     <?= withFilter(sortThNx('te_marra', 'Marrë', $sortCol, $sortDir, 'num'), 'f_marra', $nxMarraVals) ?>
-                    <th class="num">Në stok</th><th class="num">Total terren</th>
+                    <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Në stok <i class="fas fa-sort"></i></th><th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Total terren <i class="fas fa-sort"></i></th>
                     <?= withFilter(sortThNx('lloji_i_nxemjes', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
                     <?= withFilter(sortThNx('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $nxKomentVals) ?>
                     <th></th>
@@ -218,6 +218,27 @@ ob_start();
         </div>
     </div>
 </div>
+
+<script>
+function clientSortColumn(th, colIdx) {
+    const table = th.closest('table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const icon = th.querySelector('i');
+    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
+    th.closest('tr').querySelectorAll('th.server-sort i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
+    rows.sort((a, b) => {
+        const ta = a.cells[colIdx]?.textContent?.trim() || '';
+        const tb = b.cells[colIdx]?.textContent?.trim() || '';
+        const na = parseFloat(ta.replace(/[^0-9.\-]/g, ''));
+        const nb = parseFloat(tb.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+        return asc ? ta.localeCompare(tb) : tb.localeCompare(ta);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+</script>
 
 <?php
 $content = ob_get_clean();

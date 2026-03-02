@@ -199,14 +199,14 @@ ob_start();
     
     <!-- Filters -->
     <div class="filters">
-        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <form method="GET" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
             <?php if ($sortCol !== 'data' || $sortDir !== 'DESC'): ?>
             <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
             <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
             <?php endif; ?>
             <div class="form-group">
                 <label># / ID</label>
-                <input type="text" name="row_id" value="<?= e($_GET['row_id'] ?? '') ?>" placeholder="Kërko ID..." style="width:90px;">
+                <input type="text" name="row_id" value="<?= e($_GET['row_id'] ?? '') ?>" placeholder="ID..." style="width:70px;">
             </div>
             <div class="form-group">
                 <label>Klienti</label>
@@ -271,8 +271,8 @@ ob_start();
                         <?= sortTh('data', 'Data', $sortCol, $sortDir) ?>
                         <?= withFilter(sortTh('sasia', 'Sasia', $sortCol, $sortDir, 'num'), 'f_sasia', $distSasiaVals) ?>
                         <?= withFilter(sortTh('boca_te_kthyera', 'Boca të kthyera', $sortCol, $sortDir, 'num'), 'f_boca_kth', $distBocaKthVals) ?>
-                        <th class="num">Boca tek biznesi</th>
-                        <th class="num">Boca total terren</th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Boca tek biznesi <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;">Boca total terren <i class="fas fa-sort"></i></th>
                         <?= withFilter(sortTh('litra', 'Litra', $sortCol, $sortDir, 'num'), 'f_litra', $distLitraVals) ?>
                         <?= withFilter(sortTh('cmimi', 'Çmimi', $sortCol, $sortDir, 'num'), 'f_cmimi', $distCmimiVals) ?>
                         <?= withFilter(sortTh('pagesa', 'Pagesa', $sortCol, $sortDir, 'num'), 'f_pagesa', $distPagesaVals) ?>
@@ -653,6 +653,26 @@ function applyBulkPayment() {
         showToast(ok + '/' + ids.length + ' u ndryshuan me sukses');
         setTimeout(() => location.reload(), 500);
     }).catch(() => showToast('Gabim ne server', 'error'));
+}
+</script>
+
+<script>
+// Client-side sort for calculated columns (Boca tek biznesi, Boca total terren)
+function clientSortColumn(th, colIdx) {
+    const table = th.closest('table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const icon = th.querySelector('i');
+    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
+    // Reset all sort icons in this row
+    th.closest('tr').querySelectorAll('i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
+    rows.sort((a, b) => {
+        const va = parseFloat(a.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');
+        const vb = parseFloat(b.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');
+        return asc ? va - vb : vb - va;
+    });
+    rows.forEach(r => tbody.appendChild(r));
 }
 </script>
 

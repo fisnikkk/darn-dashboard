@@ -2,7 +2,7 @@
    DARN Dashboard - Core JavaScript
    ============================================================ */
 
-/* ---- Mobile sidebar toggle ---- */
+/* ---- Sidebar toggle with persistent state ---- */
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const backdrop = document.getElementById('sidebarBackdrop');
@@ -11,12 +11,20 @@ function toggleSidebar() {
         backdrop.classList.toggle('active');
     } else {
         sidebar.classList.toggle('collapsed');
+        // Persist collapsed state
+        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
     }
 }
 function closeMobileSidebar() {
     document.getElementById('sidebar').classList.remove('mobile-open');
     document.getElementById('sidebarBackdrop').classList.remove('active');
 }
+// Restore sidebar state on page load
+(function() {
+    if (window.innerWidth > 768 && localStorage.getItem('sidebarCollapsed') === '1') {
+        document.getElementById('sidebar').classList.add('collapsed');
+    }
+})();
 
 function showToast(message, type = 'success') {
     let toast = document.getElementById('toast');

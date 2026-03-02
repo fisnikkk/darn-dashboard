@@ -117,10 +117,10 @@ ob_start();
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Produkti</th>
-                        <th class="num">Sasia totale (hyrje)</th>
-                        <th class="num" style="color:var(--primary);">Total të shitura</th>
-                        <th class="num" style="font-weight:700;">Stoku aktual</th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;">Produkti <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Sasia totale (hyrje) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;color:var(--primary);">Total të shitura <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;font-weight:700;">Stoku aktual <i class="fas fa-sort"></i></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -153,10 +153,10 @@ ob_start();
             <table class="data-table" data-table="depo">
                 <thead>
                     <tr>
-                        <th>Data</th>
-                        <th data-filter="f_produkti" data-filter-values="<?= e(json_encode($depoProduktet, JSON_UNESCAPED_UNICODE)) ?>">Produkti</th>
-                        <th class="num">Sasia</th>
-                        <th class="num">Çmimi</th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;">Data <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" data-filter="f_produkti" data-filter-values="<?= e(json_encode($depoProduktet, JSON_UNESCAPED_UNICODE)) ?>" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Produkti <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;">Sasia <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;">Çmimi <i class="fas fa-sort"></i></th>
                         <th></th>
                     </tr>
                 </thead>
@@ -205,6 +205,27 @@ ob_start();
         </form>
     </div>
 </div>
+
+<script>
+function clientSortColumn(th, colIdx) {
+    const table = th.closest('table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const icon = th.querySelector('i');
+    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
+    th.closest('tr').querySelectorAll('th.server-sort i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
+    rows.sort((a, b) => {
+        const ta = a.cells[colIdx]?.textContent?.trim() || '';
+        const tb = b.cells[colIdx]?.textContent?.trim() || '';
+        const na = parseFloat(ta.replace(/[^0-9.\-]/g, ''));
+        const nb = parseFloat(tb.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+        return asc ? ta.localeCompare(tb) : tb.localeCompare(ta);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+</script>
 
 <?php
 $content = ob_get_clean();

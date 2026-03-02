@@ -26,7 +26,7 @@ $fGrupNjoft = getFilterParam('f_grup_njoft');
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates','bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit','email','koment'];
+$allowedSorts = ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates','bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit','email','koment','lloji_i_bocave','ne_grup_njoftues','kontrate_e_vjeter','bocat_e_paguara','data_rregullatoret'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'nr_i_kontrates';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -144,20 +144,22 @@ ob_start();
                         <?= withFilter(sortThKt('biznesi', 'Biznesi', $sortCol, $sortDir), 'f_biznesi', $biznesiVals) ?>
                         <?= withFilter(sortThKt('name_from_database', 'Emri (DB)', $sortCol, $sortDir), 'f_name_db', $nameDbVals) ?>
                         <?= sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num') ?>
-                        <th class="num">Sipas distribuimit</th><th class="num">Diferencë</th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Sipas distribuimit <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Diferencë <i class="fas fa-sort"></i></th>
                         <?= withFilter(sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir), 'f_bashk', $bashkValues) ?>
                         <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
-                        <th data-filter="f_rruga" data-filter-values="<?= e(json_encode($rrugaVals, JSON_UNESCAPED_UNICODE)) ?>">Rruga</th>
-                        <th>Nr. Unik</th>
-                        <th data-filter="f_perfaq" data-filter-values="<?= e(json_encode($perfaqVals, JSON_UNESCAPED_UNICODE)) ?>">Përfaqësuesi</th>
-                        <th>Tel.</th>
-                        <th>Email</th>
-                        <th data-filter="f_grup_njoft" data-filter-values="<?= e(json_encode($grupNjoftVals, JSON_UNESCAPED_UNICODE)) ?>">Grup njoftues</th>
-                        <th>Kontratë e vjetër</th>
-                        <th data-filter="f_lloji_boca" data-filter-values="<?= e(json_encode($llojiBocaVals, JSON_UNESCAPED_UNICODE)) ?>">Lloji bocave</th>
-                        <th>Bocat e paguara</th><th>Data rregullatorët</th>
-                        <th class="num" style="color:var(--danger)">Ditë pa marrë</th>
-                        <th class="num">Mesatare/muaj</th>
+                        <?= withFilter(sortThKt('rruga', 'Rruga', $sortCol, $sortDir), 'f_rruga', $rrugaVals) ?>
+                        <?= sortThKt('numri_unik', 'Nr. Unik', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('perfaqesuesi', 'Përfaqësuesi', $sortCol, $sortDir), 'f_perfaq', $perfaqVals) ?>
+                        <?= sortThKt('nr_telefonit', 'Tel.', $sortCol, $sortDir) ?>
+                        <?= sortThKt('email', 'Email', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('ne_grup_njoftues', 'Grup njoftues', $sortCol, $sortDir), 'f_grup_njoft', $grupNjoftVals) ?>
+                        <?= sortThKt('kontrate_e_vjeter', 'Kontratë e vjetër', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('lloji_i_bocave', 'Lloji bocave', $sortCol, $sortDir), 'f_lloji_boca', $llojiBocaVals) ?>
+                        <?= sortThKt('bocat_e_paguara', 'Bocat e paguara', $sortCol, $sortDir) ?>
+                        <?= sortThKt('data_rregullatoret', 'Data rregullatorët', $sortCol, $sortDir) ?>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;color:var(--danger)">Ditë pa marrë <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 20)" style="cursor:pointer;user-select:none;">Mesatare/muaj <i class="fas fa-sort"></i></th>
                         <?= sortThKt('koment', 'Koment', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
@@ -268,6 +270,24 @@ ob_start();
         </form>
     </div>
 </div>
+
+<script>
+function clientSortColumn(th, colIdx) {
+    const table = th.closest('table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const icon = th.querySelector('i');
+    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
+    th.closest('tr').querySelectorAll('th.server-sort i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
+    rows.sort((a, b) => {
+        const va = parseFloat(a.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');
+        const vb = parseFloat(b.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');
+        return asc ? va - vb : vb - va;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+</script>
 
 <?php
 $content = ob_get_clean();
