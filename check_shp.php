@@ -1,5 +1,6 @@
 <?php
-require __DIR__.'/config/db.php';
+require_once __DIR__.'/config/database.php';
+$db = getDB();
 
 $total = $db->query("SELECT SUM(shuma) as t, COUNT(*) as c FROM shpenzimet WHERE lloji_i_pageses='cash'")->fetch_assoc();
 echo "DB cash shpenzimet: {$total['t']} ({$total['c']} rows)\n\n";
@@ -11,4 +12,11 @@ while ($row = $r->fetch_assoc()) {
     $sum += $row['shuma'];
     echo "  ID={$row['id']} date={$row['data']} amount={$row['shuma']} desc={$row['pershkrimi']}\n";
 }
-echo "Total after Feb 9: {$sum}\n";
+echo "Total after Feb 9: {$sum}\n\n";
+
+// Also check if there are case variations
+echo "Case breakdown:\n";
+$r2 = $db->query("SELECT lloji_i_pageses, COUNT(*) as c, SUM(shuma) as t FROM shpenzimet WHERE LOWER(lloji_i_pageses)='cash' GROUP BY lloji_i_pageses");
+while ($row = $r2->fetch_assoc()) {
+    echo "  '{$row['lloji_i_pageses']}': {$row['c']} rows, total={$row['t']}\n";
+}
