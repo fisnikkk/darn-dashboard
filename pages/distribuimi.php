@@ -199,44 +199,44 @@ ob_start();
     
     <!-- Filters -->
     <div class="filters">
-        <form method="GET" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <form method="GET" style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;">
             <?php if ($sortCol !== 'data' || $sortDir !== 'DESC'): ?>
             <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
             <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
             <?php endif; ?>
-            <div class="form-group">
+            <div class="form-group" style="min-width:auto;">
                 <label># / ID</label>
-                <input type="text" name="row_id" value="<?= e($_GET['row_id'] ?? '') ?>" placeholder="ID..." style="width:70px;">
+                <input type="text" name="row_id" value="<?= e($_GET['row_id'] ?? '') ?>" placeholder="ID..." style="width:60px;padding:6px 8px;">
             </div>
-            <div class="form-group">
+            <div class="form-group" style="min-width:auto;">
                 <label>Klienti</label>
-                <select name="klienti" style="min-width:160px;">
+                <select name="klienti" style="max-width:180px;padding:6px 8px;">
                     <option value="">Të gjithë</option>
                     <?php foreach ($clients as $c): ?>
                     <option value="<?= e($c) ?>" <?= $filterClient === $c ? 'selected' : '' ?>><?= e($c) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="min-width:auto;">
                 <label>Data nga</label>
-                <input type="date" name="date_from" value="<?= e($filterDateFrom) ?>">
+                <input type="date" name="date_from" value="<?= e($filterDateFrom) ?>" style="padding:6px 8px;">
             </div>
-            <div class="form-group">
+            <div class="form-group" style="min-width:auto;">
                 <label>Data deri</label>
-                <input type="date" name="date_to" value="<?= e($filterDateTo) ?>">
+                <input type="date" name="date_to" value="<?= e($filterDateTo) ?>" style="padding:6px 8px;">
             </div>
-            <div class="form-group">
-                <label>Mënyra e pagesës</label>
-                <select name="payment">
+            <div class="form-group" style="min-width:auto;">
+                <label>Mënyra</label>
+                <select name="payment" style="padding:6px 8px;">
                     <option value="">Të gjitha</option>
                     <?php foreach ($paymentTypes as $pt): ?>
                     <option value="<?= e($pt) ?>" <?= $filterPayment === $pt ? 'selected' : '' ?>><?= e($pt) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Rreshta/faqe</label>
-                <select name="per_page">
+            <div class="form-group" style="min-width:auto;">
+                <label>Rreshta</label>
+                <select name="per_page" style="width:70px;padding:6px 8px;">
                     <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
                     <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
                     <option value="1000" <?= $perPage==1000?'selected':'' ?>>1000</option>
