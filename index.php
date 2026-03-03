@@ -108,8 +108,8 @@ $litraShitura = $db->query("SELECT COALESCE(SUM(litrat_total), 0) FROM distribui
 $bocaTerren = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi")->fetchColumn();
 $totalKliente = $db->query("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribuimi")->fetchColumn();
 
-// Deponime ne banke
-$deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%'")->fetchColumn();
+// Deponime ne banke — Excel starts at row 42 (id>=7334), skipping 2 early DEPONIM rows (€695)
+$deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%' AND id >= 7334")->fetchColumn();
 
 // Babi Cash (Excel Distribuimi L4, M4, N4)
 // L4: Cash + invoice-cash from 2022-08-29 minus cash expenses from Excel row 217 (id>=10319) + manual adj
