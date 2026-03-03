@@ -30,9 +30,12 @@ ob_start();
                 <label>Emri (opsional)</label>
                 <input type="text" id="snapName" placeholder="p.sh. para-ndryshimeve" style="width:100%;">
             </div>
-            <div class="form-group" style="justify-content:flex-end;">
+            <div class="form-group" style="justify-content:flex-end;display:flex;gap:8px;">
                 <button type="submit" class="btn btn-primary" id="snapCreateBtn">
                     <i class="fas fa-camera"></i> Krijo Snapshot
+                </button>
+                <button type="button" class="btn" id="snapImportBtn" onclick="importFromFiles()" style="background:#6366f1;color:#fff;">
+                    <i class="fas fa-file-import"></i> Import nga skedari
                 </button>
             </div>
         </form>
@@ -219,6 +222,29 @@ function showToast(msg, type) {
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+async function importFromFiles() {
+    const btn = document.getElementById('snapImportBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke importuar...';
+
+    try {
+        const res = await fetch('/api/snapshot.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'import_files'})
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        loadSnapshots();
+        showToast(data.message, 'success');
+    } catch (err) {
+        showToast('Gabim: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-file-import"></i> Import nga skedari';
+    }
 }
 
 // Load on page ready

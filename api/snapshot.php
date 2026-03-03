@@ -144,6 +144,54 @@ try {
         $sizeMB = round($sizeBytes / 1048576, 2);
         echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u importua ({$sizeMB} MB)"]);
 
+    } elseif ($action === 'import_files') {
+        // Import snapshot JSON files from the snapshots/ directory into the database
+        $snapDir = __DIR__ . '/../snapshots';
+        if (!is_dir($snapDir)) {
+            echo json_encode(['success' => false, 'error' => 'Snapshots directory not found']);
+            exit;
+        }
+
+        $files = glob($snapDir . '/*.json');
+        if (empty($files)) {
+            echo json_encode(['success' => false, 'error' => 'No JSON files found in snapshots/']);
+            exit;
+        }
+
+        $imported = [];
+        $skipped = [];
+        foreach ($files as $file) {
+            $jsonData = file_get_contents($file);
+            if (!$jsonData) continue;
+
+            $snapshot = json_decode($jsonData, true);
+            if (!$snapshot || !isset($snapshot['tables'])) continue;
+
+            $name = $snapshot['name'] ?? pathinfo($file, PATHINFO_FILENAME);
+            $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
+            $createdAt = $snapshot['created_at'] ?? date('Y-m-d H:i:s', filemtime($file));
+            $sizeBytes = strlen($jsonData);
+
+            // Check if already exists
+            $check = $db->prepare("SELECT name FROM snapshots WHERE name = ?");
+            $check->execute([$name]);
+            if ($check->fetch()) {
+                $skipped[] = $name;
+                continue;
+            }
+
+            $stmt = $db->prepare("INSERT INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$name, $createdAt, $jsonData, $sizeBytes]);
+            $imported[] = ['name' => $name, 'size' => round($sizeBytes / 1048576, 2) . ' MB'];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'message' => count($imported) . ' snapshot(s) importuar, ' . count($skipped) . ' tashmë ekzistojnë'
+        ], JSON_UNESCAPED_UNICODE);
+
     } else {
         echo json_encode(['success' => false, 'error' => 'Invalid action']);
     }
