@@ -57,6 +57,23 @@ $notesRaw = $db->query("SELECT klienti, klient_bank_cash, kush_merr_borxhin, kom
 $notes = [];
 foreach ($notesRaw as $n) { $notes[$n['klienti']] = $n; }
 
+// Build filter value arrays for client-side filters
+$borxhCashVals = array_values(array_unique(array_map(fn($d) => eur($d['cash']), $debts)));
+$borxhBankVals = array_values(array_unique(array_map(fn($d) => eur($d['bank']), $debts)));
+$borxhFBankeVals = array_values(array_unique(array_map(fn($d) => eur($d['fature_banke']), $debts)));
+$borxhFCashVals = array_values(array_unique(array_map(fn($d) => eur($d['fature_cash']), $debts)));
+$borxhNoPagVals = array_values(array_unique(array_map(fn($d) => eur($d['no_payment']), $debts)));
+$borxhDhurateVals = array_values(array_unique(array_map(fn($d) => eur($d['dhurate']), $debts)));
+$borxhTotalVals = array_values(array_unique(array_map(fn($d) => eur($d['total']), $debts)));
+$borxhBorxhiVals = array_values(array_unique(array_map(fn($d) => eur($d['borxhi_bank_deri']), $debts)));
+sort($borxhCashVals); sort($borxhBankVals); sort($borxhFBankeVals); sort($borxhFCashVals);
+sort($borxhNoPagVals); sort($borxhDhurateVals); sort($borxhTotalVals); sort($borxhBorxhiVals);
+
+$borxhBCNoteVals = array_values(array_unique(array_filter(array_map(fn($n) => $n['klient_bank_cash'] ?? '', $notes))));
+$borxhKushVals = array_values(array_unique(array_filter(array_map(fn($n) => $n['kush_merr_borxhin'] ?? '', $notes))));
+$borxhKomentVals = array_values(array_unique(array_filter(array_map(fn($n) => $n['koment'] ?? '', $notes))));
+sort($borxhBCNoteVals); sort($borxhKushVals); sort($borxhKomentVals);
+
 ob_start();
 ?>
 
@@ -75,17 +92,17 @@ ob_start();
                 <thead>
                     <tr>
                         <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;" data-filter="f_klienti" data-filter-values="<?= e(json_encode($borxhKlientet, JSON_UNESCAPED_UNICODE)) ?>">Klienti <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Cash <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;">Bank <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;">Faturë banke <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Faturë cash <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Pa paguar <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Dhuratë <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;font-weight:700;">Total <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;color:var(--danger);font-weight:700;">Borxhi Bank deri <?= date('d/m/Y', strtotime($dateDeri)) ?> <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;">Bank/Cash <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 10)" style="cursor:pointer;user-select:none;">Kush merr borxhin <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;">Koment <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_cash" data-filter-values="<?= e(json_encode($borxhCashVals)) ?>" data-filter-mode="client" data-filter-col="1">Cash <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bank" data-filter-values="<?= e(json_encode($borxhBankVals)) ?>" data-filter-mode="client" data-filter-col="2">Bank <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_fbanke" data-filter-values="<?= e(json_encode($borxhFBankeVals)) ?>" data-filter-mode="client" data-filter-col="3">Faturë banke <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_fcash" data-filter-values="<?= e(json_encode($borxhFCashVals)) ?>" data-filter-mode="client" data-filter-col="4">Faturë cash <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_nopag" data-filter-values="<?= e(json_encode($borxhNoPagVals)) ?>" data-filter-mode="client" data-filter-col="5">Pa paguar <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_dhurate" data-filter-values="<?= e(json_encode($borxhDhurateVals)) ?>" data-filter-mode="client" data-filter-col="6">Dhuratë <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;font-weight:700;" data-filter="f_borxh_total" data-filter-values="<?= e(json_encode($borxhTotalVals)) ?>" data-filter-mode="client" data-filter-col="7">Total <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;color:var(--danger);font-weight:700;" data-filter="f_borxh_borxhi" data-filter-values="<?= e(json_encode($borxhBorxhiVals)) ?>" data-filter-mode="client" data-filter-col="8">Borxhi Bank deri <?= date('d/m/Y', strtotime($dateDeri)) ?> <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bcnote" data-filter-values="<?= e(json_encode($borxhBCNoteVals)) ?>" data-filter-mode="client" data-filter-col="9">Bank/Cash <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 10)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_kush" data-filter-values="<?= e(json_encode($borxhKushVals)) ?>" data-filter-mode="client" data-filter-col="10">Kush merr borxhin <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_koment" data-filter-values="<?= e(json_encode($borxhKomentVals)) ?>" data-filter-mode="client" data-filter-col="11">Koment <i class="fas fa-sort"></i></th>
                     </tr>
                 </thead>
                 <tbody>

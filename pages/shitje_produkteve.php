@@ -39,6 +39,8 @@ $fSpAdresa = getFilterParam('f_adresa');
 $fSpQyteti = getFilterParam('f_qyteti');
 $fSpCmimi = getFilterParam('f_cmimi');
 $fSpKoment = getFilterParam('f_koment');
+$filterDateFrom = $_GET['date_from'] ?? '';
+$filterDateTo = $_GET['date_to'] ?? '';
 
 $spWhere = [];
 $spParams = [];
@@ -50,6 +52,8 @@ if ($fSpAdresa) { $fin = buildFilterIn($fSpAdresa, 'adresa'); $spWhere[] = $fin[
 if ($fSpQyteti) { $fin = buildFilterIn($fSpQyteti, 'qyteti'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
 if ($fSpCmimi) { $fin = buildFilterIn($fSpCmimi, 'cmimi'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
 if ($fSpKoment) { $fin = buildFilterIn($fSpKoment, 'koment'); $spWhere[] = $fin['sql']; $spParams = array_merge($spParams, $fin['params']); }
+if ($filterDateFrom) { $spWhere[] = "data >= ?"; $spParams[] = $filterDateFrom; }
+if ($filterDateTo) { $spWhere[] = "data <= ?"; $spParams[] = $filterDateTo; }
 $spWhereSQL = $spWhere ? 'WHERE ' . implode(' AND ', $spWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM shitje_produkteve {$spWhereSQL}");
@@ -60,8 +64,17 @@ $rowsStmt = $db->prepare("SELECT * FROM shitje_produkteve {$spWhereSQL} ORDER BY
 $rowsStmt->execute($spParams);
 $rows = $rowsStmt->fetchAll();
 
-$totalCash = $db->query("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash'")->fetchColumn();
-$totalAll = $db->query("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve")->fetchColumn();
+$sumDateWhere = '';
+$sumDateParams = [];
+if ($filterDateFrom) { $sumDateWhere .= " AND data >= ?"; $sumDateParams[] = $filterDateFrom; }
+if ($filterDateTo) { $sumDateWhere .= " AND data <= ?"; $sumDateParams[] = $filterDateTo; }
+
+$stmt = $db->prepare("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve WHERE LOWER(TRIM(menyra_pageses)) = 'cash' {$sumDateWhere}");
+$stmt->execute($sumDateParams);
+$totalCash = $stmt->fetchColumn();
+$stmt = $db->prepare("SELECT COALESCE(SUM(totali),0) FROM shitje_produkteve WHERE 1=1 {$sumDateWhere}");
+$stmt->execute($sumDateParams);
+$totalAll = $stmt->fetchColumn();
 
 // Client list from kontrata (real client registry) + distribuimi
 $kontrataClients = $db->query("SELECT DISTINCT name_from_database FROM kontrata WHERE name_from_database IS NOT NULL AND name_from_database != '' ORDER BY name_from_database")->fetchAll(PDO::FETCH_COLUMN);
@@ -178,6 +191,33 @@ ob_start();
 
 <div class="card">
     <div class="card-header"><h3>Shitje Produkteve (<?= num($totalRows) ?>)</h3></div>
+    <div class="filters">
+        <form method="GET" style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;">
+            <?php if ($sortCol !== 'data' || $sortDir !== 'DESC'): ?>
+            <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
+            <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
+            <?php endif; ?>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data nga</label>
+                <input type="date" name="date_from" value="<?= e($filterDateFrom) ?>" style="padding:6px 8px;">
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data deri</label>
+                <input type="date" name="date_to" value="<?= e($filterDateTo) ?>" style="padding:6px 8px;">
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Rreshta</label>
+                <select name="per_page" style="width:70px;padding:6px 8px;">
+                    <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                    <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                    <option value="1000" <?= $perPage==1000?'selected':'' ?>>1000</option>
+                    <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
+            <a href="shitje_produkteve.php" class="btn btn-outline btn-sm">Pastro</a>
+        </form>
+    </div>
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table" data-table="shitje_produkteve" data-server-sort="true">

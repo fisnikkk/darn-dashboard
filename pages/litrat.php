@@ -100,6 +100,21 @@ unset($d);
 $monthNames = ['01'=>'Janar','02'=>'Shkurt','03'=>'Mars','04'=>'Prill','05'=>'Maj','06'=>'Qershor',
                '07'=>'Korrik','08'=>'Gusht','09'=>'Shtator','10'=>'Tetor','11'=>'Nëntor','12'=>'Dhjetor'];
 
+// Build filter arrays for client-side filters
+$litMonths = array_values(array_unique(array_map(fn($d) => ($monthNames[explode('-', $d['m'])[1]] ?? explode('-', $d['m'])[1]) . ' ' . explode('-', $d['m'])[0], $data)));
+$litBleraVals = array_values(array_unique(array_map(fn($d) => eur($d['litraBlera']), $data)));
+$litShituraVals = array_values(array_unique(array_map(fn($d) => eur($d['litraShitura']), $data)));
+$litBleraMeFatVals = array_values(array_unique(array_map(fn($d) => eur($d['litraBleraMeFature']), $data)));
+$litFaturuaraVals = array_values(array_unique(array_map(fn($d) => eur($d['litraFaturuara']), $data)));
+$litMbeturVals = array_values(array_unique(array_map(fn($d) => eur($d['litraMbeturMeFature']), $data)));
+$litDispVals = array_values(array_unique(array_map(fn($d) => eur($d['litratNeDispozicionCum']), $data)));
+$litBocaVals = array_values(array_unique(array_map(fn($d) => num($d['bocaShperndara']), $data)));
+$litShitjeVals = array_values(array_unique(array_map(fn($d) => eur($d['shitje']), $data)));
+$litKthimVals = array_values(array_unique(array_map(fn($d) => number_format($d['kthimPerBoce'], 2), $data)));
+sort($litMonths); sort($litBleraVals); sort($litShituraVals); sort($litBleraMeFatVals);
+sort($litFaturuaraVals); sort($litMbeturVals); sort($litDispVals); sort($litBocaVals);
+sort($litShitjeVals); sort($litKthimVals);
+
 ob_start();
 ?>
 
@@ -117,16 +132,16 @@ ob_start();
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;">Muaji <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Litra të blera (C) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;">Litra të shitura (D) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;">Blera me faturë (E) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Lëshuar me faturë (F) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Mbetur me faturë (G) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Dispozicion me faturë (H) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;">Boca shpërndara (I) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;">Shitjet (J) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;">Kthim/Bocë (K) <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;" data-filter="f_lit_muaji" data-filter-values="<?= e(json_encode($litMonths)) ?>" data-filter-mode="client" data-filter-col="0">Muaji <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;" data-filter="f_lit_blera" data-filter-values="<?= e(json_encode($litBleraVals)) ?>" data-filter-mode="client" data-filter-col="1">Litra të blera (C) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;" data-filter="f_lit_shitura" data-filter-values="<?= e(json_encode($litShituraVals)) ?>" data-filter-mode="client" data-filter-col="2">Litra të shitura (D) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;" data-filter="f_lit_bleramefat" data-filter-values="<?= e(json_encode($litBleraMeFatVals)) ?>" data-filter-mode="client" data-filter-col="3">Blera me faturë (E) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_lit_faturuara" data-filter-values="<?= e(json_encode($litFaturuaraVals)) ?>" data-filter-mode="client" data-filter-col="4">Lëshuar me faturë (F) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_lit_mbetur" data-filter-values="<?= e(json_encode($litMbeturVals)) ?>" data-filter-mode="client" data-filter-col="5">Mbetur me faturë (G) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_lit_disp" data-filter-values="<?= e(json_encode($litDispVals)) ?>" data-filter-mode="client" data-filter-col="6">Dispozicion me faturë (H) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;" data-filter="f_lit_boca" data-filter-values="<?= e(json_encode($litBocaVals)) ?>" data-filter-mode="client" data-filter-col="7">Boca shpërndara (I) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;" data-filter="f_lit_shitje" data-filter-values="<?= e(json_encode($litShitjeVals)) ?>" data-filter-mode="client" data-filter-col="8">Shitjet (J) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" data-filter="f_lit_kthim" data-filter-values="<?= e(json_encode($litKthimVals)) ?>" data-filter-mode="client" data-filter-col="9">Kthim/Bocë (K) <i class="fas fa-sort"></i></th>
                     </tr>
                 </thead>
                 <tbody>

@@ -15,7 +15,7 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji'];
+$allowedSorts = ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji','komentet'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -95,6 +95,7 @@ ob_start();
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir), 'f_deftesa', $gbDeftesaVals) ?>
                         <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
+                        <?= sortThGB('komentet', 'Komentet', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
                 </thead>
@@ -117,6 +118,7 @@ ob_start();
                         <td class="amount" style="font-weight:600;"><?= eur($r['bilanci']) ?></td>
                         <td class="editable" data-field="deftesa"><?= e($r['deftesa']) ?></td>
                         <td class="editable" data-field="lloji" data-type="select" data-options="<?= e($llojiJSON) ?>"><?= e($r['lloji']) ?></td>
+                        <td class="editable truncate" data-field="komentet" title="<?= e($r['komentet']) ?>"><?= e($r['komentet']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('gjendja_bankare',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
                     <?php endforeach; ?>

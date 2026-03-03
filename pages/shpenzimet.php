@@ -15,6 +15,8 @@ $offset = ($page - 1) * $perPage;
 
 $filterType = $_GET['lloji'] ?? '';
 $filterPayment = $_GET['pagesa'] ?? '';
+$filterDateFrom = $_GET['date_from'] ?? '';
+$filterDateTo = $_GET['date_to'] ?? '';
 // Multi-select column filters
 $fArsyetimi = getFilterParam('f_arsyetimi');
 $fLlojiPag = getFilterParam('f_lloji_pag');
@@ -45,6 +47,8 @@ $where = [];
 $params = [];
 if ($filterType) { $where[] = "LOWER(TRIM(lloji_i_transaksionit)) = LOWER(TRIM(?))"; $params[] = $filterType; }
 if ($filterPayment) { $where[] = "LOWER(TRIM(lloji_i_pageses)) = LOWER(TRIM(?))"; $params[] = $filterPayment; }
+if ($filterDateFrom) { $where[] = "data_e_pageses >= ?"; $params[] = $filterDateFrom; }
+if ($filterDateTo) { $where[] = "data_e_pageses <= ?"; $params[] = $filterDateTo; }
 // Multi-select column filters
 if ($fArsyetimi) { $fin = buildFilterIn($fArsyetimi, 'arsyetimi'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLlojiPag) { $fin = buildFilterIn($fLlojiPag, 'lloji_i_pageses'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
@@ -69,10 +73,14 @@ $rows = $stmt->fetchAll();
 $cashBankWhere = '';
 $cashBankParams = [];
 if ($filterType) { $cashBankWhere = "AND LOWER(TRIM(lloji_i_transaksionit)) = LOWER(TRIM(?))"; $cashBankParams[] = $filterType; }
+if ($filterDateFrom) { $cashBankWhere .= " AND data_e_pageses >= ?"; $cashBankParams[] = $filterDateFrom; }
+if ($filterDateTo) { $cashBankWhere .= " AND data_e_pageses <= ?"; $cashBankParams[] = $filterDateTo; }
 
 $plinShpenzimWhere = '';
 $plinShpenzimParams = [];
 if ($filterPayment) { $plinShpenzimWhere = "AND LOWER(TRIM(lloji_i_pageses)) = LOWER(TRIM(?))"; $plinShpenzimParams[] = $filterPayment; }
+if ($filterDateFrom) { $plinShpenzimWhere .= " AND data_e_pageses >= ?"; $plinShpenzimParams[] = $filterDateFrom; }
+if ($filterDateTo) { $plinShpenzimWhere .= " AND data_e_pageses <= ?"; $plinShpenzimParams[] = $filterDateTo; }
 
 $totalCashStmt = $db->prepare("SELECT COALESCE(SUM(shuma),0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses))='cash' {$cashBankWhere}");
 $totalCashStmt->execute($cashBankParams);
@@ -197,6 +205,10 @@ ob_start();
     </div>
     <div class="filters">
         <form method="GET" style="display:flex;gap:12px;align-items:flex-end;">
+            <?php if ($sortCol !== 'data_e_pageses' || $sortDir !== 'DESC'): ?>
+            <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
+            <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
+            <?php endif; ?>
             <div class="form-group">
                 <label>Lloji transaksionit</label>
                 <select name="lloji">
@@ -214,6 +226,14 @@ ob_start();
                     <option value="<?= e($l) ?>" <?= $filterPayment === $l ? 'selected' : '' ?>><?= e($l) ?></option>
                     <?php endforeach; ?>
                 </select>
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data nga</label>
+                <input type="date" name="date_from" value="<?= e($filterDateFrom) ?>" style="padding:6px 8px;">
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data deri</label>
+                <input type="date" name="date_to" value="<?= e($filterDateTo) ?>" style="padding:6px 8px;">
             </div>
             <div class="form-group">
                 <label>Rreshta/faqe</label>

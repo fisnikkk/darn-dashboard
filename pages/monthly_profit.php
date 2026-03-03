@@ -19,24 +19,24 @@ $db = getDB();
 
 // The 21 expense subcategories matching Excel columns H-AB
 $expenseCategories = [
-    'nafte_kombit'       => ['label' => 'Nafte kombit',       'keys' => ['nafte kombit', 'nafte e kombit']],
-    'nafte_mercedes'     => ['label' => 'Nafte Mercedes',     'keys' => ['nafte mercedes']],
+    'nafte_kombit'       => ['label' => 'Nafte kombit',       'keys' => ['nafte kombit', 'nafte e kombit', 'alba petrol', 'dea gas', 'veda oil']],
+    'nafte_mercedes'     => ['label' => 'Nafte Mercedes',     'keys' => ['nafte mercedes', 'nafte kombit mercedes']],
     'paga'               => ['label' => 'Paga',               'keys' => ['paga']],
-    'taksa'              => ['label' => 'Taksa',              'keys' => ['taksa']],
-    'investim_firme'     => ['label' => 'Investim ne firme',  'keys' => ['investim ne firme', 'investime ne firme']],
+    'taksa'              => ['label' => 'Taksa',              'keys' => ['taksa', 'regjistrim per ta barazuar']],
+    'investim_firme'     => ['label' => 'Investim ne firme',  'keys' => ['investim ne firme', 'investime ne firme', 'deponim i pazarit']],
     'qera_pumpa'         => ['label' => 'Qera te pumpa',      'keys' => ['qera te pumpa', 'qera e pumpes']],
     'internet'           => ['label' => 'Internet',           'keys' => ['internet']],
     'autolarje'          => ['label' => 'Autolarje',          'keys' => ['autolarje']],
     'pagese_instalime'   => ['label' => 'Pagese per instalime','keys' => ['pagese per instalime']],
     'investim_kombi'     => ['label' => 'Investime ne kombi', 'keys' => ['investime ne kombi']],
     'investim_kombi_ri'  => ['label' => 'Investim kombi te ri','keys' => ['investime ne kombi te ri', 'investim ne kombi te ri']],
-    'material_shpenzues' => ['label' => 'Material shpenzues', 'keys' => ['material shpenzues']],
+    'material_shpenzues' => ['label' => 'Material shpenzues', 'keys' => ['material shpenzues', 'blerja e kapakve', 'blerja e keseve', 'kthim plini', 'blerja e gasit(2620x.1.11= 2908.2  date 11/03/2024)(4700 lit),6 € peshorja  -verda petroll']],
     'telefon'            => ['label' => 'Telefon mbushje',    'keys' => ['telefon mbushje', 'telefon']],
-    'shpenzime_ditore'   => ['label' => 'Shpenzime ditore',   'keys' => ['shpenzime ditore']],
+    'shpenzime_ditore'   => ['label' => 'Shpenzime ditore',   'keys' => ['shpenzime ditore', 'navigacion', 'parking', 'barazim', 'borxh i klientit', 'borxh labi', 'borxh lena']],
     'rryma'              => ['label' => 'Rryma',              'keys' => ['rryma']],
     'shpenzime_puntore'  => ['label' => 'Shpenzime per puntore','keys' => ['shpenzime per puntore']],
     'vaga'               => ['label' => 'Vaga',               'keys' => ['vaga']],
-    'pastrim_kombit'     => ['label' => 'Pastrim i kombit',   'keys' => ['pastrim i kombit', 'pastrim kombit']],
+    'pastrim_kombit'     => ['label' => 'Pastrim i kombit',   'keys' => ['pastrim i kombit', 'pastrim kombit', 'larja e kombit']],
     'marketing'          => ['label' => 'Marketing',          'keys' => ['marketing']],
     'besa_security'      => ['label' => 'Besa Security',      'keys' => ['besa security']],
     'investim_kombi_3'   => ['label' => 'Investime ne kombi 3','keys' => ['investime ne kombi 3']],
@@ -46,7 +46,7 @@ $expenseCategories = [
 // Note: 'pagese per instalime' is NOT an investment — Excel formula AD4 subtracts it
 // like any other expense (column P is included in the SUM that gets subtracted)
 $investmentKeys = [
-    'investim ne firme', 'investime ne firme',
+    'investim ne firme', 'investime ne firme', 'deponim i pazarit',
     'investime ne kombi', 'investime ne kombi te ri', 'investim ne kombi te ri',
     'investime ne kombi 3'
 ];

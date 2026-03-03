@@ -41,6 +41,8 @@ $fPdKoment = getFilterParam('f_koment');
 $fPdNrFat = getFilterParam('f_nr_fat');
 $fPdFaturat = getFilterParam('f_faturat');
 $fPdDalje = getFilterParam('f_dalje');
+$filterDateFrom = $_GET['date_from'] ?? '';
+$filterDateTo = $_GET['date_to'] ?? '';
 
 $pdWhere = [];
 $pdParams = [];
@@ -53,6 +55,8 @@ if ($fPdKoment) { $fin = buildFilterIn($fPdKoment, 'koment'); $pdWhere[] = $fin[
 if ($fPdNrFat) { $fin = buildFilterIn($fPdNrFat, 'nr_i_fatures'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 if ($fPdFaturat) { $fin = buildFilterIn($fPdFaturat, 'faturat_e_pranuara'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
 if ($fPdDalje) { $fin = buildFilterIn($fPdDalje, 'dalje_pagesat_sipas_bankes'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($filterDateFrom) { $pdWhere[] = "data >= ?"; $pdParams[] = $filterDateFrom; }
+if ($filterDateTo) { $pdWhere[] = "data <= ?"; $pdParams[] = $filterDateTo; }
 $pdWhereSQL = $pdWhere ? 'WHERE ' . implode(' AND ', $pdWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM plini_depo {$pdWhereSQL}");
@@ -64,10 +68,23 @@ $rowsStmt = $db->prepare("SELECT * FROM plini_depo {$pdWhereSQL} ORDER BY {$sort
 $rowsStmt->execute($pdParams);
 $rows = $rowsStmt->fetchAll();
 
-$totalBlerje = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo")->fetchColumn();
-$blerjeFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='me fature'")->fetchColumn();
-$blerjePaFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='pa fature'")->fetchColumn();
-$totalKg = $db->query("SELECT COALESCE(SUM(kg),0) FROM plini_depo")->fetchColumn();
+$sumDateWhere = '';
+$sumDateParams = [];
+if ($filterDateFrom) { $sumDateWhere .= " AND data >= ?"; $sumDateParams[] = $filterDateFrom; }
+if ($filterDateTo) { $sumDateWhere .= " AND data <= ?"; $sumDateParams[] = $filterDateTo; }
+
+$stmt = $db->prepare("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE 1=1 {$sumDateWhere}");
+$stmt->execute($sumDateParams);
+$totalBlerje = $stmt->fetchColumn();
+$stmt = $db->prepare("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='me fature' {$sumDateWhere}");
+$stmt->execute($sumDateParams);
+$blerjeFature = $stmt->fetchColumn();
+$stmt = $db->prepare("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='pa fature' {$sumDateWhere}");
+$stmt->execute($sumDateParams);
+$blerjePaFature = $stmt->fetchColumn();
+$stmt = $db->prepare("SELECT COALESCE(SUM(kg),0) FROM plini_depo WHERE 1=1 {$sumDateWhere}");
+$stmt->execute($sumDateParams);
+$totalKg = $stmt->fetchColumn();
 
 $menyratPag = ['Me fature', 'Pa fature'];
 $cashBanke = ['Cash', 'Banke'];
@@ -179,6 +196,33 @@ ob_start();
 
 <div class="card">
     <div class="card-header"><h3>Plini Depo (<?= num($totalRows) ?> rreshta)</h3></div>
+    <div class="filters">
+        <form method="GET" style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;">
+            <?php if ($sortCol !== 'data' || $sortDir !== 'DESC'): ?>
+            <input type="hidden" name="sort" value="<?= e($sortCol) ?>">
+            <input type="hidden" name="dir" value="<?= e($sortDir) ?>">
+            <?php endif; ?>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data nga</label>
+                <input type="date" name="date_from" value="<?= e($filterDateFrom) ?>" style="padding:6px 8px;">
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data deri</label>
+                <input type="date" name="date_to" value="<?= e($filterDateTo) ?>" style="padding:6px 8px;">
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Rreshta</label>
+                <select name="per_page" style="width:70px;padding:6px 8px;">
+                    <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                    <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                    <option value="1000" <?= $perPage==1000?'selected':'' ?>>1000</option>
+                    <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
+            <a href="plini_depo.php" class="btn btn-outline btn-sm">Pastro</a>
+        </form>
+    </div>
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table" data-table="plini_depo" data-server-sort="true">
