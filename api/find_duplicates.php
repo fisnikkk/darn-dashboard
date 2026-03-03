@@ -14,11 +14,12 @@ try {
                d.menyra_e_pageses, d.boca_te_kthyera, d.litrat_total
         FROM distribuimi d
         INNER JOIN (
-            SELECT LOWER(TRIM(klienti)) as kl, data, COUNT(*) as cnt
+            SELECT LOWER(TRIM(klienti)) as kl, data, sasia, pagesa, COUNT(*) as cnt
             FROM distribuimi
-            GROUP BY LOWER(TRIM(klienti)), data
+            GROUP BY LOWER(TRIM(klienti)), data, sasia, pagesa
             HAVING cnt > 1
         ) dups ON LOWER(TRIM(d.klienti)) = dups.kl AND d.data = dups.data
+              AND d.sasia = dups.sasia AND d.pagesa = dups.pagesa
         ORDER BY d.klienti, d.data, d.id
     ")->fetchAll();
 
