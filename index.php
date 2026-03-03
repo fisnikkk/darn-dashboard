@@ -108,8 +108,8 @@ $litraShitura = $db->query("SELECT COALESCE(SUM(litrat_total), 0) FROM distribui
 $bocaTerren = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi")->fetchColumn();
 $totalKliente = $db->query("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribuimi")->fetchColumn();
 
-// Deponime ne banke — Excel starts at row 42 (id>=7334), skipping 2 early DEPONIM rows (€695)
-$deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%' AND id >= 7334")->fetchColumn();
+// Deponime ne banke — Excel starts at row 42 (date >= 2021-10-23), skipping 2 early DEPONIM rows (€695)
+$deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%' AND data >= '2021-10-23'")->fetchColumn();
 
 // Babi Cash (Excel Distribuimi L4, M4, N4)
 // L4: Cash + invoice-cash from 2022-08-29 minus cash expenses from Excel row 217 (id>=10319) + manual adj
@@ -120,11 +120,10 @@ $babiPayments = $db->query("
     FROM distribuimi
     WHERE data >= '2022-08-29'
 ")->fetch();
-// Excel SUMIF starts at Shpenzimet row 217 = DB id 10319 (date 2022-08-29)
-// Using id >= 10319 matches the Excel row boundary exactly (date filter is off by €6)
+// Excel SUMIF starts at Shpenzimet row 217 (date >= 2022-08-29)
 $babiExpenses = $db->query("
     SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
-    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND id >= 10319
+    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND data_e_pageses >= '2022-08-29'
 ")->fetchColumn();
 $babiManual = 281.9; // Manual adjustments from Excel: 66.4 + 16.6 + 34.7 + 164.2
 $babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
