@@ -1,7 +1,8 @@
 <?php
 /**
  * Database Snapshot API
- * Creates and restores database snapshots (JSON-based)
+ * Creates and restores database snapshots (stored IN the database, not filesystem)
+ * This ensures snapshots survive Railway deployments (ephemeral filesystem).
  */
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
@@ -12,11 +13,17 @@ $action = $input['action'] ?? '';
 $tables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata',
            'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo','borxhet_notes'];
 
-$snapshotDir = __DIR__ . '/../snapshots';
-if (!is_dir($snapshotDir)) mkdir($snapshotDir, 0755, true);
-
 try {
     $db = getDB();
+
+    // Auto-create snapshots table if it doesn't exist
+    $db->exec("CREATE TABLE IF NOT EXISTS snapshots (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        created_at DATETIME NOT NULL,
+        snapshot_data LONGTEXT NOT NULL,
+        size_bytes INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     if ($action === 'create') {
         $name = $input['name'] ?? date('Y-m-d_H-i-s');
@@ -32,22 +39,30 @@ try {
             }
         }
 
-        $file = $snapshotDir . '/' . $name . '.json';
-        file_put_contents($file, json_encode($snapshot, JSON_UNESCAPED_UNICODE));
-        $sizeMB = round(filesize($file) / 1048576, 2);
+        $jsonData = json_encode($snapshot, JSON_UNESCAPED_UNICODE);
+        $sizeBytes = strlen($jsonData);
+        $sizeMB = round($sizeBytes / 1048576, 2);
+
+        // Insert or replace existing snapshot with same name
+        $stmt = $db->prepare("REPLACE INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, NOW(), ?, ?)");
+        $stmt->execute([$name, $jsonData, $sizeBytes]);
+
         echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u krijua ({$sizeMB} MB)"]);
 
     } elseif ($action === 'restore') {
         $name = $input['name'] ?? '';
         $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
-        $file = $snapshotDir . '/' . $name . '.json';
 
-        if (!file_exists($file)) {
+        $stmt = $db->prepare("SELECT snapshot_data FROM snapshots WHERE name = ?");
+        $stmt->execute([$name]);
+        $jsonData = $stmt->fetchColumn();
+
+        if (!$jsonData) {
             echo json_encode(['success' => false, 'error' => 'Snapshot nuk u gjet']);
             exit;
         }
 
-        $snapshot = json_decode(file_get_contents($file), true);
+        $snapshot = json_decode($jsonData, true);
         if (!$snapshot || !isset($snapshot['tables'])) {
             echo json_encode(['success' => false, 'error' => 'Snapshot i pavlefshëm']);
             exit;
@@ -83,29 +98,50 @@ try {
         echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u rikthye me sukses"]);
 
     } elseif ($action === 'list') {
-        $files = glob($snapshotDir . '/*.json');
+        $rows = $db->query("SELECT name, created_at, size_bytes FROM snapshots ORDER BY created_at DESC")->fetchAll();
         $snapshots = [];
-        foreach ($files as $f) {
-            $data = json_decode(file_get_contents($f), true);
+        foreach ($rows as $r) {
             $snapshots[] = [
-                'name' => basename($f, '.json'),
-                'created_at' => $data['created_at'] ?? 'Pa date',
-                'size' => round(filesize($f) / 1048576, 2) . ' MB'
+                'name' => $r['name'],
+                'created_at' => $r['created_at'] ?? 'Pa date',
+                'size' => round($r['size_bytes'] / 1048576, 2) . ' MB'
             ];
         }
-        usort($snapshots, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
         echo json_encode(['success' => true, 'snapshots' => $snapshots]);
 
     } elseif ($action === 'delete') {
         $name = $input['name'] ?? '';
         $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
-        $file = $snapshotDir . '/' . $name . '.json';
-        if (file_exists($file)) {
-            unlink($file);
+        $stmt = $db->prepare("DELETE FROM snapshots WHERE name = ?");
+        $stmt->execute([$name]);
+        if ($stmt->rowCount() > 0) {
             echo json_encode(['success' => true, 'message' => 'Snapshot u fshi']);
         } else {
             echo json_encode(['success' => false, 'error' => 'Snapshot nuk u gjet']);
         }
+
+    } elseif ($action === 'import') {
+        // Import a snapshot from JSON data (used to migrate filesystem snapshots to DB)
+        $jsonData = $input['data'] ?? '';
+        if (!$jsonData) {
+            echo json_encode(['success' => false, 'error' => 'No data provided']);
+            exit;
+        }
+        $snapshot = json_decode($jsonData, true);
+        if (!$snapshot || !isset($snapshot['tables'])) {
+            echo json_encode(['success' => false, 'error' => 'Invalid snapshot data']);
+            exit;
+        }
+        $name = $snapshot['name'] ?? date('Y-m-d_H-i-s');
+        $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
+        $createdAt = $snapshot['created_at'] ?? date('Y-m-d H:i:s');
+        $sizeBytes = strlen($jsonData);
+
+        $stmt = $db->prepare("REPLACE INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$name, $createdAt, $jsonData, $sizeBytes]);
+
+        $sizeMB = round($sizeBytes / 1048576, 2);
+        echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u importua ({$sizeMB} MB)"]);
 
     } else {
         echo json_encode(['success' => false, 'error' => 'Invalid action']);

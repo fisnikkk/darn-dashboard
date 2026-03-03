@@ -23,11 +23,49 @@ function getDB() {
             ]);
             // MySQL 8 strict mode breaks GROUP BY and zero-date queries
             $pdo->exec("SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''), 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')");
+
+            // Auto-run migrations (safe to run multiple times)
+            runMigrations($pdo);
         } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
     }
     return $pdo;
+}
+
+/**
+ * Run database migrations. Each migration is idempotent (safe to run multiple times).
+ */
+function runMigrations($pdo) {
+    static $migrated = false;
+    if ($migrated) return;
+    $migrated = true;
+
+    try {
+        // Add komentet column to gjendja_bankare (if not exists)
+        $cols = $pdo->query("SHOW COLUMNS FROM gjendja_bankare LIKE 'komentet'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE gjendja_bankare ADD COLUMN komentet TEXT DEFAULT NULL");
+        }
+
+        // Add reverted column to changelog (if not exists)
+        $cols = $pdo->query("SHOW COLUMNS FROM changelog LIKE 'reverted'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE changelog ADD COLUMN reverted TINYINT(1) DEFAULT 0");
+        }
+
+        // Snapshots table (auto-created by snapshot.php, but ensure it exists)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL UNIQUE,
+            created_at DATETIME NOT NULL,
+            snapshot_data LONGTEXT NOT NULL,
+            size_bytes INT NOT NULL DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    } catch (PDOException $e) {
+        // Silently ignore migration errors (table might not exist yet during initial setup)
+    }
 }
 
 // Helper: format number as Euro
