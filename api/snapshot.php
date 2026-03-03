@@ -8,8 +8,12 @@ ini_set('memory_limit', '512M');
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
 
-$input = json_decode(file_get_contents('php://input'), true);
-$action = $input['action'] ?? '';
+$input = json_decode(file_get_contents('php://input'), true) ?: [];
+$action = $input['action'] ?? $_GET['action'] ?? '';
+// Allow GET params for download action
+if (empty($input)) {
+    $input = $_GET;
+}
 
 $tables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata',
            'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo','borxhet_notes'];
@@ -191,6 +195,33 @@ try {
             'skipped' => $skipped,
             'message' => count($imported) . ' snapshot(s) importuar, ' . count($skipped) . ' tashmë ekzistojnë'
         ], JSON_UNESCAPED_UNICODE);
+
+    } elseif ($action === 'download') {
+        // Download raw snapshot data (or just one table from it)
+        $name = $input['name'] ?? '';
+        $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
+        $table = $input['table'] ?? '';
+
+        $stmt = $db->prepare("SELECT snapshot_data FROM snapshots WHERE name = ?");
+        $stmt->execute([$name]);
+        $jsonData = $stmt->fetchColumn();
+
+        if (!$jsonData) {
+            echo json_encode(['success' => false, 'error' => 'Snapshot nuk u gjet']);
+            exit;
+        }
+
+        if ($table) {
+            $snapshot = json_decode($jsonData, true);
+            $tableData = $snapshot['tables'][$table] ?? null;
+            if ($tableData === null) {
+                echo json_encode(['success' => false, 'error' => "Table '{$table}' not in snapshot"]);
+            } else {
+                echo json_encode($tableData, JSON_UNESCAPED_UNICODE);
+            }
+        } else {
+            echo $jsonData;
+        }
 
     } else {
         echo json_encode(['success' => false, 'error' => 'Invalid action']);
