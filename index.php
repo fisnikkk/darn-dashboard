@@ -121,9 +121,11 @@ $babiPayments = $db->query("
     WHERE data >= '2022-08-29'
 ")->fetch();
 // Excel SUMIF starts at Shpenzimet row 217 (date >= 2022-08-29)
+// Include NULL/empty dates too — they belong to the range but have missing date values
 $babiExpenses = $db->query("
     SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
-    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND data_e_pageses >= '2022-08-29'
+    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'
+    AND (data_e_pageses >= '2022-08-29' OR data_e_pageses IS NULL OR data_e_pageses = '' OR data_e_pageses = '0000-00-00')
 ")->fetchColumn();
 $babiManual = 281.9; // Manual adjustments from Excel: 66.4 + 16.6 + 34.7 + 164.2
 $babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
