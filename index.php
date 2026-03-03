@@ -112,7 +112,7 @@ $totalKliente = $db->query("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribui
 $deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%'")->fetchColumn();
 
 // Babi Cash (Excel Distribuimi L4, M4, N4)
-// L4: Cash + invoice-cash payments received from 2022-08-29 minus cash expenses from 2022-12-28 + manual adjustments
+// L4: Cash + invoice-cash from 2022-08-29 minus cash expenses from Excel row 217 (id>=10319) + manual adj
 $babiPayments = $db->query("
     SELECT
         COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'cash' THEN pagesa ELSE 0 END), 0) as cash,
@@ -120,9 +120,11 @@ $babiPayments = $db->query("
     FROM distribuimi
     WHERE data >= '2022-08-29'
 ")->fetch();
+// Excel SUMIF starts at Shpenzimet row 217 = DB id 10319 (date 2022-08-29)
+// Using id >= 10319 matches the Excel row boundary exactly (date filter is off by €6)
 $babiExpenses = $db->query("
     SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
-    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND data_e_pageses >= '2022-12-28'
+    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND id >= 10319
 ")->fetchColumn();
 $babiManual = 281.9; // Manual adjustments from Excel: 66.4 + 16.6 + 34.7 + 164.2
 $babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
