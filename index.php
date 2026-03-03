@@ -125,7 +125,7 @@ $babiPayments = $db->query("
 $babiExpenses = $db->query("
     SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
     WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'
-    AND (data_e_pageses >= '2022-08-29' OR data_e_pageses IS NULL OR data_e_pageses = '' OR data_e_pageses = '0000-00-00')
+    AND (data_e_pageses >= '2022-08-29' OR data_e_pageses IS NULL OR data_e_pageses = '0000-00-00')
 ")->fetchColumn();
 $babiManual = 281.9; // Manual adjustments from Excel: 66.4 + 16.6 + 34.7 + 164.2
 $babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
