@@ -4,6 +4,7 @@
  * Creates and restores database snapshots (stored IN the database, not filesystem)
  * This ensures snapshots survive Railway deployments (ephemeral filesystem).
  */
+ini_set('memory_limit', '512M');
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
 

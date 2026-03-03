@@ -63,26 +63,6 @@ function runMigrations($pdo) {
             size_bytes INT NOT NULL DEFAULT 0
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-        // One-time: import any filesystem JSON snapshots into the DB
-        $snapshotDir = __DIR__ . '/../snapshots';
-        if (is_dir($snapshotDir)) {
-            $files = glob($snapshotDir . '/*.json');
-            foreach ($files as $f) {
-                $name = basename($f, '.json');
-                // Check if already imported
-                $check = $pdo->prepare("SELECT COUNT(*) FROM snapshots WHERE name = ?");
-                $check->execute([$name]);
-                if ((int)$check->fetchColumn() === 0) {
-                    $jsonData = file_get_contents($f);
-                    $data = json_decode($jsonData, true);
-                    $createdAt = $data['created_at'] ?? date('Y-m-d H:i:s');
-                    $sizeBytes = strlen($jsonData);
-                    $stmt = $pdo->prepare("INSERT INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$name, $createdAt, $jsonData, $sizeBytes]);
-                }
-            }
-        }
-
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }
