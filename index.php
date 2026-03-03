@@ -93,13 +93,16 @@ $fitimiNeto = $fitimibruto - $shpenzimTjera - $dhurateResidual;
 // Invoiced purchases minus invoiced/bank sales = remaining invoice capacity
 $gasitMeFatureEur = $blerjeFature - ($payments['fature_cash'] + $payments['fature_banke'] + $payments['bank']);
 
-// Litra calculations — using litrat_e_konvertuara (Excel Column Z, matches Litrat sheet)
+// Litra calculations — matching Excel Litrat row 1 formulas
+// B1: =SUMIF('Plini depo'!H,"Me fature",'Plini depo'!D) — sasia_ne_litra
 $litraBlera = $db->query("SELECT COALESCE(SUM(sasia_ne_litra), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'me fature'")->fetchColumn();
+// D1: =SUMIF(L,"Po (Fature te rregullte) cash",Z)+SUMIF(L,"bank",Z)+SUMIF(L,"Po (Fature te rregullte) banke",Z)
 $litraFaturuara = $db->query("
     SELECT COALESCE(SUM(litrat_e_konvertuara), 0) FROM distribuimi
     WHERE LOWER(TRIM(menyra_e_pageses)) IN ('po (fature te rregullte) cash','bank','po (fature te rregullte) banke')
 ")->fetchColumn();
-$litraShitura = $db->query("SELECT COALESCE(SUM(litrat_e_konvertuara), 0) FROM distribuimi")->fetchColumn();
+// F1: =SUM(X:X) — litrat_total (column X), NOT litrat_e_konvertuara (column Z)
+$litraShitura = $db->query("SELECT COALESCE(SUM(litrat_total), 0) FROM distribuimi")->fetchColumn();
 
 // Boca stats
 $bocaTerren = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi")->fetchColumn();
@@ -107,6 +110,31 @@ $totalKliente = $db->query("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribui
 
 // Deponime ne banke
 $deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%'")->fetchColumn();
+
+// Babi Cash (Excel Distribuimi L4, M4, N4)
+// L4: Cash + invoice-cash payments received from 2022-08-29 minus cash expenses from 2022-12-28 + manual adjustments
+$babiPayments = $db->query("
+    SELECT
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'cash' THEN pagesa ELSE 0 END), 0) as cash,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'po (fature te rregullte) cash' THEN pagesa ELSE 0 END), 0) as fature_cash
+    FROM distribuimi
+    WHERE data >= '2022-08-29'
+")->fetch();
+$babiExpenses = $db->query("
+    SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
+    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash' AND data_e_pageses >= '2022-12-28'
+")->fetchColumn();
+$babiManual = 281.9; // Manual adjustments from Excel: 66.4 + 16.6 + 34.7 + 164.2
+$babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
+
+// M4: Product sales cash from 2022-09-07
+$babiProductCash = $db->query("
+    SELECT COALESCE(SUM(totali), 0) FROM shitje_produkteve
+    WHERE LOWER(TRIM(menyra_pageses)) = 'cash' AND data >= '2022-09-07'
+")->fetchColumn();
+
+// N4: Total Babi cash = L4 + M4
+$babiTotal = $babiGasCash + $babiProductCash;
 
 ob_start();
 ?>
@@ -259,6 +287,24 @@ ob_start();
         <div class="label">Fitimi Neto</div>
         <div class="value <?= $fitimiNeto >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($fitimiNeto) ?></div>
         <small style="color:var(--text-muted);">Fitimi bruto - Shpenzime tjera - Dhurate</small>
+    </div>
+</div>
+
+<!-- Babi Cash (Excel L4, M4, N4) -->
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="label">Babi Cash (Gaz)</div>
+        <div class="value <?= $babiGasCash >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($babiGasCash) ?></div>
+        <small style="color:var(--text-muted);">Cash + Faturë cash (nga 29.08.2022) - Shpenzime cash</small>
+    </div>
+    <div class="summary-card">
+        <div class="label">Babi Cash (Produkte)</div>
+        <div class="value">&euro; <?= eur($babiProductCash) ?></div>
+        <small style="color:var(--text-muted);">Shitje produkteve cash (nga 07.09.2022)</small>
+    </div>
+    <div class="summary-card">
+        <div class="label">Babi Cash (Total)</div>
+        <div class="value <?= $babiTotal >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($babiTotal) ?></div>
     </div>
 </div>
 
