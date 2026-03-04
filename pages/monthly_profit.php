@@ -161,7 +161,7 @@ ob_start();
 
 <div class="summary-grid">
     <div class="summary-card"><div class="label">Total Shitje</div><div class="value">&euro; <?= eur($totShitje) ?></div></div>
-    <div class="summary-card"><div class="label">Total Blerje (Pagesa per Plin)</div><div class="value">&euro; <?= eur($totBlerje) ?></div></div>
+    <div class="summary-card"><div class="label">Total Furnizimi</div><div class="value">&euro; <?= eur($totBlerje) ?></div></div>
     <div class="summary-card"><div class="label">Fitimi Bruto</div><div class="value <?= $totBruto >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($totBruto) ?></div></div>
     <div class="summary-card"><div class="label">Fitimi Neto</div><div class="value <?= $totNeto >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($totNeto) ?></div></div>
 </div>
@@ -174,11 +174,11 @@ ob_start();
                 <thead>
                     <tr>
                         <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;">Muaji <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Shitjet (C) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;">Blerjet (D) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;">Shpenzime (E) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Fitimi Neto (F) <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Bilanci (G) <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;">Shitje <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;">Furnizimi <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;">Shpenzimet <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Fitimi Neto <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Bilanci <i class="fas fa-sort"></i></th>
                         <?php $colIdx = 6; foreach ($expenseCategories as $id => $cat): ?>
                         <th class="num server-sort" onclick="clientSortColumn(this, <?= $colIdx ?>)" style="cursor:pointer;user-select:none;font-size:0.7rem;"><?= $cat['label'] ?> <i class="fas fa-sort"></i></th>
                         <?php $colIdx++; endforeach; ?>

@@ -105,14 +105,19 @@ ob_start();
     <div class="summary-card"><div class="label">Klientë me nxemëse</div><div class="value"><?= count($stokuPerKlient) ?></div></div>
 </div>
 
-<!-- Mini Report: Stock per client -->
+<!-- Section: Stoku sipas klientit -->
+<div class="section-header">
+    <i class="fas fa-users"></i>
+    <h2>Stoku sipas klientit</h2>
+    <div class="section-line"></div>
+</div>
 <div class="card">
-    <div class="card-header"><h3><i class="fas fa-fire"></i> Stoku i nxemëseve sipas klientit</h3></div>
+    <div class="card-header"><h3><i class="fas fa-fire"></i> Nxemëse në terren sipas klientit</h3></div>
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table">
                 <thead>
-                    <tr><th>Klienti</th><th class="num">Të dhëna</th><th class="num">Të marra</th><th class="num">Në stok</th></tr>
+                    <tr><th>Klienti</th><th class="num">Te dhena</th><th class="num">Te marra</th><th class="num">Ne stok</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($stokuPerKlient as $s): ?>
@@ -129,7 +134,12 @@ ob_start();
     </div>
 </div>
 
-<!-- Input Form -->
+<!-- Section: Shto levizje -->
+<div class="section-header">
+    <i class="fas fa-plus-circle"></i>
+    <h2>Shto Lëvizje</h2>
+    <div class="section-line"></div>
+</div>
 <div class="card">
     <div class="card-header"><h3><i class="fas fa-plus-circle"></i> Shto lëvizje nxemëse</h3></div>
     <div class="card-body padded">
@@ -159,7 +169,12 @@ ob_start();
     </div>
 </div>
 
-<!-- Transaction log -->
+<!-- Section: Te gjitha levizjet -->
+<div class="section-header">
+    <i class="fas fa-list"></i>
+    <h2>Të gjitha lëvizjet</h2>
+    <div class="section-line"></div>
+</div>
 <div class="card">
     <div class="card-header"><h3>Të gjitha lëvizjet (<?= count($rows) ?>)</h3></div>
     <div class="filters">
@@ -192,10 +207,11 @@ ob_start();
                 <thead><tr>
                     <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
                     <?= withFilter(sortThNx('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $klientet) ?>
-                    <?= withFilter(sortThNx('te_dhena', 'Dhënë', $sortCol, $sortDir, 'num'), 'f_dhena', $nxDhenaVals) ?>
-                    <?= withFilter(sortThNx('te_marra', 'Marrë', $sortCol, $sortDir, 'num'), 'f_marra', $nxMarraVals) ?>
-                    <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Në stok <i class="fas fa-sort"></i></th><th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Total terren <i class="fas fa-sort"></i></th>
-                    <?= withFilter(sortThNx('lloji_i_nxemjes', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
+                    <?= withFilter(sortThNx('te_dhena', 'Te dhena', $sortCol, $sortDir, 'num'), 'f_dhena', $nxDhenaVals) ?>
+                    <?= withFilter(sortThNx('te_marra', 'Te marra', $sortCol, $sortDir, 'num'), 'f_marra', $nxMarraVals) ?>
+                    <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Ne stok <i class="fas fa-sort"></i></th>
+                    <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Boca total ne terren <i class="fas fa-sort"></i></th>
+                    <?= withFilter(sortThNx('lloji_i_nxemjes', 'Lloji i nxemjes', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
                     <?= withFilter(sortThNx('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $nxKomentVals) ?>
                     <th></th>
                 </tr></thead>
