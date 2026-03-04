@@ -30,6 +30,10 @@ function sortThGB($col, $label, $currentSort, $currentDir, $class = '') {
     return "<th class=\"{$classes}\" onclick=\"window.location.href='{$url}';return false;\" style=\"cursor:pointer;user-select:none;{$activeStyle}\">{$label} <i class=\"fas {$icon}\"></i></th>";
 }
 
+// Date range filter
+$filterDateFrom = $_GET['date_from'] ?? '';
+$filterDateTo = $_GET['date_to'] ?? '';
+
 // Multi-select column filters
 $fGbLloji = getFilterParam('f_lloji');
 $fGbValuta = getFilterParam('f_valuta');
@@ -39,6 +43,8 @@ $fGbKlienti = getFilterParam('f_klienti');
 
 $gbWhere = [];
 $gbParams = [];
+if ($filterDateFrom) { $gbWhere[] = "data >= ?"; $gbParams[] = $filterDateFrom; }
+if ($filterDateTo) { $gbWhere[] = "data <= ?"; $gbParams[] = $filterDateTo; }
 if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbShpjegim) { $fin = buildFilterIn($fGbShpjegim, 'shpjegim'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
@@ -54,9 +60,17 @@ $rowsStmt = $db->prepare("SELECT * FROM gjendja_bankare {$gbWhereSQL} ORDER BY {
 $rowsStmt->execute($gbParams);
 $rows = $rowsStmt->fetchAll();
 
-$totalDebi = $db->query("SELECT COALESCE(SUM(debia),0) FROM gjendja_bankare")->fetchColumn();
-$totalKredi = $db->query("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare")->fetchColumn();
-$deponime = $db->query("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%'")->fetchColumn();
+// Summary cards respect the active filters (date range + column filters)
+$sumStmt = $db->prepare("SELECT COALESCE(SUM(debia),0) FROM gjendja_bankare {$gbWhereSQL}");
+$sumStmt->execute($gbParams);
+$totalDebi = $sumStmt->fetchColumn();
+$sumStmt = $db->prepare("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare {$gbWhereSQL}");
+$sumStmt->execute($gbParams);
+$totalKredi = $sumStmt->fetchColumn();
+$depWhere = $gbWhereSQL ? $gbWhereSQL . " AND UPPER(shpjegim) LIKE '%DEPONIM%'" : "WHERE UPPER(shpjegim) LIKE '%DEPONIM%'";
+$sumStmt = $db->prepare("SELECT COALESCE(SUM(kredi),0) FROM gjendja_bankare {$depWhere}");
+$sumStmt->execute($gbParams);
+$deponime = $sumStmt->fetchColumn();
 
 $llojet = $db->query("SELECT DISTINCT lloji FROM gjendja_bankare WHERE lloji IS NOT NULL ORDER BY lloji")->fetchAll(PDO::FETCH_COLUMN);
 $llojiJSON = json_encode($llojet);
@@ -67,6 +81,9 @@ $gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE
 // Client names from distribuimi for the klienti datalist/select
 $distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
 $distKlientetJSON = json_encode($distKlientet, JSON_UNESCAPED_UNICODE);
+// Merge both sources for the column filter dropdown (useful before clients are assigned)
+$allKlientetFilter = array_values(array_unique(array_merge($gbKlientetVals, $distKlientet)));
+sort($allKlientetFilter);
 
 ob_start();
 ?>
@@ -83,9 +100,31 @@ ob_start();
         <button class="btn btn-primary btn-sm" onclick="openModal('addBank')"><i class="fas fa-plus"></i> Shto</button>
     </div>
     <div class="card-body">
-        <p style="padding:10px 20px;color:var(--text-muted);font-size:0.82rem;">
-            <i class="fas fa-info-circle"></i> Kliko <strong>✓</strong> për ta markuar rreshtin si të kontrolluar (highlight me ngjyrë)
-        </p>
+        <div style="padding:10px 20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+                <?php // Preserve existing filter params
+                foreach ($_GET as $k => $v) {
+                    if (in_array($k, ['date_from','date_to','page'])) continue;
+                    if (is_array($v)) { foreach ($v as $vv) echo '<input type="hidden" name="' . e($k) . '[]" value="' . e($vv) . '">'; }
+                    else echo '<input type="hidden" name="' . e($k) . '" value="' . e($v) . '">';
+                } ?>
+                <div class="form-group" style="min-width:auto;margin-bottom:0;">
+                    <label style="font-size:0.78rem;margin-bottom:2px;">Data nga</label>
+                    <input type="date" name="date_from" value="<?= e($filterDateFrom) ?>" style="padding:5px 8px;font-size:0.82rem;">
+                </div>
+                <div class="form-group" style="min-width:auto;margin-bottom:0;">
+                    <label style="font-size:0.78rem;margin-bottom:2px;">Data deri</label>
+                    <input type="date" name="date_to" value="<?= e($filterDateTo) ?>" style="padding:5px 8px;font-size:0.82rem;">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
+                <?php if ($filterDateFrom || $filterDateTo): ?>
+                <a href="?<?= http_build_query(array_diff_key($_GET, array_flip(['date_from','date_to','page']))) ?>" class="btn btn-outline btn-sm">Pastro datat</a>
+                <?php endif; ?>
+            </form>
+            <span style="color:var(--text-muted);font-size:0.78rem;margin-left:auto;">
+                <i class="fas fa-info-circle"></i> Kliko <strong>✓</strong> për ta markuar si të kontrolluar
+            </span>
+        </div>
         <div class="table-wrapper">
             <table class="data-table" data-table="gjendja_bankare" data-server-sort="true">
                 <thead>
@@ -101,7 +140,7 @@ ob_start();
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir), 'f_deftesa', $gbDeftesaVals) ?>
                         <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
-                        <?= withFilter(sortThGB('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $gbKlientetVals) ?>
+                        <?= withFilter(sortThGB('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $allKlientetFilter) ?>
                         <?= sortThGB('komentet', 'Komentet', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
@@ -125,7 +164,7 @@ ob_start();
                         <td class="amount" style="font-weight:600;"><?= eur($r['bilanci']) ?></td>
                         <td class="editable" data-field="deftesa"><?= e($r['deftesa']) ?></td>
                         <td class="editable truncate" data-field="lloji" data-type="select" data-options="<?= e($llojiJSON) ?>" title="<?= e($r['lloji']) ?>"><?= e($r['lloji']) ?></td>
-                        <td class="editable truncate" data-field="klienti" data-type="select" data-options="<?= e($distKlientetJSON) ?>" title="<?= e($r['klienti']) ?>"><?= e($r['klienti']) ?></td>
+                        <td class="editable truncate" data-field="klienti" data-type="select" data-allow-custom="true" data-options="<?= e($distKlientetJSON) ?>" title="<?= e($r['klienti']) ?>"><?= e($r['klienti']) ?></td>
                         <td class="editable truncate" data-field="komentet" title="<?= e($r['komentet']) ?>"><?= e($r['komentet']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('gjendja_bankare',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>

@@ -92,19 +92,39 @@ function startRowEdit(row) {
 
         let input;
         if (type === 'select') {
-            input = document.createElement('select');
             let options = [];
             try { options = JSON.parse(td.dataset.options || '[]'); } catch(e) {}
-            const emptyOpt = document.createElement('option');
-            emptyOpt.value = '';
-            emptyOpt.textContent = '-- Zgjidh --';
-            input.appendChild(emptyOpt);
-            options.forEach(opt => {
-                const o = document.createElement('option');
-                o.value = opt; o.textContent = opt;
-                if (opt === rawText) o.selected = true;
-                input.appendChild(o);
-            });
+            const allowCustom = td.dataset.allowCustom === 'true';
+
+            if (allowCustom) {
+                // Use text input + datalist — allows typing new values
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = rawText;
+                const dlId = 'dl_' + field + '_' + id;
+                input.setAttribute('list', dlId);
+                input.placeholder = 'Shkruaj ose zgjidh...';
+                const datalist = document.createElement('datalist');
+                datalist.id = dlId;
+                options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    datalist.appendChild(o);
+                });
+                td.appendChild(datalist);
+            } else {
+                input = document.createElement('select');
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = '-- Zgjidh --';
+                input.appendChild(emptyOpt);
+                options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt; o.textContent = opt;
+                    if (opt === rawText) o.selected = true;
+                    input.appendChild(o);
+                });
+            }
         } else {
             input = document.createElement('input');
             input.type = type === 'number' ? 'number' : type === 'date' ? 'date' : 'text';
