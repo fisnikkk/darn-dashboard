@@ -44,7 +44,8 @@ $fieldLabels = [
     'komentet' => 'Koment', 'cash' => 'Cash', 'bank' => 'Bank',
     'fature_bank' => 'Fature bank', 'fature_cash' => 'Fature cash',
     'no_payment' => 'Pa pagese', 'dhurate' => 'Dhurate', 'total' => 'Total',
-    'borxh_deri_daten' => 'Borxhi deri daten',
+    'borxh_deri_daten' => 'Borxhi deri daten', 'shpjegim' => 'Shpjegim',
+    'deftesa' => 'Deftesa', 'lloji' => 'Lloji', 'valuta' => 'Valuta', 'ora' => 'Ora',
     'nr_i_fatures' => 'Nr. Fatures', 'faturat_e_pranuara' => 'Faturat e pranuara',
     'dalje_pagesat_sipas_bankes' => 'Dalje/Banke', 'cash_banke' => 'Cash/Banke',
     'biznesi' => 'Biznesi', 'name_from_database' => 'Emri DB',
@@ -82,7 +83,7 @@ $keyFields = [
     'shpenzimet' => ['pershkrimi', 'shuma', 'data', 'kategoria'],
     'plini_depo' => ['furnitori', 'kg', 'data', 'menyra_e_pageses'],
     'shitje_produkteve' => ['klienti', 'produkti', 'cilindra_sasia', 'data'],
-    'gjendja_bankare' => ['pershkrimi', 'debia', 'kredi', 'data'],
+    'gjendja_bankare' => ['shpjegim', 'debia', 'kredi', 'data'],
     'nxemese' => ['klienti', 'data', 'te_dhena', 'te_marra', 'lloji_i_nxemjes'],
     'kontrata' => ['biznesi', 'data'],
     'klientet' => ['klienti'],
@@ -145,6 +146,7 @@ foreach ($rows as $r) {
         $contextNeeded[$r['table_name']][$r['row_id']] = true;
     }
 }
+// Step 1: Try to fetch from the live database tables
 foreach ($contextNeeded as $tbl => $ids) {
     $keys = $keyFields[$tbl] ?? [];
     if (empty($keys)) continue;
@@ -160,6 +162,26 @@ foreach ($contextNeeded as $tbl => $ids) {
         }
     } catch (PDOException $e) {
         // Table might not exist or columns changed — skip silently
+    }
+}
+// Step 2: For rows not found in DB (deleted), get context from changelog's own JSON data
+foreach ($contextNeeded as $tbl => $ids) {
+    foreach (array_keys($ids) as $rid) {
+        $ctxKey = "{$tbl}:{$rid}";
+        if (isset($rowContext[$ctxKey])) continue; // already found in DB
+        // Look for an insert or delete changelog entry that has JSON for this row
+        try {
+            $fbStmt = $db->prepare("SELECT action_type, old_value, new_value FROM changelog WHERE table_name = ? AND row_id = ? AND action_type IN ('insert','delete') ORDER BY created_at DESC LIMIT 1");
+            $fbStmt->execute([$tbl, $rid]);
+            $fb = $fbStmt->fetch();
+            if ($fb) {
+                $json = ($fb['action_type'] === 'delete') ? $fb['old_value'] : $fb['new_value'];
+                $data = json_decode($json ?? '{}', true);
+                if ($data && is_array($data)) {
+                    $rowContext[$ctxKey] = $data;
+                }
+            }
+        } catch (PDOException $e) {}
     }
 }
 
