@@ -35,6 +35,9 @@ if (file_exists($jsonPath)) {
         $sf = $row['shuma_fatures'] ?? null;
         $lf = $row['lloji_fatures'] ?? null;
         if (!$df && !$sf && !$lf) continue;
+        // Skip non-date values like "Cash", "Bank" in date field
+        if ($df && !preg_match('/^\d{4}-\d{2}-\d{2}/', $df)) $df = null;
+        if (!$df && !$sf && !$lf) continue;
         // Match by date + shuma + arsyetimi
         $toUpdate[] = [
             'data' => $row['data_e_pageses'] ?? null,
