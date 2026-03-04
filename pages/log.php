@@ -137,6 +137,32 @@ $statsStmt->execute($params);
 $actionCounts = [];
 while ($s = $statsStmt->fetch()) { $actionCounts[$s['action_type']] = (int)$s['cnt']; }
 
+// Fetch row context for update/revert entries (so we can show WHICH row was changed)
+$rowContext = []; // keyed by "table_name:row_id"
+$contextNeeded = []; // group by table => [id1, id2, ...]
+foreach ($rows as $r) {
+    if (in_array($r['action_type'], ['update', 'revert']) && $r['row_id']) {
+        $contextNeeded[$r['table_name']][$r['row_id']] = true;
+    }
+}
+foreach ($contextNeeded as $tbl => $ids) {
+    $keys = $keyFields[$tbl] ?? [];
+    if (empty($keys)) continue;
+    $idList = array_keys($ids);
+    $placeholders = implode(',', array_fill(0, count($idList), '?'));
+    $cols = array_map(function($k) { return "`{$k}`"; }, $keys);
+    $colSQL = 'id, ' . implode(', ', $cols);
+    try {
+        $ctxStmt = $db->prepare("SELECT {$colSQL} FROM `{$tbl}` WHERE id IN ({$placeholders})");
+        $ctxStmt->execute($idList);
+        while ($ctx = $ctxStmt->fetch()) {
+            $rowContext["{$tbl}:{$ctx['id']}"] = $ctx;
+        }
+    } catch (PDOException $e) {
+        // Table might not exist or columns changed — skip silently
+    }
+}
+
 ob_start();
 ?>
 
@@ -282,6 +308,31 @@ ob_start();
     background: #f1f5f9;
     padding: 1px 8px;
     border-radius: 8px;
+}
+
+/* Row context pills (which row was changed) */
+.log-context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 6px;
+}
+.log-context-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.73rem;
+    background: #f1f5f9;
+    color: var(--text);
+    border: 1px solid #e2e8f0;
+}
+.log-context-pill strong {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+    margin-right: 3px;
 }
 
 /* Body: diff view for updates */
@@ -557,6 +608,24 @@ ob_start();
                 <!-- Body: different layout per action type -->
                 <div class="log-body">
                 <?php if ($type === 'update' || $type === 'revert'): ?>
+                    <?php
+                    // Show row context: which row is this?
+                    $ctxKey = "{$tableName}:{$r['row_id']}";
+                    $ctx = $rowContext[$ctxKey] ?? null;
+                    $ctxKeys = $keyFields[$tableName] ?? [];
+                    if ($ctx && $ctxKeys):
+                    ?>
+                    <div class="log-context">
+                        <?php foreach ($ctxKeys as $ck):
+                            if (!isset($ctx[$ck]) || $ctx[$ck] === '' || $ctx[$ck] === null) continue;
+                            $clabel = $fieldLabels[$ck] ?? $ck;
+                            $cval = $ctx[$ck];
+                            if (mb_strlen((string)$cval) > 40) $cval = mb_substr((string)$cval, 0, 37) . '...';
+                        ?>
+                        <span class="log-context-pill"><strong><?= e($clabel) ?></strong><?= e($cval) ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                     <?php
                     $field = $fieldLabels[$r['field_name']] ?? $r['field_name'];
                     $old = $r['old_value'] ?? '';
