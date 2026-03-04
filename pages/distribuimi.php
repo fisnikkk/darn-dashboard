@@ -306,11 +306,11 @@ ob_start();
                         <td class="editable" data-field="menyra_e_pageses" data-type="select" 
                             data-options="<?= e($paymentJSON) ?>">
                             <?php
-                            $badge = match($r['menyra_e_pageses']) {
-                                'Cash' => 'badge-cash',
-                                'Bank' => 'badge-bank',
-                                'No payment' => 'badge-nopay',
-                                'Dhurate' => 'badge-dhurate',
+                            $badge = match(strtolower(trim($r['menyra_e_pageses'] ?? ''))) {
+                                'cash' => 'badge-cash',
+                                'bank' => 'badge-bank',
+                                'no payment' => 'badge-nopay',
+                                'dhurate' => 'badge-dhurate',
                                 default => 'badge-fature'
                             };
                             ?>
