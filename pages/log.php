@@ -91,6 +91,41 @@ $keyFields = [
     'depo' => ['produkti', 'sasia'],
 ];
 
+// Human-friendly value formatting for specific fields
+// Transforms raw DB values (0/1, codes, etc.) into readable text
+$booleanFields = ['e_kontrolluar', 'fatura_e_derguar', 'fatura_e_rregullte'];
+$valueFormatters = [
+    // Boolean fields: 0/1 → ✗ Jo / ✓ Po
+    'e_kontrolluar' => function($v) {
+        if ($v === '1' || $v === 1) return '✓ Po';
+        if ($v === '0' || $v === 0) return '✗ Jo';
+        return $v;
+    },
+    'fatura_e_derguar' => function($v) {
+        if ($v === '1' || $v === 1) return '✓ Po';
+        if ($v === '0' || $v === 0) return '✗ Jo';
+        return $v;
+    },
+    'fatura_e_rregullte' => function($v) {
+        if ($v === '1' || $v === 1) return '✓ Po';
+        if ($v === '0' || $v === 0) return '✗ Jo';
+        return $v;
+    },
+    // Payment methods
+    'menyra_e_pageses' => function($v) {
+        $map = ['cash' => 'Cash', 'bank' => 'Bank', 'no_payment' => 'Pa pagese', 'dhurate' => 'Dhurate'];
+        return $map[strtolower(trim($v))] ?? $v;
+    },
+];
+
+// Helper to format a value for display
+function formatFieldValue($fieldName, $value, $valueFormatters) {
+    if (isset($valueFormatters[$fieldName])) {
+        return $valueFormatters[$fieldName]($value);
+    }
+    return $value;
+}
+
 // Relative time helper
 function relativeTime($datetime) {
     $now = time();
@@ -649,11 +684,15 @@ ob_start();
                     </div>
                     <?php endif; ?>
                     <?php
-                    $field = $fieldLabels[$r['field_name']] ?? $r['field_name'];
+                    $rawFieldName = $r['field_name'] ?? '';
+                    $field = $fieldLabels[$rawFieldName] ?? $rawFieldName;
                     $old = $r['old_value'] ?? '';
                     $new = $r['new_value'] ?? '';
-                    $oldDisplay = mb_strlen($old) > 80 ? mb_substr($old, 0, 77) . '...' : $old;
-                    $newDisplay = mb_strlen($new) > 80 ? mb_substr($new, 0, 77) . '...' : $new;
+                    // Apply human-friendly formatting for known fields
+                    $oldFormatted = formatFieldValue($rawFieldName, $old, $valueFormatters);
+                    $newFormatted = formatFieldValue($rawFieldName, $new, $valueFormatters);
+                    $oldDisplay = mb_strlen($oldFormatted) > 80 ? mb_substr($oldFormatted, 0, 77) . '...' : $oldFormatted;
+                    $newDisplay = mb_strlen($newFormatted) > 80 ? mb_substr($newFormatted, 0, 77) . '...' : $newFormatted;
                     if ($old === '' || $old === null) $oldDisplay = '(bosh)';
                     if ($new === '' || $new === null) $newDisplay = '(bosh)';
                     ?>
@@ -674,7 +713,7 @@ ob_start();
                         <?php foreach ($keys as $k):
                             if (!isset($data[$k]) || $data[$k] === '' || $data[$k] === null) continue;
                             $label = $fieldLabels[$k] ?? $k;
-                            $val = $data[$k];
+                            $val = formatFieldValue($k, $data[$k], $valueFormatters);
                             if (mb_strlen($val) > 50) $val = mb_substr($val, 0, 47) . '...';
                         ?>
                         <span class="log-pill"><strong><?= e($label) ?>:</strong> <?= e($val) ?></span>
@@ -689,6 +728,7 @@ ob_start();
                             <?php foreach ($data as $dk => $dv):
                                 if ($dv === '' || $dv === null || $dv === '0' || $dv === 0) continue;
                                 $dlabel = $fieldLabels[$dk] ?? $dk;
+                                $dv = formatFieldValue($dk, $dv, $valueFormatters);
                                 if (mb_strlen((string)$dv) > 80) $dv = mb_substr((string)$dv, 0, 77) . '...';
                             ?>
                             <div class="log-detail-item">
@@ -711,7 +751,7 @@ ob_start();
                         <?php foreach ($keys as $k):
                             if (!isset($data[$k]) || $data[$k] === '' || $data[$k] === null) continue;
                             $label = $fieldLabels[$k] ?? $k;
-                            $val = $data[$k];
+                            $val = formatFieldValue($k, $data[$k], $valueFormatters);
                             if (mb_strlen($val) > 50) $val = mb_substr($val, 0, 47) . '...';
                         ?>
                         <span class="log-pill"><strong><?= e($label) ?>:</strong> <?= e($val) ?></span>
@@ -726,6 +766,7 @@ ob_start();
                             <?php foreach ($data as $dk => $dv):
                                 if ($dv === '' || $dv === null) continue;
                                 $dlabel = $fieldLabels[$dk] ?? $dk;
+                                $dv = formatFieldValue($dk, $dv, $valueFormatters);
                                 if (mb_strlen((string)$dv) > 80) $dv = mb_substr((string)$dv, 0, 77) . '...';
                             ?>
                             <div class="log-detail-item">
