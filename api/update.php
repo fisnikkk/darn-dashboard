@@ -120,8 +120,17 @@ try {
         }
     }
 
-    // NOTE: pagesa and litrat_total in distribuimi are STORED values from Excel — NOT recomputed.
-    // Do NOT auto-recalculate them. They may differ from sasia × litra × cmimi.
+    // Auto-recalculate pagesa & litrat_total when litra or cmimi changes in distribuimi
+    // Formula: pagesa = litra × cmimi (litra column = total liters, NOT per-unit)
+    if ($table === 'distribuimi' && array_intersect(['litra', 'cmimi'], $changedFields)) {
+        $row = $db->prepare("SELECT litra, cmimi FROM distribuimi WHERE id = ?");
+        $row->execute([$id]);
+        $cur = $row->fetch();
+        $l = (float)($cur['litra'] ?? 0);
+        $c = (float)($cur['cmimi'] ?? 0);
+        $newPagesa = round($l * $c, 2);
+        $db->prepare("UPDATE distribuimi SET pagesa = ? WHERE id = ?")->execute([$newPagesa, $id]);
+    }
 
     // Auto-recalculate totali when cilindra_sasia or cmimi changes in shitje_produkteve
     if ($table === 'shitje_produkteve' && array_intersect(['cilindra_sasia', 'cmimi'], $changedFields)) {
