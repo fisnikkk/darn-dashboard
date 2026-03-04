@@ -26,7 +26,7 @@ $fStok = getFilterParam('f_stok');
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates','bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit','email','koment','lloji_i_bocave','ne_grup_njoftues','kontrate_e_vjeter','bocat_e_paguara','data_rregullatoret'];
+$allowedSorts = ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates','bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit','email','koment','lloji_i_bocave','ne_grup_njoftues','kontrate_e_vjeter','bocat_e_paguara','data_rregullatoret','sipas_skenimit_pda'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'nr_i_kontrates';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -161,6 +161,7 @@ ob_start();
                         <?= withFilter(sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num'), 'f_stok', $stokVals) ?>
                         <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_sipas_dist" data-filter-values="<?= e(json_encode($distFilterVals)) ?>" data-filter-mode="client" data-filter-col="4">Sipas distribuimit <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_diferenca" data-filter-values="<?= e(json_encode($diffFilterVals)) ?>" data-filter-mode="client" data-filter-col="5">Diferencë <i class="fas fa-sort"></i></th>
+                        <?= sortThKt('sipas_skenimit_pda', 'Skenimi PDA', $sortCol, $sortDir) ?>
                         <?= withFilter(sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir), 'f_bashk', $bashkValues) ?>
                         <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
                         <?= withFilter(sortThKt('rruga', 'Rruga', $sortCol, $sortDir), 'f_rruga', $rrugaVals) ?>
@@ -173,8 +174,8 @@ ob_start();
                         <?= withFilter(sortThKt('lloji_i_bocave', 'Lloji bocave', $sortCol, $sortDir), 'f_lloji_boca', $llojiBocaVals) ?>
                         <?= sortThKt('bocat_e_paguara', 'Bocat e paguara', $sortCol, $sortDir) ?>
                         <?= sortThKt('data_rregullatoret', 'Data rregullatorët', $sortCol, $sortDir) ?>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 18)" style="cursor:pointer;user-select:none;color:var(--danger)">Ditë pa marrë <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;">Mesatare/muaj <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;color:var(--danger)">Ditë pa marrë <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 20)" style="cursor:pointer;user-select:none;">Mesatare/muaj <i class="fas fa-sort"></i></th>
                         <?= sortThKt('koment', 'Koment', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
@@ -197,6 +198,7 @@ ob_start();
                         <td class="num" style="color:<?= $diff > 0 ? 'var(--danger)' : ($diff < 0 ? 'var(--warning)' : 'var(--success)') ?>;font-weight:600;">
                             <?= $diff ?>
                         </td>
+                        <td class="editable" data-field="sipas_skenimit_pda"><?= e($r['sipas_skenimit_pda'] ?? '') ?></td>
                         <td class="editable" data-field="bashkepunim" data-type="select" data-options="<?= e(json_encode(['po','jo'])) ?>">
                             <?= e($r['bashkepunim']) ?>
                         </td>

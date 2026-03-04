@@ -54,6 +54,20 @@ function runMigrations($pdo) {
             $pdo->exec("ALTER TABLE changelog ADD COLUMN reverted TINYINT(1) DEFAULT 0");
         }
 
+        // Add 3 invoice columns to shpenzimet (if not exists)
+        $cols = $pdo->query("SHOW COLUMNS FROM shpenzimet LIKE 'data_e_fatures'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE shpenzimet ADD COLUMN data_e_fatures DATE NULL");
+            $pdo->exec("ALTER TABLE shpenzimet ADD COLUMN shuma_fatures DECIMAL(12,2) NULL");
+            $pdo->exec("ALTER TABLE shpenzimet ADD COLUMN lloji_fatures VARCHAR(100) NULL");
+        }
+
+        // Add PDA column to kontrata (if not exists)
+        $cols = $pdo->query("SHOW COLUMNS FROM kontrata LIKE 'sipas_skenimit_pda'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE kontrata ADD COLUMN sipas_skenimit_pda TEXT NULL");
+        }
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,

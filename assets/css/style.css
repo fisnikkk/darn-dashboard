@@ -628,9 +628,8 @@ tr.verified td:first-child { border-left: 3px solid var(--success); }
 }
 .col-filter-actions button:hover { opacity: 0.85; }
 
-/* Sort icon next to filter icon — both visible, sort icon slightly smaller */
-th[data-filter] > i.fas { font-size: 0.6rem; opacity: 0.4; margin-left: 2px; }
-th[data-filter]:hover > i.fas { opacity: 0.7; }
+/* Hide sort icon when filter icon is present (filter icon replaces it visually) */
+th[data-filter] > i.fas { display: none; }
 
 /* Column Sorting — client-side (tables without server sort) */
 table.data-table thead th.sortable {

@@ -28,7 +28,7 @@ $fFatRregullt = getFilterParam('f_fat_rreg');
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data_e_pageses';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['data_e_pageses','shuma','arsyetimi','lloji_i_pageses','lloji_i_transaksionit','pershkrim_i_detajuar','nafta_ne_litra','numri_i_fatures','fatura_e_rregullte'];
+$allowedSorts = ['data_e_pageses','shuma','arsyetimi','lloji_i_pageses','lloji_i_transaksionit','pershkrim_i_detajuar','nafta_ne_litra','numri_i_fatures','fatura_e_rregullte','data_e_fatures','shuma_fatures','lloji_fatures'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data_e_pageses';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -262,6 +262,9 @@ ob_start();
                         <?= sortThShp('nafta_ne_litra', 'Nafta (L)', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThShp('numri_i_fatures', 'Nr. Faturës', $sortCol, $sortDir), 'f_nr_fatur', $nrFaturVals) ?>
                         <?= withFilter(sortThShp('fatura_e_rregullte', 'Fat. rregullt', $sortCol, $sortDir), 'f_fat_rreg', $fatRregulltVals) ?>
+                        <?= sortThShp('data_e_fatures', 'Data faturës', $sortCol, $sortDir) ?>
+                        <?= sortThShp('shuma_fatures', 'Shuma faturës', $sortCol, $sortDir, 'num') ?>
+                        <?= sortThShp('lloji_fatures', 'Lloji faturës', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
                 </thead>
@@ -277,6 +280,9 @@ ob_start();
                         <td class="num editable" data-field="nafta_ne_litra" data-type="number"><?= $r['nafta_ne_litra'] ?: '' ?></td>
                         <td class="editable" data-field="numri_i_fatures"><?= e($r['numri_i_fatures']) ?></td>
                         <td class="editable" data-field="fatura_e_rregullte" data-type="select" data-options="<?= e(json_encode(['Po','Jo'])) ?>"><?= e($r['fatura_e_rregullte']) ?></td>
+                        <td class="editable" data-field="data_e_fatures" data-type="date"><?= $r['data_e_fatures'] ?? '' ?></td>
+                        <td class="num editable" data-field="shuma_fatures" data-type="number"><?= $r['shuma_fatures'] ? eur($r['shuma_fatures']) : '' ?></td>
+                        <td class="editable" data-field="lloji_fatures"><?= e($r['lloji_fatures'] ?? '') ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('shpenzimet',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
                     <?php endforeach; ?>

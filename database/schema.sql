@@ -53,6 +53,9 @@ CREATE TABLE shpenzimet (
     nafta_ne_litra DECIMAL(10,2) NULL,       -- Col I: Fuel in liters
     numri_i_fatures VARCHAR(100),            -- Col J: Invoice number
     fatura_e_rregullte VARCHAR(50) NULL,     -- Col M: Regular invoice flag
+    data_e_fatures DATE NULL,                -- Invoice date
+    shuma_fatures DECIMAL(12,2) NULL,        -- Invoice amount
+    lloji_fatures VARCHAR(100) NULL,         -- Invoice type
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_data (data_e_pageses),
@@ -121,6 +124,7 @@ CREATE TABLE kontrata (
     numri_ne_stok_sipas_kontrates INT DEFAULT 0, -- Col E: Stock qty per contract
     -- Col F (Sipas Distribuimit) = CALCULATED from distribuimi
     -- Col G (Comparison) = CALCULATED: E - F
+    sipas_skenimit_pda TEXT NULL,             -- Col H: PDA scanner data
     bashkepunim VARCHAR(50),                 -- Col I: Cooperation status (po/jo)
     qyteti VARCHAR(100),                     -- Col J: City
     rruga VARCHAR(255),                      -- Col K: Street
