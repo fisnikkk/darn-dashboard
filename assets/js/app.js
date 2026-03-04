@@ -631,6 +631,33 @@ function applyClientFilters(table) {
 
 /* ---- Excel-like Column Filters ---- */
 
+function positionFilterDropdown(btn, dropdown) {
+    const btnRect = btn.getBoundingClientRect();
+    // Default: open below the button, aligned left
+    let top = btnRect.bottom + 4;
+    let left = btnRect.left;
+
+    // Temporarily show to measure
+    dropdown.style.top = '-9999px';
+    dropdown.style.left = '-9999px';
+    const ddRect = dropdown.getBoundingClientRect();
+
+    // If it would go off-screen bottom, open above the button
+    if (top + ddRect.height > window.innerHeight - 10) {
+        top = btnRect.top - ddRect.height - 4;
+    }
+    // If it would go off-screen right, align right edge to button
+    if (left + ddRect.width > window.innerWidth - 10) {
+        left = btnRect.right - ddRect.width;
+    }
+    // Clamp to viewport
+    if (left < 4) left = 4;
+    if (top < 4) top = 4;
+
+    dropdown.style.top = top + 'px';
+    dropdown.style.left = left + 'px';
+}
+
 function initColumnFilters() {
     // Find all th[data-filter] elements — each has a JSON list of distinct values
     // and the URL param name to use
@@ -804,13 +831,8 @@ function initColumnFilters() {
             if (dropdown.classList.contains('open')) {
                 searchInput.value = '';
                 searchInput.dispatchEvent(new Event('input'));
-                // Check if dropdown goes off-screen right
-                setTimeout(() => {
-                    const rect = dropdown.getBoundingClientRect();
-                    if (rect.right > window.innerWidth - 10) {
-                        dropdown.classList.add('align-right');
-                    }
-                }, 0);
+                // Position dropdown using fixed positioning relative to the button
+                positionFilterDropdown(btn, dropdown);
                 setTimeout(() => searchInput.focus(), 50);
             }
         });
@@ -827,6 +849,11 @@ function initColumnFilters() {
     document.addEventListener('click', function() {
         document.querySelectorAll('.col-filter-dropdown.open').forEach(d => d.classList.remove('open'));
     });
+
+    // Close filter dropdowns on scroll (since they use position:fixed)
+    window.addEventListener('scroll', function() {
+        document.querySelectorAll('.col-filter-dropdown.open').forEach(d => d.classList.remove('open'));
+    }, true);
 }
 
 function escHtml(str) {

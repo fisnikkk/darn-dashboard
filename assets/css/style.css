@@ -539,9 +539,7 @@ tr.verified td:first-child { border-left: 3px solid var(--success); }
 .col-filter-btn.active { opacity: 1; color: var(--primary); }
 .col-filter-dropdown {
     display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
+    position: fixed;
     z-index: 300;
     background: var(--card-bg);
     border: 1px solid var(--border);
@@ -550,10 +548,8 @@ tr.verified td:first-child { border-left: 3px solid var(--success); }
     min-width: 220px;
     max-width: 300px;
     padding: 0;
-    margin-top: 4px;
 }
 .col-filter-dropdown.open { display: block; }
-.col-filter-dropdown.align-right { left: auto; right: 0; }
 .col-filter-search {
     padding: 8px 10px;
     border-bottom: 1px solid var(--border);
