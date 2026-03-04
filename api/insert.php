@@ -88,11 +88,10 @@ try {
             $placeholders[] = '?';
         }
 
-        // litrat_e_konvertuara = same as litrat_total for new entries (if not provided)
+        // litrat_e_konvertuara = litra (per-unit value, verified from Excel)
         if (!in_array('litrat_e_konvertuara', $fields)) {
-            $ltFinalIdx = array_search('litrat_total', $fields);
             $fields[] = 'litrat_e_konvertuara';
-            $values[] = $ltFinalIdx !== false ? $values[$ltFinalIdx] : round($sVal * $lVal, 2);
+            $values[] = $lVal;
             $placeholders[] = '?';
         }
     }

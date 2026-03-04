@@ -121,7 +121,7 @@ try {
     }
 
     // Auto-recalculate pagesa, litrat_total, litrat_e_konvertuara when sasia, litra, or cmimi changes
-    // Formula: pagesa = sasia × litra × cmimi, litrat_total = sasia × litra (matches insert.php)
+    // Formulas verified from Excel: pagesa = sasia × litra × cmimi, litrat_total = sasia × litra, litrat_e_konvertuara = litra (per-unit)
     if ($table === 'distribuimi' && array_intersect(['sasia', 'litra', 'cmimi'], $changedFields)) {
         $row = $db->prepare("SELECT sasia, litra, cmimi FROM distribuimi WHERE id = ?");
         $row->execute([$id]);
@@ -131,7 +131,7 @@ try {
         $c = (float)($cur['cmimi'] ?? 0);
         $newPagesa = round($s * $l * $c, 2);
         $newLitratTotal = round($s * $l, 2);
-        $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")->execute([$newPagesa, $newLitratTotal, $newLitratTotal, $id]);
+        $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")->execute([$newPagesa, $newLitratTotal, $l, $id]);
     }
 
     // Auto-recalculate totali when cilindra_sasia or cmimi changes in shitje_produkteve
