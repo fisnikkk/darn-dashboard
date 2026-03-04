@@ -850,10 +850,16 @@ function initColumnFilters() {
         document.querySelectorAll('.col-filter-dropdown.open').forEach(d => d.classList.remove('open'));
     });
 
-    // Close filter dropdowns on scroll (since they use position:fixed)
-    window.addEventListener('scroll', function() {
-        document.querySelectorAll('.col-filter-dropdown.open').forEach(d => d.classList.remove('open'));
-    }, true);
+    // Reposition open filter dropdowns on page scroll (not dropdown-internal scroll)
+    var _scrollElements = [window, document.querySelector('.table-wrapper'), document.querySelector('.card-body')].filter(Boolean);
+    _scrollElements.forEach(function(el) {
+        el.addEventListener('scroll', function() {
+            document.querySelectorAll('.col-filter-dropdown.open').forEach(function(d) {
+                var btn = d.previousElementSibling;
+                if (btn) positionFilterDropdown(btn, d);
+            });
+        });
+    });
 }
 
 function escHtml(str) {
