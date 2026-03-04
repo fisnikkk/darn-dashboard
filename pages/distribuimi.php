@@ -302,7 +302,7 @@ ob_start();
                         </td>
                         <td class="num editable" data-field="litra" data-type="number"><?= $r['litra'] ?></td>
                         <td class="num editable" data-field="cmimi" data-type="number"><?= $r['cmimi'] ?></td>
-                        <td class="amount" style="font-weight:600;">&euro; <?= eur($r['pagesa']) ?></td>
+                        <td class="amount editable" data-field="pagesa" data-type="number" style="font-weight:600;">&euro; <?= eur($r['pagesa']) ?></td>
                         <td class="editable" data-field="menyra_e_pageses" data-type="select" 
                             data-options="<?= e($paymentJSON) ?>">
                             <?php

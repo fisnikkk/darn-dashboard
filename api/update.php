@@ -120,18 +120,8 @@ try {
         }
     }
 
-    // Auto-recalculate pagesa & litrat_total when sasia, litra, or cmimi changes in distribuimi
-    if ($table === 'distribuimi' && array_intersect(['sasia', 'litra', 'cmimi'], $changedFields)) {
-        $row = $db->prepare("SELECT sasia, litra, cmimi FROM distribuimi WHERE id = ?");
-        $row->execute([$id]);
-        $cur = $row->fetch();
-        $s = (float)($cur['sasia'] ?? 0);
-        $l = (float)($cur['litra'] ?? 0);
-        $c = (float)($cur['cmimi'] ?? 0);
-        $newPagesa = round($s * $l * $c, 2);
-        $newLitratTotal = round($s * $l, 2);
-        $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")->execute([$newPagesa, $newLitratTotal, $newLitratTotal, $id]);
-    }
+    // NOTE: pagesa and litrat_total in distribuimi are STORED values from Excel — NOT recomputed.
+    // Do NOT auto-recalculate them. They may differ from sasia × litra × cmimi.
 
     // Auto-recalculate totali when cilindra_sasia or cmimi changes in shitje_produkteve
     if ($table === 'shitje_produkteve' && array_intersect(['cilindra_sasia', 'cmimi'], $changedFields)) {

@@ -100,19 +100,7 @@ try {
             $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
         }
 
-        // Recalculate distribuimi computed fields for any reverted rows
-        $distRows = array_unique(array_map(fn($c) => $c['row_id'],
-            array_filter($changes, fn($c) => $c['table_name'] === 'distribuimi')));
-        foreach ($distRows as $rowId) {
-            $row = $db->prepare("SELECT sasia, litra, cmimi FROM distribuimi WHERE id = ?");
-            $row->execute([$rowId]);
-            $r = $row->fetch();
-            if ($r) {
-                $s = (float)$r['sasia']; $l = (float)$r['litra']; $c = (float)$r['cmimi'];
-                $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")
-                    ->execute([round($s * $l * $c, 2), round($s * $l, 2), round($s * $l, 2), $rowId]);
-            }
-        }
+        // NOTE: pagesa and litrat_total in distribuimi are STORED values — NOT recomputed.
 
         // Mark today's changelog entries as reverted
         $db->exec("UPDATE changelog SET reverted = 1 WHERE DATE(created_at) = CURDATE() AND action_type = 'update'");
