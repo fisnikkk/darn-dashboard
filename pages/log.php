@@ -118,6 +118,9 @@ $valueFormatters = [
     },
 ];
 
+// Fields to completely hide from changelog (noise)
+$hiddenFields = ['e_kontrolluar'];
+
 // Helper to format a value for display
 function formatFieldValue($fieldName, $value, $valueFormatters) {
     if (isset($valueFormatters[$fieldName])) {
@@ -149,11 +152,17 @@ $offset = ($page - 1) * $perPage;
 $filterTable = $_GET['table'] ?? '';
 $filterAction = $_GET['action'] ?? '';
 
-// Build query
+// Build query — exclude hidden fields from results entirely
 $where = [];
 $params = [];
 if ($filterTable) { $where[] = 'table_name = ?'; $params[] = $filterTable; }
 if ($filterAction) { $where[] = 'action_type = ?'; $params[] = $filterAction; }
+// Hide noisy fields like e_kontrolluar from update/revert entries
+if (!empty($hiddenFields)) {
+    $hfPlaceholders = implode(',', array_fill(0, count($hiddenFields), '?'));
+    $where[] = "NOT (action_type IN ('update','revert') AND field_name IN ({$hfPlaceholders}))";
+    $params = array_merge($params, $hiddenFields);
+}
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $countStmt = $db->prepare("SELECT COUNT(*) FROM changelog {$whereSQL}");
@@ -403,13 +412,13 @@ ob_start();
     flex-wrap: wrap;
 }
 .log-diff-field {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    min-width: 100%;
-    margin-bottom: 2px;
+    color: var(--text);
+    letter-spacing: 0.2px;
+}
+.log-diff-field::after {
+    content: ':';
 }
 .log-old {
     display: inline-block;
@@ -417,11 +426,10 @@ ob_start();
     background: #fef2f2;
     color: #991b1b;
     border-radius: 4px;
-    font-size: 0.8rem;
-    font-family: monospace;
+    font-size: 0.82rem;
     text-decoration: line-through;
     text-decoration-color: rgba(153, 27, 27, 0.4);
-    max-width: 280px;
+    max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -436,10 +444,9 @@ ob_start();
     background: #f0fdf4;
     color: #166534;
     border-radius: 4px;
-    font-size: 0.8rem;
-    font-family: monospace;
+    font-size: 0.82rem;
     font-weight: 600;
-    max-width: 280px;
+    max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -627,6 +634,9 @@ ob_start();
             </div>
         <?php else: ?>
             <?php foreach ($rows as $idx => $r):
+                // Skip hidden fields (e.g. e_kontrolluar checkbox toggles)
+                if (in_array($r['field_name'] ?? '', $hiddenFields) && in_array($r['action_type'], ['update', 'revert'])) continue;
+
                 $isReverted = !empty($r['reverted']);
                 $type = $r['action_type'];
                 $tableName = $r['table_name'];
