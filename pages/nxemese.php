@@ -105,35 +105,6 @@ ob_start();
     <div class="summary-card"><div class="label">Klientë me nxemëse</div><div class="value"><?= count($stokuPerKlient) ?></div></div>
 </div>
 
-<!-- Section: Stoku sipas klientit -->
-<div class="section-header">
-    <i class="fas fa-users"></i>
-    <h2>Stoku sipas klientit</h2>
-    <div class="section-line"></div>
-</div>
-<div class="card">
-    <div class="card-header"><h3><i class="fas fa-fire"></i> Nxemëse në terren sipas klientit</h3></div>
-    <div class="card-body">
-        <div class="table-wrapper">
-            <table class="data-table">
-                <thead>
-                    <tr><th>Klienti</th><th class="num">Te dhena</th><th class="num">Te marra</th><th class="num">Ne stok</th></tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($stokuPerKlient as $s): ?>
-                    <tr style="<?= $s['ne_stok'] == 0 ? 'color:var(--text-muted);' : '' ?>">
-                        <td><?= e($s['klienti']) ?></td>
-                        <td class="num"><?= (int)$s['dhena'] ?></td>
-                        <td class="num"><?= (int)$s['marra'] ?></td>
-                        <td class="num" style="font-weight:700;<?= $s['ne_stok'] > 0 ? 'color:var(--primary);' : 'color:var(--danger);' ?>"><?= (int)$s['ne_stok'] ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
 <!-- Section: Shto levizje -->
 <div class="section-header">
     <i class="fas fa-plus-circle"></i>
@@ -169,10 +140,10 @@ ob_start();
     </div>
 </div>
 
-<!-- Section: Te gjitha levizjet -->
+<!-- Section: Nxemese (main table matching Excel Nxemese1 sheet) -->
 <div class="section-header">
-    <i class="fas fa-list"></i>
-    <h2>Të gjitha lëvizjet</h2>
+    <i class="fas fa-fire"></i>
+    <h2>Nxemëse</h2>
     <div class="section-line"></div>
 </div>
 <div class="card">
@@ -227,6 +198,35 @@ ob_start();
                         <td class="editable" data-field="lloji_i_nxemjes" data-type="select" data-options="<?= e(json_encode($llojet)) ?>"><?= e($r['lloji_i_nxemjes']) ?></td>
                         <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>"><?= e($r['koment']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('nxemese',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Section: Stoku sipas klientit (Kontrata per nxemje) -->
+<div class="section-header">
+    <i class="fas fa-users"></i>
+    <h2>Stoku sipas klientit</h2>
+    <div class="section-line"></div>
+</div>
+<div class="card">
+    <div class="card-header"><h3><i class="fas fa-fire"></i> Nxemëse në terren sipas klientit</h3></div>
+    <div class="card-body">
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr><th>Klienti</th><th class="num">Te dhena</th><th class="num">Te marra</th><th class="num">Ne stok</th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($stokuPerKlient as $s): ?>
+                    <tr style="<?= $s['ne_stok'] == 0 ? 'color:var(--text-muted);' : '' ?>">
+                        <td><?= e($s['klienti']) ?></td>
+                        <td class="num"><?= (int)$s['dhena'] ?></td>
+                        <td class="num"><?= (int)$s['marra'] ?></td>
+                        <td class="num" style="font-weight:700;<?= $s['ne_stok'] > 0 ? 'color:var(--primary);' : 'color:var(--danger);' ?>"><?= (int)$s['ne_stok'] ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
