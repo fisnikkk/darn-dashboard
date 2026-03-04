@@ -821,3 +821,6 @@ th.sort-desc .sort-icon { opacity: 1; }
     .summary-card .value { font-size: 1.1rem; }
     .top-bar h1 { font-size: 0.85rem; }
 }
+
+/* Utilities */
+.hidden { display: none !important; }

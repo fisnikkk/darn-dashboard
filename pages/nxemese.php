@@ -1,32 +1,20 @@
 <?php
 /**
  * DARN Dashboard - Nxemëse (Heaters)
- * Manual input, stock per client tracking (like cylinders)
- * Mini report: each client's heater inventory
+ * Single-table layout matching Excel Nxemese1 sheet
+ * Columns: Klienti, Data, Te dhena, Te marra, Ne stok, Boca total ne terren, Lloji i nxemjes, Koment
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
-// Stock per client (mini report)
-$stokuPerKlient = $db->query("
-    SELECT MIN(klienti) as klienti,
-        SUM(te_dhena) as dhena,
-        SUM(te_marra) as marra,
-        SUM(te_dhena) - SUM(te_marra) as ne_stok
-    FROM nxemese
-    GROUP BY LOWER(klienti)
-    HAVING ne_stok != 0
-    ORDER BY ne_stok DESC
-")->fetchAll();
-
 $totalTerren = $db->query("SELECT COALESCE(SUM(te_dhena) - SUM(te_marra), 0) FROM nxemese")->fetchColumn();
+$totalKliente = $db->query("SELECT COUNT(*) FROM (SELECT LOWER(klienti) FROM nxemese GROUP BY LOWER(klienti) HAVING SUM(te_dhena) - SUM(te_marra) > 0) t")->fetchColumn() ?: 0;
 
 // Filters
 $filterClient = $_GET['klienti'] ?? '';
 $filterLloji = $_GET['lloji'] ?? '';
-// Multi-select column filters
 $fNxKlienti = getFilterParam('f_klienti');
 $fNxLloji = getFilterParam('f_lloji');
 $fNxDhena = getFilterParam('f_dhena');
@@ -56,7 +44,6 @@ $nxWhere = [];
 $nxParams = [];
 if ($filterClient) { $nxWhere[] = "LOWER(TRIM(klienti)) LIKE LOWER(TRIM(?))"; $nxParams[] = "%{$filterClient}%"; }
 if ($filterLloji) { $nxWhere[] = "LOWER(TRIM(lloji_i_nxemjes)) = LOWER(TRIM(?))"; $nxParams[] = $filterLloji; }
-// Multi-select column filters
 if ($fNxKlienti) { $fin = buildFilterIn($fNxKlienti, 'klienti'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
 if ($fNxLloji) { $fin = buildFilterIn($fNxLloji, 'lloji_i_nxemjes'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
 if ($fNxDhena) { $fin = buildFilterIn($fNxDhena, 'te_dhena'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
@@ -64,16 +51,16 @@ if ($fNxMarra) { $fin = buildFilterIn($fNxMarra, 'te_marra'); $nxWhere[] = $fin[
 if ($fNxKoment) { $fin = buildFilterIn($fNxKoment, 'koment'); $nxWhere[] = $fin['sql']; $nxParams = array_merge($nxParams, $fin['params']); }
 $nxWhereSQL = $nxWhere ? 'WHERE ' . implode(' AND ', $nxWhere) : '';
 
-// All transactions (with filters)
+// All transactions
 $nxStmt = $db->prepare("SELECT * FROM nxemese {$nxWhereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC");
 $nxStmt->execute($nxParams);
 $rows = $nxStmt->fetchAll();
 
-// Per-row running totals: Ne stok (per client) and Total ne terren (global)
-$allRowsAsc = $db->query("SELECT id FROM nxemese ORDER BY data ASC, id ASC")->fetchAll(PDO::FETCH_COLUMN);
+// Per-row running totals (computed on ALL data, not filtered)
 $nxRunningPerClient = [];
 $nxRunningTotal = [];
-if ($allRowsAsc) {
+$runCheck = $db->query("SELECT COUNT(*) FROM nxemese")->fetchColumn();
+if ($runCheck > 0) {
     $runStmt = $db->query("
         SELECT id,
             SUM(te_dhena - te_marra) OVER (
@@ -90,7 +77,7 @@ if ($allRowsAsc) {
     }
 }
 
-// Client list for dropdown
+// Distinct values for filters & dropdowns
 $klientet = $db->query("SELECT DISTINCT klienti FROM nxemese ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 $llojet = $db->query("SELECT DISTINCT lloji_i_nxemjes FROM nxemese WHERE lloji_i_nxemjes IS NOT NULL ORDER BY lloji_i_nxemjes")->fetchAll(PDO::FETCH_COLUMN);
 $nxDhenaVals = $db->query("SELECT DISTINCT te_dhena FROM nxemese ORDER BY te_dhena")->fetchAll(PDO::FETCH_COLUMN);
@@ -100,23 +87,23 @@ $nxKomentVals = $db->query("SELECT DISTINCT koment FROM nxemese WHERE koment IS 
 ob_start();
 ?>
 
-<div class="summary-grid">
-    <div class="summary-card"><div class="label">Nxemëse total në terren</div><div class="value"><?= num($totalTerren) ?></div></div>
-    <div class="summary-card"><div class="label">Klientë me nxemëse</div><div class="value"><?= count($stokuPerKlient) ?></div></div>
-</div>
-
-<!-- Section: Shto levizje -->
-<div class="section-header">
-    <i class="fas fa-plus-circle"></i>
-    <h2>Shto Lëvizje</h2>
-    <div class="section-line"></div>
-</div>
 <div class="card">
-    <div class="card-header"><h3><i class="fas fa-plus-circle"></i> Shto lëvizje nxemëse</h3></div>
-    <div class="card-body padded">
+    <div class="card-header" style="flex-wrap:wrap;gap:12px;">
+        <h3><i class="fas fa-fire"></i> Nxemëse
+            <span style="font-weight:400;font-size:0.85rem;color:var(--text-muted);margin-left:8px;">
+                <?= count($rows) ?> lëvizje &middot; <strong style="color:var(--primary);"><?= num($totalTerren) ?></strong> në terren
+            </span>
+        </h3>
+        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('nxAddForm').classList.toggle('hidden')">
+            <i class="fas fa-plus"></i> Shto lëvizje
+        </button>
+    </div>
+
+    <!-- Collapsible input form -->
+    <div id="nxAddForm" class="hidden" style="border-bottom:1px solid var(--border);padding:16px 20px;background:#f8fafc;">
         <form class="ajax-form" action="/api/insert.php" method="POST">
             <input type="hidden" name="_table" value="nxemese">
-            <div class="form-row">
+            <div class="form-row" style="align-items:flex-end;">
                 <div class="form-group"><label>Klienti *</label>
                     <input type="text" name="klienti" required list="nxKlientList">
                     <datalist id="nxKlientList"><?php foreach ($klientet as $k): ?><option value="<?= e($k) ?>"><?php endforeach; ?></datalist>
@@ -124,8 +111,6 @@ ob_start();
                 <div class="form-group"><label>Data *</label><input type="date" name="data" required value="<?= date('Y-m-d') ?>"></div>
                 <div class="form-group"><label>Të dhëna</label><input type="number" name="te_dhena" value="0" min="0"></div>
                 <div class="form-group"><label>Të marra</label><input type="number" name="te_marra" value="0" min="0"></div>
-            </div>
-            <div class="form-row">
                 <div class="form-group"><label>Lloji i nxemjes</label>
                     <select name="lloji_i_nxemjes" id="nxemje-select">
                         <option value="">-- Zgjidh --</option>
@@ -134,20 +119,12 @@ ob_start();
                     </select>
                 </div>
                 <div class="form-group"><label>Koment</label><input type="text" name="koment"></div>
-                <div class="form-group" style="justify-content:flex-end;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Ruaj</button></div>
+                <div class="form-group"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Ruaj</button></div>
             </div>
         </form>
     </div>
-</div>
 
-<!-- Section: Nxemese (main table matching Excel Nxemese1 sheet) -->
-<div class="section-header">
-    <i class="fas fa-fire"></i>
-    <h2>Nxemëse</h2>
-    <div class="section-line"></div>
-</div>
-<div class="card">
-    <div class="card-header"><h3>Të gjitha lëvizjet (<?= count($rows) ?>)</h3></div>
+    <!-- Filters -->
     <div class="filters">
         <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
             <?php if ($sortCol !== 'data' || $sortDir !== 'DESC'): ?>
@@ -172,12 +149,14 @@ ob_start();
             <a href="nxemese.php" class="btn btn-outline btn-sm">Pastro</a>
         </form>
     </div>
+
+    <!-- Main table (Excel Nxemese1 layout) -->
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table" data-table="nxemese" data-server-sort="true">
                 <thead><tr>
-                    <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
                     <?= withFilter(sortThNx('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $klientet) ?>
+                    <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
                     <?= withFilter(sortThNx('te_dhena', 'Te dhena', $sortCol, $sortDir, 'num'), 'f_dhena', $nxDhenaVals) ?>
                     <?= withFilter(sortThNx('te_marra', 'Te marra', $sortCol, $sortDir, 'num'), 'f_marra', $nxMarraVals) ?>
                     <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Ne stok <i class="fas fa-sort"></i></th>
@@ -187,13 +166,16 @@ ob_start();
                     <th></th>
                 </tr></thead>
                 <tbody>
-                    <?php foreach ($rows as $r): ?>
-                    <tr data-id="<?= $r['id'] ?>">
-                        <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
+                    <?php foreach ($rows as $r):
+                        $neStok = $nxRunningPerClient[$r['id']] ?? null;
+                        $rowStyle = ($neStok !== null && $neStok == 0) ? 'color:var(--danger);' : '';
+                    ?>
+                    <tr data-id="<?= $r['id'] ?>" style="<?= $rowStyle ?>">
                         <td class="editable" data-field="klienti"><?= e($r['klienti']) ?></td>
+                        <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="num editable" data-field="te_dhena" data-type="number"><?= (int)$r['te_dhena'] ?></td>
                         <td class="num editable" data-field="te_marra" data-type="number"><?= (int)$r['te_marra'] ?></td>
-                        <td class="num" style="font-weight:600;color:var(--primary);"><?= $nxRunningPerClient[$r['id']] ?? '-' ?></td>
+                        <td class="num" style="font-weight:600;<?= ($neStok !== null && $neStok == 0) ? 'color:var(--danger);' : 'color:var(--primary);' ?>"><?= $neStok ?? '-' ?></td>
                         <td class="num" style="color:var(--text-muted);"><?= $nxRunningTotal[$r['id']] ?? '-' ?></td>
                         <td class="editable" data-field="lloji_i_nxemjes" data-type="select" data-options="<?= e(json_encode($llojet)) ?>"><?= e($r['lloji_i_nxemjes']) ?></td>
                         <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>"><?= e($r['koment']) ?></td>
@@ -206,34 +188,10 @@ ob_start();
     </div>
 </div>
 
-<!-- Section: Stoku sipas klientit (Kontrata per nxemje) -->
-<div class="section-header">
-    <i class="fas fa-users"></i>
-    <h2>Stoku sipas klientit</h2>
-    <div class="section-line"></div>
-</div>
-<div class="card">
-    <div class="card-header"><h3><i class="fas fa-fire"></i> Nxemëse në terren sipas klientit</h3></div>
-    <div class="card-body">
-        <div class="table-wrapper">
-            <table class="data-table">
-                <thead>
-                    <tr><th>Klienti</th><th class="num">Te dhena</th><th class="num">Te marra</th><th class="num">Ne stok</th></tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($stokuPerKlient as $s): ?>
-                    <tr style="<?= $s['ne_stok'] == 0 ? 'color:var(--text-muted);' : '' ?>">
-                        <td><?= e($s['klienti']) ?></td>
-                        <td class="num"><?= (int)$s['dhena'] ?></td>
-                        <td class="num"><?= (int)$s['marra'] ?></td>
-                        <td class="num" style="font-weight:700;<?= $s['ne_stok'] > 0 ? 'color:var(--primary);' : 'color:var(--danger);' ?>"><?= (int)$s['ne_stok'] ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+<p style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
+    <i class="fas fa-info-circle"></i> Klientët me stok zero shfaqen me ngjyrë të kuqe.
+    Klikoni mbi çdo qelizë për ta ndryshuar direkt.
+</p>
 
 <script>
 function clientSortColumn(th, colIdx) {
