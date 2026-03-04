@@ -52,7 +52,7 @@ if (file_exists($jsonPath)) {
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $toUpdate) {
         $updated = 0;
-        $stmt = $db->prepare("UPDATE shpenzimet SET data_e_fatures = ?, shuma_fatures = ?, lloji_fatures = ? WHERE data_e_pageses = ? AND shuma = ? AND arsyetimi = ? LIMIT 1");
+        $stmt = $db->prepare("UPDATE shpenzimet SET data_e_fatures = ?, shuma_fatures = ?, lloji_fatures = ? WHERE data_e_pageses = ? AND ROUND(shuma, 2) = ROUND(?, 2) AND arsyetimi = ? AND (data_e_fatures IS NULL AND shuma_fatures IS NULL AND lloji_fatures IS NULL) LIMIT 1");
         foreach ($toUpdate as $u) {
             $stmt->execute([$u['data_e_fatures'], $u['shuma_fatures'], $u['lloji_fatures'], $u['data'], $u['shuma'], $u['arsyetimi']]);
             if ($stmt->rowCount() > 0) $updated++;

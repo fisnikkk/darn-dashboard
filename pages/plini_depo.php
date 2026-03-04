@@ -239,7 +239,7 @@ ob_start();
                         <?= withFilter(sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir), 'f_cash', $cashBanke) ?>
                         <?= withFilter(sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir), 'f_furnitori', $furnitoret) ?>
                         <?= withFilter(sortThPD('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $pdKomentVals) ?>
-                        <th class="num">Gjendja</th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;">Gjendja <i class="fas fa-sort"></i></th>
                         <th></th>
                     </tr>
                 </thead>

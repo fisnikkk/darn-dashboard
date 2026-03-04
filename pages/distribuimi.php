@@ -279,7 +279,7 @@ ob_start();
                         <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
                         <?= withFilter(sortTh('fatura_e_derguar', 'Fatura e dërguar', $sortCol, $sortDir), 'f_fatura', $distFaturaVals) ?>
                         <?= withFilter(sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir), 'f_data_fp', $distDataFpVals) ?>
-                        <th data-filter="f_koment" data-filter-values="<?= e(json_encode($distKomentVals, JSON_UNESCAPED_UNICODE)) ?>">Koment</th>
+                        <?= withFilter(sortTh('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $distKomentVals) ?>
                         <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
                         <th></th>
                     </tr>
