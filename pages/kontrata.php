@@ -22,6 +22,10 @@ $fPerfaq = getFilterParam('f_perfaq');
 $fLlojiBoca = getFilterParam('f_lloji_boca');
 $fGrupNjoft = getFilterParam('f_grup_njoft');
 $fStok = getFilterParam('f_stok');
+$fPda = getFilterParam('f_pda');
+$fKontrateVjeter = getFilterParam('f_kontrate_vjeter');
+$fBocatPag = getFilterParam('f_bocat_pag');
+$fKoment = getFilterParam('f_koment');
 
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'nr_i_kontrates';
@@ -52,6 +56,10 @@ if ($fPerfaq) { $fin = buildFilterIn($fPerfaq, 'perfaqesuesi'); $whereArr[] = $f
 if ($fLlojiBoca) { $fin = buildFilterIn($fLlojiBoca, 'lloji_i_bocave'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fGrupNjoft) { $fin = buildFilterIn($fGrupNjoft, 'ne_grup_njoftues'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fStok) { $fin = buildFilterIn($fStok, 'CAST(numri_ne_stok_sipas_kontrates AS CHAR)'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fPda) { $fin = buildFilterIn($fPda, 'sipas_skenimit_pda'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fKontrateVjeter) { $fin = buildFilterIn($fKontrateVjeter, 'kontrate_e_vjeter'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fBocatPag) { $fin = buildFilterIn($fBocatPag, 'bocat_e_paguara'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fKoment) { $fin = buildFilterIn($fKoment, 'koment'); $whereArr[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM kontrata {$where}");
@@ -103,6 +111,26 @@ $perfaqVals = $db->query("SELECT DISTINCT perfaqesuesi FROM kontrata WHERE perfa
 $llojiBocaVals = $db->query("SELECT DISTINCT lloji_i_bocave FROM kontrata WHERE lloji_i_bocave IS NOT NULL AND lloji_i_bocave != '' ORDER BY lloji_i_bocave")->fetchAll(PDO::FETCH_COLUMN);
 $grupNjoftVals = $db->query("SELECT DISTINCT ne_grup_njoftues FROM kontrata WHERE ne_grup_njoftues IS NOT NULL AND ne_grup_njoftues != '' ORDER BY ne_grup_njoftues")->fetchAll(PDO::FETCH_COLUMN);
 $stokVals = $db->query("SELECT DISTINCT CAST(numri_ne_stok_sipas_kontrates AS CHAR) as v FROM kontrata WHERE numri_ne_stok_sipas_kontrates IS NOT NULL ORDER BY numri_ne_stok_sipas_kontrates+0")->fetchAll(PDO::FETCH_COLUMN);
+$pdaVals = $db->query("SELECT DISTINCT sipas_skenimit_pda FROM kontrata WHERE sipas_skenimit_pda IS NOT NULL AND sipas_skenimit_pda != '' ORDER BY sipas_skenimit_pda LIMIT 200")->fetchAll(PDO::FETCH_COLUMN);
+$kontrateVjeterVals = $db->query("SELECT DISTINCT kontrate_e_vjeter FROM kontrata WHERE kontrate_e_vjeter IS NOT NULL AND kontrate_e_vjeter != '' ORDER BY kontrate_e_vjeter")->fetchAll(PDO::FETCH_COLUMN);
+$bocatPagVals = $db->query("SELECT DISTINCT bocat_e_paguara FROM kontrata WHERE bocat_e_paguara IS NOT NULL AND bocat_e_paguara != '' ORDER BY bocat_e_paguara")->fetchAll(PDO::FETCH_COLUMN);
+$komentVals = $db->query("SELECT DISTINCT koment FROM kontrata WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 300")->fetchAll(PDO::FETCH_COLUMN);
+
+// Collect distinct calculated values for Ditë pa marrë and Mesatare/muaj client-side filters
+$diteValues = [];
+$avgValues = [];
+foreach ($rows as $r) {
+    $name = $r['name_from_database'] ?: $r['biznesi'];
+    $nameKey = strtolower($name);
+    $dite = isset($ditePaMarr[$nameKey]) ? abs((int)$ditePaMarr[$nameKey]['dite']) : null;
+    $avg = $avgPerMonth[$nameKey] ?? null;
+    if ($dite !== null) $diteValues[(string)$dite . ' ditë'] = true;
+    if ($avg !== null) $avgValues[(string)$avg] = true;
+}
+$diteFilterVals = array_keys($diteValues);
+usort($diteFilterVals, function($a, $b) { return (int)$a - (int)$b; });
+$avgFilterVals = array_keys($avgValues);
+usort($avgFilterVals, function($a, $b) { return (float)$a - (float)$b; });
 
 ob_start();
 ?>
@@ -161,7 +189,7 @@ ob_start();
                         <?= withFilter(sortThKt('numri_ne_stok_sipas_kontrates', 'Stok kontratë', $sortCol, $sortDir, 'num'), 'f_stok', $stokVals) ?>
                         <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_sipas_dist" data-filter-values="<?= e(json_encode($distFilterVals)) ?>" data-filter-mode="client" data-filter-col="4">Sipas distribuimit <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_diferenca" data-filter-values="<?= e(json_encode($diffFilterVals)) ?>" data-filter-mode="client" data-filter-col="5">Diferencë <i class="fas fa-sort"></i></th>
-                        <?= sortThKt('sipas_skenimit_pda', 'Skenimi PDA', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('sipas_skenimit_pda', 'Skenimi PDA', $sortCol, $sortDir), 'f_pda', $pdaVals) ?>
                         <?= withFilter(sortThKt('bashkepunim', 'Bashkëpunim', $sortCol, $sortDir), 'f_bashk', $bashkValues) ?>
                         <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
                         <?= withFilter(sortThKt('rruga', 'Rruga', $sortCol, $sortDir), 'f_rruga', $rrugaVals) ?>
@@ -170,13 +198,13 @@ ob_start();
                         <?= sortThKt('nr_telefonit', 'Tel.', $sortCol, $sortDir) ?>
                         <?= sortThKt('email', 'Email', $sortCol, $sortDir) ?>
                         <?= withFilter(sortThKt('ne_grup_njoftues', 'Grup njoftues', $sortCol, $sortDir), 'f_grup_njoft', $grupNjoftVals) ?>
-                        <?= sortThKt('kontrate_e_vjeter', 'Kontratë e vjetër', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('kontrate_e_vjeter', 'Kontratë e vjetër', $sortCol, $sortDir), 'f_kontrate_vjeter', $kontrateVjeterVals) ?>
                         <?= withFilter(sortThKt('lloji_i_bocave', 'Lloji bocave', $sortCol, $sortDir), 'f_lloji_boca', $llojiBocaVals) ?>
-                        <?= sortThKt('bocat_e_paguara', 'Bocat e paguara', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortThKt('bocat_e_paguara', 'Bocat e paguara', $sortCol, $sortDir), 'f_bocat_pag', $bocatPagVals) ?>
                         <?= sortThKt('data_rregullatoret', 'Data rregullatorët', $sortCol, $sortDir) ?>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;color:var(--danger)">Ditë pa marrë <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 20)" style="cursor:pointer;user-select:none;">Mesatare/muaj <i class="fas fa-sort"></i></th>
-                        <?= sortThKt('koment', 'Koment', $sortCol, $sortDir) ?>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 19)" style="cursor:pointer;user-select:none;color:var(--danger)" data-filter="f_dite_pamarr" data-filter-values="<?= e(json_encode($diteFilterVals)) ?>" data-filter-mode="client" data-filter-col="19">Ditë pa marrë <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 20)" style="cursor:pointer;user-select:none;" data-filter="f_mesatare" data-filter-values="<?= e(json_encode($avgFilterVals)) ?>" data-filter-mode="client" data-filter-col="20">Mesatare/muaj <i class="fas fa-sort"></i></th>
+                        <?= withFilter(sortThKt('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $komentVals) ?>
                         <th></th>
                     </tr>
                 </thead>
@@ -186,7 +214,7 @@ ob_start();
                         $nameKey = strtolower($name);
                         $bocaDist = $bocaBiznesi[$nameKey] ?? 0;
                         $diff = (int)$r['numri_ne_stok_sipas_kontrates'] - $bocaDist;
-                        $dite = isset($ditePaMarr[$nameKey]) ? (int)$ditePaMarr[$nameKey]['dite'] : null;
+                        $dite = isset($ditePaMarr[$nameKey]) ? abs((int)$ditePaMarr[$nameKey]['dite']) : null;
                         $avg = $avgPerMonth[$nameKey] ?? '-';
                     ?>
                     <tr data-id="<?= $r['id'] ?>" <?= $dite && $dite > 90 ? 'style="background:#fef2f2;"' : '' ?>>
@@ -294,7 +322,7 @@ function clientSortColumn(th, colIdx) {
     const rows = Array.from(tbody.querySelectorAll('tr'));
     const icon = th.querySelector('i');
     const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
-    th.closest('tr').querySelectorAll('th.server-sort i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    th.closest('tr').querySelectorAll('th.server-sort > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
     icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
     rows.sort((a, b) => {
         const va = parseFloat(a.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');

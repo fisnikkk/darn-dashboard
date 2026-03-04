@@ -15,6 +15,7 @@ if (!$input || !isset($input['table'], $input['id'])) {
 
 $table = $input['table'];
 $id = (int)$input['id'];
+$action = $input['action'] ?? 'revert_update'; // 'revert_update' or 'restore_delete'
 
 $allowedTables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata',
                   'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo'];
@@ -25,6 +26,69 @@ if (!in_array($table, $allowedTables)) {
 
 try {
     $db = getDB();
+
+    // ---- Restore a deleted row ----
+    if ($action === 'restore_delete') {
+        $changelogId = (int)($input['changelog_id'] ?? 0);
+        if (!$changelogId) {
+            echo json_encode(['success' => false, 'error' => 'Missing changelog_id']);
+            exit;
+        }
+
+        // Get the deleted row data from changelog
+        $entry = $db->prepare("SELECT * FROM changelog WHERE id = ? AND action_type = 'delete' AND reverted = 0");
+        $entry->execute([$changelogId]);
+        $logEntry = $entry->fetch();
+
+        if (!$logEntry) {
+            echo json_encode(['success' => false, 'error' => 'Rreshti nuk u gjet ose eshte kthyer tashme']);
+            exit;
+        }
+
+        $rowData = json_decode($logEntry['old_value'], true);
+        if (!$rowData || !is_array($rowData)) {
+            echo json_encode(['success' => false, 'error' => 'Te dhenat e rreshtit jane te pavlefshme']);
+            exit;
+        }
+
+        $db->beginTransaction();
+
+        // Remove 'id' and 'e_kontrolluar' from data to avoid conflicts
+        $originalId = $rowData['id'] ?? null;
+        unset($rowData['e_kontrolluar']);
+
+        // Re-insert the row (with original ID if possible)
+        $cols = array_keys($rowData);
+        $placeholders = implode(',', array_fill(0, count($cols), '?'));
+        $colNames = implode(',', array_map(fn($c) => "`{$c}`", $cols));
+        $sql = "INSERT INTO `{$table}` ({$colNames}) VALUES ({$placeholders})";
+        $db->prepare($sql)->execute(array_values($rowData));
+        $newId = $db->lastInsertId();
+
+        // Mark changelog entry as reverted
+        $db->prepare("UPDATE changelog SET reverted = 1 WHERE id = ?")->execute([$changelogId]);
+
+        // Log the restore
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', ?, ?, 'restore_delete', NULL, ?)")
+            ->execute([$table, (int)$newId, json_encode($rowData, JSON_UNESCAPED_UNICODE)]);
+
+        // Recalculate bilanci if gjendja_bankare
+        if ($table === 'gjendja_bankare') {
+            $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+            $running = 0;
+            foreach ($all as $r) {
+                $running = round($running + (float)$r['kredi'] - (float)$r['debia'], 2);
+                $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
+            }
+        }
+
+        $db->commit();
+        echo json_encode(['success' => true, 'new_id' => (int)$newId,
+            'message' => 'Rreshti u rikthye me sukses (ID: ' . $newId . ')']);
+        exit;
+    }
+
+    // ---- Revert an update ----
 
     // Find the most recent UNREVERTED batch of updates for this row
     $lastChange = $db->prepare("

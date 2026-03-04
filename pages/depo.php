@@ -213,7 +213,7 @@ function clientSortColumn(th, colIdx) {
     const rows = Array.from(tbody.querySelectorAll('tr'));
     const icon = th.querySelector('i');
     const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
-    th.closest('tr').querySelectorAll('th.server-sort i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    th.closest('tr').querySelectorAll('th.server-sort > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
     icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
     rows.sort((a, b) => {
         const ta = a.cells[colIdx]?.textContent?.trim() || '';

@@ -338,8 +338,13 @@ function deleteRow(table, id) {
     .then(data => {
         if (data.success) {
             showToast('U fshi');
-            // Reload to update footer totals, running balances, etc.
-            setTimeout(() => location.reload(), 400);
+            // Remove the row from DOM immediately (no page reload needed)
+            const row = document.querySelector('tr[data-id="' + id + '"]');
+            if (row) {
+                row.style.transition = 'opacity 0.3s';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 300);
+            }
         } else {
             showToast('Gabim: ' + (data.error || ''), 'error');
         }

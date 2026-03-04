@@ -313,7 +313,8 @@ ob_start();
             <?php foreach ($rows as $r):
                 $isReverted = !empty($r['reverted']);
                 $desc = describeChange($r, $fieldLabels, $tableLabels, $keyFields);
-                $canUndo = ($r['action_type'] === 'update' && !$isReverted);
+                $canUndoUpdate = ($r['action_type'] === 'update' && !$isReverted);
+                $canUndoDelete = ($r['action_type'] === 'delete' && !$isReverted);
             ?>
             <div class="log-entry <?= $isReverted ? 'reverted' : '' ?>">
                 <div class="log-time"><?= date('d/m/Y H:i', strtotime($r['created_at'])) ?></div>
@@ -324,9 +325,13 @@ ob_start();
                         <span class="log-reverted-tag">(kthyer)</span>
                     <?php endif; ?>
                 </div>
-                <?php if ($canUndo): ?>
+                <?php if ($canUndoUpdate): ?>
                     <button class="log-undo" onclick="revertChange('<?= e($r['table_name']) ?>', <?= (int)$r['row_id'] ?>, this)" title="Kthe ndryshimin">
                         <i class="fas fa-undo"></i> Kthe
+                    </button>
+                <?php elseif ($canUndoDelete): ?>
+                    <button class="log-undo" onclick="restoreDelete('<?= e($r['table_name']) ?>', <?= (int)$r['row_id'] ?>, <?= (int)$r['id'] ?>, this)" title="Rikthe rreshtin e fshirë" style="border-color:#ef4444;color:#ef4444;">
+                        <i class="fas fa-trash-restore"></i> Rikthe
                     </button>
                 <?php endif; ?>
             </div>
@@ -391,6 +396,34 @@ function revertChange(table, rowId, btn) {
         showToast('Gabim rrjeti', 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-undo"></i> Kthe';
+    });
+}
+
+function restoreDelete(table, rowId, changelogId, btn) {
+    if (!confirm('Rikthe rreshtin e fshirë? Do të ri-insertohet në tabelën ' + table + '.')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    fetch('/api/revert.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: table, id: rowId, action: 'restore_delete', changelog_id: changelogId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            btn.closest('.log-entry').classList.add('reverted');
+            btn.outerHTML = '<span class="log-reverted-tag">(u rikthye)</span>';
+            showToast(data.message || 'Rreshti u rikthye me sukses', 'success');
+        } else {
+            showToast(data.error || 'Gabim', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash-restore"></i> Rikthe';
+        }
+    })
+    .catch(() => {
+        showToast('Gabim rrjeti', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash-restore"></i> Rikthe';
     });
 }
 </script>
