@@ -68,6 +68,13 @@ function runMigrations($pdo) {
             $pdo->exec("ALTER TABLE kontrata ADD COLUMN sipas_skenimit_pda TEXT NULL");
         }
 
+        // Add klienti column to gjendja_bankare for client assignment (kartela feature)
+        $cols = $pdo->query("SHOW COLUMNS FROM gjendja_bankare LIKE 'klienti'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE gjendja_bankare ADD COLUMN klienti VARCHAR(255) NULL AFTER lloji");
+            $pdo->exec("CREATE INDEX idx_gb_klienti ON gjendja_bankare (klienti)");
+        }
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,

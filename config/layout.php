@@ -13,6 +13,7 @@ function renderLayout($pageTitle, $currentPage, $content) {
         ['id' => 'gjendja_bankare', 'icon' => 'fa-university', 'label' => 'Gjendja Bankare'],
         ['id' => 'nxemese', 'icon' => 'fa-fire', 'label' => 'Nxemëse'],
         ['id' => 'borxhet', 'icon' => 'fa-balance-scale', 'label' => 'Borxhet'],
+        ['id' => 'kartela', 'icon' => 'fa-id-card', 'label' => 'Kartela'],
         ['id' => 'log', 'icon' => 'fa-history', 'label' => 'Log'],
         ['id' => 'snapshot', 'icon' => 'fa-database', 'label' => 'Snapshot'],
         ['id' => 'monthly_profit', 'icon' => 'fa-chart-line', 'label' => 'Monthly Profit'],

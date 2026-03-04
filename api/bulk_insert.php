@@ -30,8 +30,8 @@ try {
     $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', ?, ?, 'bulk_paste', NULL, ?)");
 
     if ($table === 'gjendja_bankare') {
-        $sql = "INSERT INTO gjendja_bankare (data, data_valutes, ora, shpjegim, valuta, debia, kredi, bilanci, deftesa, lloji, komentet)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO gjendja_bankare (data, data_valutes, ora, shpjegim, valuta, debia, kredi, bilanci, deftesa, lloji, klienti, komentet)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $db->prepare($sql);
 
         // Get the latest bilanci for fallback auto-calculation
@@ -48,6 +48,7 @@ try {
             $bilanci = is_numeric($row['bilanci'] ?? '') ? (float)$row['bilanci'] : null;
             $deftesa = ($row['deftesa'] ?? '') !== '' ? $row['deftesa'] : null;
             $lloji = ($row['lloji'] ?? '') !== '' ? $row['lloji'] : null;
+            $klienti = ($row['klienti'] ?? '') !== '' ? $row['klienti'] : null;
             $komentet = ($row['komentet'] ?? '') !== '' ? $row['komentet'] : null;
 
             // Skip rows with no meaningful data (strict check — don't drop valid rows with "0" descriptions)
@@ -60,12 +61,12 @@ try {
                 $bilanci = round($prevBilanci + $k - $d, 2);
             }
 
-            $stmt->execute([$data, $dataValutes, $ora, $shpjegim, $valuta, $debia, $kredi, $bilanci, $deftesa, $lloji, $komentet]);
+            $stmt->execute([$data, $dataValutes, $ora, $shpjegim, $valuta, $debia, $kredi, $bilanci, $deftesa, $lloji, $klienti, $komentet]);
             $newId = (int)$db->lastInsertId();
             $inserted++;
 
             // Log to changelog
-            $insertedData = ['data'=>$data, 'data_valutes'=>$dataValutes, 'ora'=>$ora, 'shpjegim'=>$shpjegim, 'valuta'=>$valuta, 'debia'=>$debia, 'kredi'=>$kredi, 'bilanci'=>$bilanci, 'deftesa'=>$deftesa, 'lloji'=>$lloji, 'komentet'=>$komentet];
+            $insertedData = ['data'=>$data, 'data_valutes'=>$dataValutes, 'ora'=>$ora, 'shpjegim'=>$shpjegim, 'valuta'=>$valuta, 'debia'=>$debia, 'kredi'=>$kredi, 'bilanci'=>$bilanci, 'deftesa'=>$deftesa, 'lloji'=>$lloji, 'klienti'=>$klienti, 'komentet'=>$komentet];
             $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE)]);
 
             // Track running balance for subsequent rows

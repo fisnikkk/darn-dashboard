@@ -1,0 +1,374 @@
+<?php
+/**
+ * DARN Dashboard - Kartela e Klientit (Client Ledger)
+ * Per-client financial card: DEBI (deliveries) vs KREDI (payments)
+ * - DEBI: from distribuimi (except DHURATE)
+ * - KREDI auto-mirror: CASH / PO CASH payments (paid on delivery)
+ * - KREDI bank: from gjendja_bankare where klienti is assigned
+ * - NO PAYMENT: debi only = creates debt
+ * - DHURATE: excluded entirely
+ * Result: Total Debi - Total Kredi = Borxh (debt) or Avancë (advance)
+ */
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/layout.php';
+
+$db = getDB();
+
+// Selected client (detail view)
+$selectedClient = $_GET['klient'] ?? '';
+$dateFrom = $_GET['date_from'] ?? '';
+$dateTo = $_GET['date_to'] ?? '';
+
+// Get all distinct clients from distribuimi
+$allClients = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
+
+// ============================================================
+// DETAIL VIEW — specific client selected
+// ============================================================
+if ($selectedClient !== '') {
+
+    // Build date filter
+    $dateWhere = '';
+    $dateParams = [];
+    if ($dateFrom) { $dateWhere .= ' AND data >= ?'; $dateParams[] = $dateFrom; }
+    if ($dateTo)   { $dateWhere .= ' AND data <= ?'; $dateParams[] = $dateTo; }
+
+    // 1. DEBI: all deliveries from distribuimi (except DHURATE)
+    $debiSQL = "
+        SELECT d.data, 'debi' as lloji,
+               CONCAT(d.sasia, ' boca × ', d.litra, 'L × ', d.cmimi, '€ — ', COALESCE(d.menyra_e_pageses,'')) as pershkrim,
+               d.pagesa as debi, 0 as kredi, d.id as ref_id, 'distribuimi' as src
+        FROM distribuimi d
+        WHERE LOWER(d.klienti) = LOWER(?)
+          AND LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) != 'dhurate'
+          {$dateWhere}
+    ";
+
+    // 2. Auto KREDI for cash payments (CASH + PO CASH)
+    $krediCashSQL = "
+        SELECT d.data, 'kredi' as lloji,
+               CONCAT('Pagesa cash — ', d.sasia, ' boca') as pershkrim,
+               0 as debi, d.pagesa as kredi, d.id as ref_id, 'auto_cash' as src
+        FROM distribuimi d
+        WHERE LOWER(d.klienti) = LOWER(?)
+          AND LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) IN ('cash', 'po (fature te rregullte) cash')
+          {$dateWhere}
+    ";
+
+    // 3. Bank KREDI from gjendja_bankare
+    $krediBankSQL = "
+        SELECT g.data, 'kredi' as lloji,
+               CONCAT('Pagesa bankare — ', COALESCE(g.shpjegim,'')) as pershkrim,
+               0 as debi, g.kredi as kredi, g.id as ref_id, 'banka' as src
+        FROM gjendja_bankare g
+        WHERE LOWER(g.klienti) = LOWER(?)
+          AND g.kredi > 0
+          {$dateWhere}
+    ";
+
+    // Combine all three with UNION ALL
+    $combinedSQL = "({$debiSQL}) UNION ALL ({$krediCashSQL}) UNION ALL ({$krediBankSQL}) ORDER BY data ASC, lloji ASC, ref_id ASC";
+
+    $params = array_merge(
+        [$selectedClient], $dateParams,
+        [$selectedClient], $dateParams,
+        [$selectedClient], $dateParams
+    );
+
+    $stmt = $db->prepare($combinedSQL);
+    $stmt->execute($params);
+    $transactions = $stmt->fetchAll();
+
+    // Calculate running balance
+    $totalDebi = 0;
+    $totalKredi = 0;
+    $runningBalance = 0;
+    foreach ($transactions as &$t) {
+        $d = (float)$t['debi'];
+        $k = (float)$t['kredi'];
+        $totalDebi += $d;
+        $totalKredi += $k;
+        $runningBalance += ($d - $k);
+        $t['gjendja'] = $runningBalance;
+    }
+    unset($t);
+
+    $gjendja = $totalDebi - $totalKredi;
+
+    ob_start();
+    ?>
+
+    <div style="margin-bottom:16px;">
+        <a href="?<?= http_build_query(array_diff_key($_GET, ['klient'=>''])) ?>" class="btn btn-outline btn-sm">
+            <i class="fas fa-arrow-left"></i> Te gjithe klientet
+        </a>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="summary-grid">
+        <div class="summary-card"><div class="label">Klienti</div><div class="value" style="font-size:1rem;"><?= e($selectedClient) ?></div></div>
+        <div class="summary-card"><div class="label">Total Debi</div><div class="value" style="color:var(--danger);">&euro; <?= eur($totalDebi) ?></div></div>
+        <div class="summary-card"><div class="label">Total Kredi</div><div class="value" style="color:var(--success);">&euro; <?= eur($totalKredi) ?></div></div>
+        <div class="summary-card" style="<?= $gjendja > 0.01 ? 'border-left:4px solid var(--danger);' : ($gjendja < -0.01 ? 'border-left:4px solid var(--success);' : '') ?>">
+            <div class="label"><?= $gjendja > 0.01 ? 'Borxhi' : ($gjendja < -0.01 ? 'Avanca' : 'Gjendja') ?></div>
+            <div class="value" style="color:<?= $gjendja > 0.01 ? 'var(--danger)' : ($gjendja < -0.01 ? 'var(--success)' : 'inherit') ?>;">&euro; <?= eur(abs($gjendja)) ?></div>
+        </div>
+    </div>
+
+    <!-- Date filter -->
+    <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+            <h3><i class="fas fa-id-card"></i> Kartela — <?= e($selectedClient) ?></h3>
+            <form method="GET" style="display:flex;gap:8px;align-items:center;">
+                <input type="hidden" name="klient" value="<?= e($selectedClient) ?>">
+                <label style="font-size:0.82rem;font-weight:600;">Nga:</label>
+                <input type="date" name="date_from" value="<?= e($dateFrom) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                <label style="font-size:0.82rem;font-weight:600;">Deri:</label>
+                <input type="date" name="date_to" value="<?= e($dateTo) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                <button type="submit" class="btn btn-primary btn-sm">Filtro</button>
+                <?php if ($dateFrom || $dateTo): ?>
+                <a href="?klient=<?= urlencode($selectedClient) ?>" class="btn btn-outline btn-sm">Pastro</a>
+                <?php endif; ?>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Përshkrimi</th>
+                            <th class="num" style="color:var(--danger);">Debi (&euro;)</th>
+                            <th class="num" style="color:var(--success);">Kredi (&euro;)</th>
+                            <th class="num" style="font-weight:700;">Gjendja (&euro;)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($transactions)): ?>
+                        <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">
+                            <i class="fas fa-info-circle"></i> Nuk ka transaksione për këtë klient.
+                        </td></tr>
+                        <?php else: ?>
+                        <?php foreach ($transactions as $t): ?>
+                        <tr style="<?= $t['lloji'] === 'kredi' ? 'background:#f0fdf4;' : '' ?>">
+                            <td style="white-space:nowrap;"><?= $t['data'] ?></td>
+                            <td class="truncate" title="<?= e($t['pershkrim']) ?>">
+                                <?php if ($t['lloji'] === 'debi'): ?>
+                                    <i class="fas fa-truck" style="color:var(--danger);margin-right:4px;"></i>
+                                <?php elseif ($t['src'] === 'auto_cash'): ?>
+                                    <i class="fas fa-coins" style="color:var(--success);margin-right:4px;"></i>
+                                <?php else: ?>
+                                    <i class="fas fa-university" style="color:var(--success);margin-right:4px;"></i>
+                                <?php endif; ?>
+                                <?= e($t['pershkrim']) ?>
+                            </td>
+                            <td class="amount" style="color:var(--danger);font-weight:<?= (float)$t['debi'] > 0 ? '600' : '400' ?>;">
+                                <?= (float)$t['debi'] > 0 ? eur($t['debi']) : '' ?>
+                            </td>
+                            <td class="amount" style="color:var(--success);font-weight:<?= (float)$t['kredi'] > 0 ? '600' : '400' ?>;">
+                                <?= (float)$t['kredi'] > 0 ? eur($t['kredi']) : '' ?>
+                            </td>
+                            <td class="amount" style="font-weight:700;color:<?= $t['gjendja'] > 0.01 ? 'var(--danger)' : ($t['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
+                                <?= eur(abs($t['gjendja'])) ?><?= $t['gjendja'] < -0.01 ? ' <small style="font-weight:400;">(avancë)</small>' : '' ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                    <?php if (!empty($transactions)): ?>
+                    <tfoot>
+                        <tr style="font-weight:700;background:#f8fafc;">
+                            <td>TOTALI</td>
+                            <td><?= count($transactions) ?> transaksione</td>
+                            <td class="amount" style="color:var(--danger);">&euro; <?= eur($totalDebi) ?></td>
+                            <td class="amount" style="color:var(--success);">&euro; <?= eur($totalKredi) ?></td>
+                            <td class="amount" style="color:<?= $gjendja > 0.01 ? 'var(--danger)' : ($gjendja < -0.01 ? 'var(--success)' : 'inherit') ?>;">
+                                &euro; <?= eur(abs($gjendja)) ?>
+                                <?= $gjendja > 0.01 ? ' (borxh)' : ($gjendja < -0.01 ? ' (avancë)' : '') ?>
+                            </td>
+                        </tr>
+                    </tfoot>
+                    <?php endif; ?>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <p style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
+        <i class="fas fa-info-circle"></i> <strong>Debi</strong> = dërgesa nga Distribuimi.
+        <strong>Kredi</strong> = pagesa cash (automatike) ose bankare (nga Gjendja Bankare).
+        <br>Pagesat DHURATE janë përjashtuar. Statusi NO PAYMENT paraqitet si borxh.
+    </p>
+
+    <?php
+    $content = ob_get_clean();
+    renderLayout('Kartela — ' . $selectedClient, 'kartela', $content);
+    exit;
+}
+
+// ============================================================
+// SUMMARY VIEW — all clients
+// ============================================================
+
+// Multi-select filter for client name
+$fKartKlienti = getFilterParam('f_klienti');
+$kartWhere = '';
+$kartParams = [];
+if ($fKartKlienti) {
+    $placeholders = implode(',', array_fill(0, count($fKartKlienti), '?'));
+    $kartWhere = "HAVING LOWER(MIN(d.klienti)) IN ({$placeholders})";
+    $kartParams = array_map('strtolower', array_values($fKartKlienti));
+}
+
+// Summary per client from distribuimi
+$summarySQL = "
+    SELECT
+        MIN(d.klienti) AS klienti,
+        -- Total DEBI: all deliveries except DHURATE
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) != 'dhurate' THEN d.pagesa ELSE 0 END) AS total_debi,
+        -- Auto KREDI: cash payments (auto-mirror)
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) IN ('cash', 'po (fature te rregullte) cash') THEN d.pagesa ELSE 0 END) AS kredi_cash
+    FROM distribuimi d
+    GROUP BY LOWER(d.klienti)
+    {$kartWhere}
+    ORDER BY MIN(d.klienti)
+";
+$stmt = $db->prepare($summarySQL);
+$stmt->execute($kartParams);
+$clientSummaries = $stmt->fetchAll();
+
+// Bank KREDI per client from gjendja_bankare
+$bankKredi = [];
+$bankRows = $db->query("SELECT LOWER(klienti) as kl, SUM(kredi) as total_kredi FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' AND kredi > 0 GROUP BY LOWER(klienti)")->fetchAll();
+foreach ($bankRows as $br) {
+    $bankKredi[$br['kl']] = (float)$br['total_kredi'];
+}
+
+// Combine and calculate gjendja
+$totals = ['debi' => 0, 'kredi_cash' => 0, 'kredi_bank' => 0, 'gjendja' => 0];
+foreach ($clientSummaries as &$cs) {
+    $cs['kredi_bank'] = $bankKredi[strtolower($cs['klienti'])] ?? 0;
+    $cs['total_kredi'] = (float)$cs['kredi_cash'] + (float)$cs['kredi_bank'];
+    $cs['gjendja'] = (float)$cs['total_debi'] - $cs['total_kredi'];
+    $totals['debi'] += (float)$cs['total_debi'];
+    $totals['kredi_cash'] += (float)$cs['kredi_cash'];
+    $totals['kredi_bank'] += (float)$cs['kredi_bank'];
+    $totals['gjendja'] += $cs['gjendja'];
+}
+unset($cs);
+
+// Count clients with debt/advance
+$debtCount = count(array_filter($clientSummaries, fn($c) => $c['gjendja'] > 0.01));
+$advanceCount = count(array_filter($clientSummaries, fn($c) => $c['gjendja'] < -0.01));
+$balancedCount = count($clientSummaries) - $debtCount - $advanceCount;
+
+ob_start();
+?>
+
+<div class="summary-grid">
+    <div class="summary-card"><div class="label">Klientë</div><div class="value"><?= count($clientSummaries) ?></div></div>
+    <div class="summary-card"><div class="label">Me borxh</div><div class="value" style="color:var(--danger);"><?= $debtCount ?></div></div>
+    <div class="summary-card"><div class="label">Me avancë</div><div class="value" style="color:var(--success);"><?= $advanceCount ?></div></div>
+    <div class="summary-card"><div class="label">Te barazuar</div><div class="value"><?= $balancedCount ?></div></div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3><i class="fas fa-id-card"></i> Kartela e Klientëve (<?= count($clientSummaries) ?>)</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-wrapper">
+            <table class="data-table" id="kartelaTable">
+                <thead>
+                    <tr>
+                        <th class="server-sort" onclick="kartelaSortColumn(this, 0)" style="cursor:pointer;user-select:none;"
+                            data-filter="f_klienti" data-filter-values="<?= e(json_encode($allClients, JSON_UNESCAPED_UNICODE)) ?>">
+                            Klienti <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 1)" style="cursor:pointer;user-select:none;color:var(--danger);">
+                            Total Debi <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 2)" style="cursor:pointer;user-select:none;color:var(--success);">
+                            Kredi Cash <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 3)" style="cursor:pointer;user-select:none;color:var(--success);">
+                            Kredi Bank <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 4)" style="cursor:pointer;user-select:none;font-weight:700;">
+                            Gjendja <i class="fas fa-sort"></i>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($clientSummaries as $cs): ?>
+                    <tr style="<?= $cs['gjendja'] > 0.01 ? 'background:#fef2f2;' : ($cs['gjendja'] < -0.01 ? 'background:#f0fdf4;' : '') ?>"
+                        onclick="window.location.href='?klient=<?= urlencode($cs['klienti']) ?>'"
+                        class="clickable-row">
+                        <td><a href="?klient=<?= urlencode($cs['klienti']) ?>" style="color:inherit;text-decoration:none;font-weight:500;"><?= e($cs['klienti']) ?></a></td>
+                        <td class="amount" style="color:var(--danger);"><?= eur($cs['total_debi']) ?></td>
+                        <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_cash']) ?></td>
+                        <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_bank']) ?></td>
+                        <td class="amount" style="font-weight:700;color:<?= $cs['gjendja'] > 0.01 ? 'var(--danger)' : ($cs['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
+                            &euro; <?= eur(abs($cs['gjendja'])) ?>
+                            <?php if ($cs['gjendja'] > 0.01): ?>
+                                <small style="font-weight:400;opacity:0.7;">borxh</small>
+                            <?php elseif ($cs['gjendja'] < -0.01): ?>
+                                <small style="font-weight:400;opacity:0.7;">avancë</small>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight:700;background:#f8fafc;">
+                        <td>TOTALI</td>
+                        <td class="amount" style="color:var(--danger);">&euro; <?= eur($totals['debi']) ?></td>
+                        <td class="amount" style="color:var(--success);">&euro; <?= eur($totals['kredi_cash']) ?></td>
+                        <td class="amount" style="color:var(--success);">&euro; <?= eur($totals['kredi_bank']) ?></td>
+                        <td class="amount" style="color:<?= $totals['gjendja'] > 0.01 ? 'var(--danger)' : ($totals['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
+                            &euro; <?= eur(abs($totals['gjendja'])) ?>
+                            <?= $totals['gjendja'] > 0.01 ? ' (borxh)' : ($totals['gjendja'] < -0.01 ? ' (avancë)' : '') ?>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<p style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
+    <i class="fas fa-info-circle"></i> Kliko mbi emrin e klientit për të parë kartelën e detajuar.
+    <br><strong>Debi</strong> = dërgesa nga Distribuimi. <strong>Kredi Cash</strong> = pagesa cash (automatike).
+    <strong>Kredi Bank</strong> = pagesa bankare (nga Gjendja Bankare ku është caktuar klienti).
+    <br>Pagesat DHURATE janë përjashtuar. Gjendja pozitive = borxh, negative = avancë.
+</p>
+
+<style>
+.clickable-row { cursor: pointer; transition: background 0.15s; }
+.clickable-row:hover { filter: brightness(0.96); }
+</style>
+
+<script>
+function kartelaSortColumn(th, colIdx) {
+    const table = document.getElementById('kartelaTable');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const icon = th.querySelector('i');
+    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
+    th.closest('tr').querySelectorAll('th.server-sort > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
+    rows.sort((a, b) => {
+        const ta = a.cells[colIdx]?.textContent?.trim() || '';
+        const tb = b.cells[colIdx]?.textContent?.trim() || '';
+        const na = parseFloat(ta.replace(/[^0-9.\-]/g, ''));
+        const nb = parseFloat(tb.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+        return asc ? ta.localeCompare(tb) : tb.localeCompare(ta);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+</script>
+
+<?php
+$content = ob_get_clean();
+renderLayout('Kartela', 'kartela', $content);

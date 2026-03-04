@@ -15,7 +15,7 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji','komentet'];
+$allowedSorts = ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji','klienti','komentet'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -35,6 +35,7 @@ $fGbLloji = getFilterParam('f_lloji');
 $fGbValuta = getFilterParam('f_valuta');
 $fGbShpjegim = getFilterParam('f_shpjegim');
 $fGbDeftesa = getFilterParam('f_deftesa');
+$fGbKlienti = getFilterParam('f_klienti');
 
 $gbWhere = [];
 $gbParams = [];
@@ -42,6 +43,7 @@ if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sq
 if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbShpjegim) { $fin = buildFilterIn($fGbShpjegim, 'shpjegim'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbDeftesa) { $fin = buildFilterIn($fGbDeftesa, 'deftesa'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+if ($fGbKlienti) { $fin = buildFilterIn($fGbKlienti, 'klienti'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 $gbWhereSQL = $gbWhere ? 'WHERE ' . implode(' AND ', $gbWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM gjendja_bankare {$gbWhereSQL}");
@@ -61,6 +63,10 @@ $llojiJSON = json_encode($llojet);
 $gbValutat = $db->query("SELECT DISTINCT valuta FROM gjendja_bankare WHERE valuta IS NOT NULL AND valuta != '' ORDER BY valuta")->fetchAll(PDO::FETCH_COLUMN);
 $gbShpjegimVals = $db->query("SELECT DISTINCT shpjegim FROM gjendja_bankare WHERE shpjegim IS NOT NULL AND shpjegim != '' ORDER BY shpjegim LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
 $gbDeftesaVals = $db->query("SELECT DISTINCT deftesa FROM gjendja_bankare WHERE deftesa IS NOT NULL AND deftesa != '' ORDER BY deftesa LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
+// Client names from distribuimi for the klienti datalist/select
+$distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
+$distKlientetJSON = json_encode($distKlientet, JSON_UNESCAPED_UNICODE);
 
 ob_start();
 ?>
@@ -95,6 +101,7 @@ ob_start();
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir), 'f_deftesa', $gbDeftesaVals) ?>
                         <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
+                        <?= withFilter(sortThGB('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $gbKlientetVals) ?>
                         <?= sortThGB('komentet', 'Komentet', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
@@ -118,6 +125,7 @@ ob_start();
                         <td class="amount" style="font-weight:600;"><?= eur($r['bilanci']) ?></td>
                         <td class="editable" data-field="deftesa"><?= e($r['deftesa']) ?></td>
                         <td class="editable truncate" data-field="lloji" data-type="select" data-options="<?= e($llojiJSON) ?>" title="<?= e($r['lloji']) ?>"><?= e($r['lloji']) ?></td>
+                        <td class="editable truncate" data-field="klienti" data-type="select" data-options="<?= e($distKlientetJSON) ?>" title="<?= e($r['klienti']) ?>"><?= e($r['klienti']) ?></td>
                         <td class="editable truncate" data-field="komentet" title="<?= e($r['komentet']) ?>"><?= e($r['komentet']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('gjendja_bankare',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
@@ -171,6 +179,12 @@ ob_start();
                     </div>
                 </div>
                 <div class="form-row">
+                    <div class="form-group"><label>Klienti</label>
+                        <input type="text" name="klienti" list="klientetList" placeholder="Zgjidhni klientin...">
+                        <datalist id="klientetList">
+                        <?php foreach ($distKlientet as $k): ?><option value="<?= e($k) ?>"><?php endforeach; ?>
+                        </datalist>
+                    </div>
                     <div class="form-group"><label>Komentet</label><input type="text" name="komentet" placeholder="Shto koment..."></div>
                 </div>
             </div>
@@ -189,7 +203,7 @@ ob_start();
         <div class="modal-body">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
                 Kopjo rreshtat nga Excel dhe ngjiti ketu. Kolonat duhet te jene ne kete rend:<br>
-                <strong>Data | Data Valutes | Ora | Shpjegim | Valuta | Debi | Kredi | Bilanci | Deftesa | Lloji | Komentet</strong>
+                <strong>Data | Data Valutes | Ora | Shpjegim | Valuta | Debi | Kredi | Bilanci | Deftesa | Lloji | Klienti | Komentet</strong>
             </p>
             <textarea id="pasteArea" rows="10" style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;" placeholder="Ngjit ketu te dhenat nga Excel (Ctrl+V)..."></textarea>
             <div id="pastePreview" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
@@ -280,7 +294,8 @@ function submitPastedData() {
             bilanci: parseNumber(cols[7]),
             deftesa: (cols[8] || '').trim(),
             lloji: (cols[9] || '').trim() || null,
-            komentet: (cols[10] || '').trim() || null
+            klienti: (cols[10] || '').trim() || null,
+            komentet: (cols[11] || '').trim() || null
         });
     }
 
