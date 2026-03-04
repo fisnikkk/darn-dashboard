@@ -95,7 +95,7 @@ ob_start();
             </span>
         </h3>
         <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('nxAddForm').classList.toggle('hidden')">
-            <i class="fas fa-plus"></i> Shto lëvizje
+            <i class="fas fa-plus"></i> Shto rresht
         </button>
     </div>
 
