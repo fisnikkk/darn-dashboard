@@ -16,9 +16,13 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['data','nr_i_fatures','kg','cmimi','faturat_e_pranuara','dalje_pagesat_sipas_bankes','menyra_e_pageses','cash_banke','furnitori','koment','sasia_ne_litra'];
+$allowedSorts = ['data','nr_i_fatures','kg','cmimi','faturat_e_pranuara','dalje_pagesat_sipas_bankes','menyra_e_pageses','cash_banke','furnitori','koment','sasia_ne_litra','gjendja'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
+
+// Map sort column to SQL expression (calculated column uses CTE alias)
+$calcSortsPD = ['gjendja' => 'bal.gjendja'];
+$sortExpr = isset($calcSortsPD[$sortCol]) ? $calcSortsPD[$sortCol] : "p.{$sortCol}";
 
 function sortThPD($col, $label, $currentSort, $currentDir, $class = '') {
     $isActive = ($currentSort === $col);
@@ -46,25 +50,41 @@ $filterDateTo = $_GET['date_to'] ?? '';
 
 $pdWhere = [];
 $pdParams = [];
-if ($fPdMenyra) { $fin = buildFilterIn($fPdMenyra, 'menyra_e_pageses'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdCash) { $fin = buildFilterIn($fPdCash, 'cash_banke'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdFurn) { $fin = buildFilterIn($fPdFurn, 'furnitori'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdKg) { $fin = buildFilterIn($fPdKg, 'kg'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdCmimi) { $fin = buildFilterIn($fPdCmimi, 'cmimi'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdKoment) { $fin = buildFilterIn($fPdKoment, 'koment'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdNrFat) { $fin = buildFilterIn($fPdNrFat, 'nr_i_fatures'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdFaturat) { $fin = buildFilterIn($fPdFaturat, 'faturat_e_pranuara'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($fPdDalje) { $fin = buildFilterIn($fPdDalje, 'dalje_pagesat_sipas_bankes'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
-if ($filterDateFrom) { $pdWhere[] = "data >= ?"; $pdParams[] = $filterDateFrom; }
-if ($filterDateTo) { $pdWhere[] = "data <= ?"; $pdParams[] = $filterDateTo; }
+if ($fPdMenyra) { $fin = buildFilterIn($fPdMenyra, 'menyra_e_pageses', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdCash) { $fin = buildFilterIn($fPdCash, 'cash_banke', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdFurn) { $fin = buildFilterIn($fPdFurn, 'furnitori', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdKg) { $fin = buildFilterIn($fPdKg, 'kg', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdCmimi) { $fin = buildFilterIn($fPdCmimi, 'cmimi', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdKoment) { $fin = buildFilterIn($fPdKoment, 'koment', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdNrFat) { $fin = buildFilterIn($fPdNrFat, 'nr_i_fatures', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdFaturat) { $fin = buildFilterIn($fPdFaturat, 'faturat_e_pranuara', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($fPdDalje) { $fin = buildFilterIn($fPdDalje, 'dalje_pagesat_sipas_bankes', 'p'); $pdWhere[] = $fin['sql']; $pdParams = array_merge($pdParams, $fin['params']); }
+if ($filterDateFrom) { $pdWhere[] = "p.data >= ?"; $pdParams[] = $filterDateFrom; }
+if ($filterDateTo) { $pdWhere[] = "p.data <= ?"; $pdParams[] = $filterDateTo; }
 $pdWhereSQL = $pdWhere ? 'WHERE ' . implode(' AND ', $pdWhere) : '';
 
-$cntStmt = $db->prepare("SELECT COUNT(*) FROM plini_depo {$pdWhereSQL}");
+$cntStmt = $db->prepare("SELECT COUNT(*) FROM plini_depo p {$pdWhereSQL}");
 $cntStmt->execute($pdParams);
 $totalRows = $cntStmt->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
 
-$rowsStmt = $db->prepare("SELECT * FROM plini_depo {$pdWhereSQL} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
+// Fetch data with running balance via CTE — enables server-side sorting across ALL pages
+$pdSQL = "
+    WITH balances AS (
+        SELECT id,
+            SUM(COALESCE(faturat_e_pranuara, 0) - COALESCE(dalje_pagesat_sipas_bankes, 0)) OVER (
+                ORDER BY data ASC, id ASC
+            ) as gjendja
+        FROM plini_depo
+    )
+    SELECT p.*, bal.gjendja
+    FROM plini_depo p
+    JOIN balances bal ON bal.id = p.id
+    {$pdWhereSQL}
+    ORDER BY {$sortExpr} {$sortDir}, p.id DESC
+    LIMIT {$perPage} OFFSET {$offset}
+";
+$rowsStmt = $db->prepare($pdSQL);
 $rowsStmt->execute($pdParams);
 $rows = $rowsStmt->fetchAll();
 
@@ -239,23 +259,12 @@ ob_start();
                         <?= withFilter(sortThPD('cash_banke', 'Cash/Banke', $sortCol, $sortDir), 'f_cash', $cashBanke) ?>
                         <?= withFilter(sortThPD('furnitori', 'Furnitori', $sortCol, $sortDir), 'f_furnitori', $furnitoret) ?>
                         <?= withFilter(sortThPD('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $pdKomentVals) ?>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;">Gjendja <i class="fas fa-sort"></i></th>
+                        <?= sortThPD('gjendja', 'Gjendja', $sortCol, $sortDir, 'num') ?>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php 
-                    $gjendja = 0;
-                    // Need to recalculate running balance - fetch all ordered by date ASC
-                    $allForBalance = $db->query("SELECT id, faturat_e_pranuara, dalje_pagesat_sipas_bankes FROM plini_depo ORDER BY data ASC, id ASC")->fetchAll();
-                    $balances = [];
-                    $running = 0;
-                    foreach ($allForBalance as $b) {
-                        $running += (float)$b['faturat_e_pranuara'] - (float)$b['dalje_pagesat_sipas_bankes'];
-                        $balances[$b['id']] = $running;
-                    }
-                    
-                    foreach ($rows as $r):
+                    <?php foreach ($rows as $r):
                     $litra = $r['sasia_ne_litra'] !== null ? (float)$r['sasia_ne_litra'] : (float)$r['kg'] * 1.95;
                     ?>
                     <tr data-id="<?= $r['id'] ?>">
@@ -270,7 +279,7 @@ ob_start();
                         <td class="editable" data-field="cash_banke" data-type="select" data-options="<?= e($cbJSON) ?>"><?= e($r['cash_banke']) ?></td>
                         <td class="editable" data-field="furnitori"><?= e($r['furnitori']) ?></td>
                         <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>"><?= e($r['koment']) ?></td>
-                        <td class="amount" style="font-weight:600;"><?= eur($balances[$r['id']] ?? 0) ?></td>
+                        <td class="amount" style="font-weight:600;"><?= eur($r['gjendja'] ?? 0) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('plini_depo',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
                     <?php endforeach; ?>

@@ -42,7 +42,7 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','fatura_e_derguar','data_e_fletepageses','koment','litrat_total','updated_at','created_at'];
+$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','fatura_e_derguar','data_e_fletepageses','koment','litrat_total','updated_at','created_at','boca_running','boca_total'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -88,57 +88,36 @@ $stmt->execute($params);
 $totalRows = $stmt->fetchColumn();
 $totalPages = ceil($totalRows / $perPage);
 
-// Fetch data with calculated columns
+// Map sort column to SQL expression (calculated columns use t. prefix)
+$calcSortsDist = ['boca_running' => 't.boca_running', 'boca_total' => 't.boca_total'];
+$sortExpr = isset($calcSortsDist[$sortCol]) ? $calcSortsDist[$sortCol] : "d.{$sortCol}";
+
+// Fetch data with running totals via CTE — enables server-side sorting across ALL pages
 $sql = "
-    SELECT
-        d.id,
-        d.row_nr,
-        d.klienti,
-        d.data,
-        d.sasia,
-        d.boca_te_kthyera,
-        d.litra,
-        d.cmimi,
-        d.pagesa,
-        d.menyra_e_pageses,
-        d.fatura_e_derguar,
-        d.data_e_fletepageses,
-        d.koment,
-        d.litrat_total
+    WITH totals AS (
+        SELECT id,
+            SUM(sasia - boca_te_kthyera) OVER (
+                PARTITION BY LOWER(klienti)
+                ORDER BY data ASC, id ASC
+            ) as boca_running,
+            SUM(sasia - boca_te_kthyera) OVER (
+                ORDER BY data ASC, id ASC
+            ) as boca_total
+        FROM distribuimi
+    )
+    SELECT d.id, d.row_nr, d.klienti, d.data, d.sasia, d.boca_te_kthyera,
+        d.litra, d.cmimi, d.pagesa, d.menyra_e_pageses, d.fatura_e_derguar,
+        d.data_e_fletepageses, d.koment, d.litrat_total,
+        t.boca_running, t.boca_total
     FROM distribuimi d
+    JOIN totals t ON t.id = d.id
     {$whereSQL}
-    ORDER BY d.{$sortCol} {$sortDir}, d.id DESC
+    ORDER BY {$sortExpr} {$sortDir}, d.id DESC
     LIMIT {$perPage} OFFSET {$offset}
 ";
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
-
-// Get boca tek biznesi AND boca total ne terren as per-row running totals
-$ids = array_column($rows, 'id');
-$bocaPerRow = [];
-$bocaTotalPerRow = [];
-if ($ids) {
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $bocaStmt = $db->prepare("
-        SELECT sub.id, sub.boca_running, sub.boca_total FROM (
-            SELECT id,
-                SUM(sasia - boca_te_kthyera) OVER (
-                    PARTITION BY LOWER(klienti)
-                    ORDER BY data ASC, id ASC
-                ) as boca_running,
-                SUM(sasia - boca_te_kthyera) OVER (
-                    ORDER BY data ASC, id ASC
-                ) as boca_total
-            FROM distribuimi
-        ) sub WHERE sub.id IN ({$placeholders})
-    ");
-    $bocaStmt->execute($ids);
-    foreach ($bocaStmt->fetchAll() as $b) {
-        $bocaPerRow[$b['id']] = $b['boca_running'];
-        $bocaTotalPerRow[$b['id']] = $b['boca_total'];
-    }
-}
 // Summary cards — respect active filters
 $summStmt = $db->prepare("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribuimi d {$whereSQL}");
 $summStmt->execute($params);
@@ -271,8 +250,8 @@ ob_start();
                         <?= sortTh('data', 'Data', $sortCol, $sortDir) ?>
                         <?= withFilter(sortTh('sasia', 'Sasia', $sortCol, $sortDir, 'num'), 'f_sasia', $distSasiaVals) ?>
                         <?= withFilter(sortTh('boca_te_kthyera', 'Boca të kthyera', $sortCol, $sortDir, 'num'), 'f_boca_kth', $distBocaKthVals) ?>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;">Boca tek biznesi <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;">Boca total terren <i class="fas fa-sort"></i></th>
+                        <?= sortTh('boca_running', 'Boca tek biznesi', $sortCol, $sortDir, 'num') ?>
+                        <?= sortTh('boca_total', 'Boca total terren', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortTh('litra', 'Litra', $sortCol, $sortDir, 'num'), 'f_litra', $distLitraVals) ?>
                         <?= withFilter(sortTh('cmimi', 'Çmimi', $sortCol, $sortDir, 'num'), 'f_cmimi', $distCmimiVals) ?>
                         <?= withFilter(sortTh('pagesa', 'Pagesa', $sortCol, $sortDir, 'num'), 'f_pagesa', $distPagesaVals) ?>
@@ -294,10 +273,10 @@ ob_start();
                         <td class="num editable" data-field="sasia" data-type="number"><?= (int)$r['sasia'] ?></td>
                         <td class="num editable" data-field="boca_te_kthyera" data-type="number"><?= (int)$r['boca_te_kthyera'] ?></td>
                         <td class="num" style="font-weight:600;color:var(--primary);">
-                            <?= isset($bocaPerRow[$r['id']]) ? (int)$bocaPerRow[$r['id']] : '-' ?>
+                            <?= $r['boca_running'] !== null ? (int)$r['boca_running'] : '-' ?>
                         </td>
                         <td class="num" style="color:var(--text-muted);">
-                            <?= isset($bocaTotalPerRow[$r['id']]) ? num($bocaTotalPerRow[$r['id']]) : '-' ?>
+                            <?= $r['boca_total'] !== null ? num($r['boca_total']) : '-' ?>
                         </td>
                         <td class="num editable" data-field="litra" data-type="number"><?= $r['litra'] ?></td>
                         <td class="num editable" data-field="cmimi" data-type="number"><?= $r['cmimi'] ?></td>
@@ -653,26 +632,6 @@ function applyBulkPayment() {
         showToast(ok + '/' + ids.length + ' u ndryshuan me sukses');
         setTimeout(() => location.reload(), 500);
     }).catch(() => showToast('Gabim ne server', 'error'));
-}
-</script>
-
-<script>
-// Client-side sort for calculated columns (Boca tek biznesi, Boca total terren)
-function clientSortColumn(th, colIdx) {
-    const table = th.closest('table');
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    const icon = th.querySelector('i');
-    const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
-    // Reset all sort icons in this row
-    th.closest('tr').querySelectorAll('i.fas').forEach(i => { i.className = 'fas fa-sort'; });
-    icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
-    rows.sort((a, b) => {
-        const va = parseFloat(a.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');
-        const vb = parseFloat(b.cells[colIdx]?.textContent?.replace(/[^0-9.\-]/g, '') || '0');
-        return asc ? va - vb : vb - va;
-    });
-    rows.forEach(r => tbody.appendChild(r));
 }
 </script>
 
