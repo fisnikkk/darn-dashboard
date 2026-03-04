@@ -210,36 +210,53 @@ if ($selectedClient !== '') {
 // SUMMARY VIEW — all clients
 // ============================================================
 
+// Date filter for summary view
+$dateDeri = $_GET['date'] ?? '';
+
 // Multi-select filter for client name
 $fKartKlienti = getFilterParam('f_klienti');
-$kartWhere = '';
+
+$kartWhere = [];
 $kartParams = [];
+
+// Date filter applied at SQL level
+$dateFilterSQL = '';
+$dateFilterParams = [];
+if ($dateDeri) {
+    $dateFilterSQL = 'AND d.data <= ?';
+    $dateFilterParams[] = $dateDeri;
+}
+
 if ($fKartKlienti) {
     $placeholders = implode(',', array_fill(0, count($fKartKlienti), '?'));
-    $kartWhere = "HAVING LOWER(MIN(d.klienti)) IN ({$placeholders})";
+    $kartHaving = "HAVING LOWER(MIN(d.klienti)) IN ({$placeholders})";
     $kartParams = array_map('strtolower', array_values($fKartKlienti));
+} else {
+    $kartHaving = '';
 }
 
 // Summary per client from distribuimi
 $summarySQL = "
     SELECT
         MIN(d.klienti) AS klienti,
-        -- Total DEBI: all deliveries except DHURATE
         SUM(CASE WHEN LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) != 'dhurate' THEN d.pagesa ELSE 0 END) AS total_debi,
-        -- Auto KREDI: cash payments (auto-mirror)
         SUM(CASE WHEN LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) IN ('cash', 'po (fature te rregullte) cash') THEN d.pagesa ELSE 0 END) AS kredi_cash
     FROM distribuimi d
+    WHERE 1=1 {$dateFilterSQL}
     GROUP BY LOWER(d.klienti)
-    {$kartWhere}
+    {$kartHaving}
     ORDER BY MIN(d.klienti)
 ";
 $stmt = $db->prepare($summarySQL);
-$stmt->execute($kartParams);
+$stmt->execute(array_merge($dateFilterParams, $kartParams));
 $clientSummaries = $stmt->fetchAll();
 
 // Bank KREDI per client from gjendja_bankare
 $bankKredi = [];
-$bankRows = $db->query("SELECT LOWER(klienti) as kl, SUM(kredi) as total_kredi FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' AND kredi > 0 GROUP BY LOWER(klienti)")->fetchAll();
+$bankSQL = "SELECT LOWER(klienti) as kl, SUM(kredi) as total_kredi FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' AND kredi > 0" . ($dateDeri ? " AND data <= ?" : "") . " GROUP BY LOWER(klienti)";
+$bankStmt = $db->prepare($bankSQL);
+$bankStmt->execute($dateDeri ? [$dateDeri] : []);
+$bankRows = $bankStmt->fetchAll();
 foreach ($bankRows as $br) {
     $bankKredi[$br['kl']] = (float)$br['total_kredi'];
 }
@@ -265,6 +282,15 @@ $balancedCount = count($clientSummaries) - $debtCount - $advanceCount;
 ob_start();
 ?>
 
+<style>
+.clickable-row { cursor: pointer; transition: background 0.15s; }
+.clickable-row:hover { filter: brightness(0.96); }
+#kartelaTable th.num, #kartelaTable td.amount { text-align: right; padding-right: 16px; }
+#kartelaTable th.num { text-align: right; padding-right: 16px; }
+.kartela-sort-btn { cursor:pointer; user-select:none; }
+.kartela-sort-btn:hover { background: rgba(0,0,0,0.04); }
+</style>
+
 <div class="summary-grid">
     <div class="summary-card"><div class="label">Klientë</div><div class="value"><?= count($clientSummaries) ?></div></div>
     <div class="summary-card"><div class="label">Me borxh</div><div class="value" style="color:var(--danger);"><?= $debtCount ?></div></div>
@@ -275,27 +301,35 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3><i class="fas fa-id-card"></i> Kartela e Klientëve (<?= count($clientSummaries) ?>)</h3>
+        <form method="GET" style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:0.82rem;font-weight:600;">Deri datën:</label>
+            <input type="date" name="date" value="<?= e($dateDeri) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+            <button type="submit" class="btn btn-primary btn-sm">Apliko</button>
+            <?php if ($dateDeri): ?>
+            <a href="?" class="btn btn-outline btn-sm">Pastro</a>
+            <?php endif; ?>
+        </form>
     </div>
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table" id="kartelaTable">
                 <thead>
                     <tr>
-                        <th class="server-sort" onclick="kartelaSortColumn(this, 0)" style="cursor:pointer;user-select:none;"
+                        <th class="kartela-sort-btn" onclick="kartelaSortColumn(this, 0)"
                             data-filter="f_klienti" data-filter-values="<?= e(json_encode($allClients, JSON_UNESCAPED_UNICODE)) ?>">
                             Klienti <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num server-sort" onclick="kartelaSortColumn(this, 1)" style="cursor:pointer;user-select:none;color:var(--danger);">
-                            Total Debi <i class="fas fa-sort"></i>
+                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 1)" style="color:var(--danger);">
+                            Total Debi (&euro;) <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num server-sort" onclick="kartelaSortColumn(this, 2)" style="cursor:pointer;user-select:none;color:var(--success);">
-                            Kredi Cash <i class="fas fa-sort"></i>
+                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 2)" style="color:var(--success);">
+                            Kredi Cash (&euro;) <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num server-sort" onclick="kartelaSortColumn(this, 3)" style="cursor:pointer;user-select:none;color:var(--success);">
-                            Kredi Bank <i class="fas fa-sort"></i>
+                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 3)" style="color:var(--success);">
+                            Kredi Bank (&euro;) <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num server-sort" onclick="kartelaSortColumn(this, 4)" style="cursor:pointer;user-select:none;font-weight:700;">
-                            Gjendja <i class="fas fa-sort"></i>
+                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 4)" style="font-weight:700;">
+                            Gjendja (&euro;) <i class="fas fa-sort"></i>
                         </th>
                     </tr>
                 </thead>
@@ -305,27 +339,23 @@ ob_start();
                         onclick="window.location.href='?klient=<?= urlencode($cs['klienti']) ?>'"
                         class="clickable-row">
                         <td><a href="?klient=<?= urlencode($cs['klienti']) ?>" style="color:inherit;text-decoration:none;font-weight:500;"><?= e($cs['klienti']) ?></a></td>
-                        <td class="amount" style="color:var(--danger);">&euro; <?= eur($cs['total_debi']) ?></td>
-                        <td class="amount" style="color:var(--success);">&euro; <?= eur($cs['kredi_cash']) ?></td>
-                        <td class="amount" style="color:var(--success);">&euro; <?= eur($cs['kredi_bank']) ?></td>
+                        <td class="amount" style="color:var(--danger);"><?= eur($cs['total_debi']) ?></td>
+                        <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_cash']) ?></td>
+                        <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_bank']) ?></td>
                         <td class="amount" style="font-weight:700;color:<?= $cs['gjendja'] > 0.01 ? 'var(--danger)' : ($cs['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
-                            &euro; <?= eur(abs($cs['gjendja'])) ?>
-                            <div style="font-weight:400;font-size:0.72rem;opacity:0.7;margin-top:1px;">
-                            <?php if ($cs['gjendja'] > 0.01): ?>borxh<?php elseif ($cs['gjendja'] < -0.01): ?>avancë<?php else: ?>&nbsp;<?php endif; ?>
-                            </div>
+                            <?= eur(abs($cs['gjendja'])) ?><?php if ($cs['gjendja'] > 0.01): ?> <span style="font-weight:400;font-size:0.72rem;opacity:0.65;">borxh</span><?php elseif ($cs['gjendja'] < -0.01): ?> <span style="font-weight:400;font-size:0.72rem;opacity:0.65;">avancë</span><?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
                 <tfoot>
                     <tr style="font-weight:700;background:#f8fafc;">
-                        <td>TOTALI</td>
-                        <td class="amount" style="color:var(--danger);">&euro; <?= eur($totals['debi']) ?></td>
-                        <td class="amount" style="color:var(--success);">&euro; <?= eur($totals['kredi_cash']) ?></td>
-                        <td class="amount" style="color:var(--success);">&euro; <?= eur($totals['kredi_bank']) ?></td>
+                        <td>TOTALI <?php if ($dateDeri): ?><span style="font-weight:400;font-size:0.78rem;opacity:0.7;">deri <?= date('d/m/Y', strtotime($dateDeri)) ?></span><?php endif; ?></td>
+                        <td class="amount" style="color:var(--danger);"><?= eur($totals['debi']) ?></td>
+                        <td class="amount" style="color:var(--success);"><?= eur($totals['kredi_cash']) ?></td>
+                        <td class="amount" style="color:var(--success);"><?= eur($totals['kredi_bank']) ?></td>
                         <td class="amount" style="color:<?= $totals['gjendja'] > 0.01 ? 'var(--danger)' : ($totals['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
-                            &euro; <?= eur(abs($totals['gjendja'])) ?>
-                            <?= $totals['gjendja'] > 0.01 ? ' (borxh)' : ($totals['gjendja'] < -0.01 ? ' (avancë)' : '') ?>
+                            <?= eur(abs($totals['gjendja'])) ?> <span style="font-weight:400;font-size:0.72rem;opacity:0.65;"><?= $totals['gjendja'] > 0.01 ? 'borxh' : ($totals['gjendja'] < -0.01 ? 'avancë' : '') ?></span>
                         </td>
                     </tr>
                 </tfoot>
@@ -341,11 +371,6 @@ ob_start();
     <br>Pagesat DHURATE janë përjashtuar. Gjendja pozitive = borxh, negative = avancë.
 </p>
 
-<style>
-.clickable-row { cursor: pointer; transition: background 0.15s; }
-.clickable-row:hover { filter: brightness(0.96); }
-</style>
-
 <script>
 function kartelaSortColumn(th, colIdx) {
     const table = document.getElementById('kartelaTable');
@@ -353,7 +378,8 @@ function kartelaSortColumn(th, colIdx) {
     const rows = Array.from(tbody.querySelectorAll('tr'));
     const icon = th.querySelector('i');
     const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
-    th.closest('tr').querySelectorAll('th.server-sort > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    // Reset all sort icons
+    th.closest('tr').querySelectorAll('.kartela-sort-btn > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
     icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
     rows.sort((a, b) => {
         const ta = a.cells[colIdx]?.textContent?.trim() || '';
