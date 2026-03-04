@@ -276,7 +276,7 @@ ob_start();
                         <td class="editable" data-field="arsyetimi"><?= e($r['arsyetimi']) ?></td>
                         <td class="editable" data-field="lloji_i_pageses" data-type="select" data-options="<?= e($pagJSON) ?>"><?= e($r['lloji_i_pageses']) ?></td>
                         <td class="editable" data-field="lloji_i_transaksionit" data-type="select" data-options="<?= e($transJSON) ?>"><?= e($r['lloji_i_transaksionit']) ?></td>
-                        <td class="editable" data-field="pershkrim_i_detajuar"><?= e($r['pershkrim_i_detajuar']) ?></td>
+                        <td class="editable truncate" data-field="pershkrim_i_detajuar" title="<?= e($r['pershkrim_i_detajuar']) ?>"><?= e($r['pershkrim_i_detajuar']) ?></td>
                         <td class="num editable" data-field="nafta_ne_litra" data-type="number"><?= $r['nafta_ne_litra'] ?: '' ?></td>
                         <td class="editable" data-field="numri_i_fatures"><?= e($r['numri_i_fatures']) ?></td>
                         <td class="editable" data-field="fatura_e_rregullte" data-type="select" data-options="<?= e(json_encode(['Po','Jo'])) ?>"><?= e($r['fatura_e_rregullte']) ?></td>

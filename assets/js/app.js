@@ -830,6 +830,33 @@ function escHtml(str) {
     return d.innerHTML;
 }
 
+/* ---- Preserve column filters when submitting top filter forms ---- */
+function initFilterPersistence() {
+    const url = new URL(window.location);
+    // Collect all f_* column filter params from the current URL
+    const filterParams = [];
+    for (const [key, value] of url.searchParams.entries()) {
+        if (key.startsWith('f_')) {
+            filterParams.push({ name: key, value: value });
+        }
+    }
+    if (!filterParams.length) return;
+
+    // For every GET form in .filters, inject hidden inputs so column filters survive form submit
+    document.querySelectorAll('.filters form[method="GET"], .filters form:not([method])').forEach(form => {
+        filterParams.forEach(p => {
+            // Don't duplicate if form already has this exact field
+            if (form.querySelector('input[name="' + CSS.escape(p.name) + '"][value="' + CSS.escape(p.value) + '"]')) return;
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = p.name;
+            hidden.value = p.value;
+            hidden.className = 'cf-preserved';
+            form.appendChild(hidden);
+        });
+    });
+}
+
 /* ---- Init on page load ---- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -839,6 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTableSort();
     initAddNewSelects();
     initColumnFilters();
+    initFilterPersistence();
     document.querySelectorAll('.modal-overlay').forEach(o => {
         o.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('active'); });
     });

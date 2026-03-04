@@ -7,7 +7,7 @@
  *   Col E = Litrat blera me fature (plini_depo WHERE menyra_e_pageses='Me fature')
  *   Col F = Litrat leshuar me fature (distribuimi WHERE fature payment methods)
  *   Col G = Litrat mbetur me fature = E - F
- *   Col H = Litrat ne dispozicion me fature (all-time cumulative E - F)
+ *   Col H = Litrat ne dispozicion me fature = SUM(E) - SUM(F)  → summary card only
  *   Col I = Boca te shperndara (distribuimi sasia)
  *   Col J = Shitjet totale per muaj (distribuimi pagesa, stored from Excel)
  *   Col K = Kthim litrave per boce = (D - C) / I
@@ -17,11 +17,11 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
+// Date range filter
+$filterFrom = $_GET['date_from'] ?? '';
+$filterTo = $_GET['date_to'] ?? '';
+
 // All distribuimi aggregations in a single query (case-insensitive payment matching)
-// Col D: litrat_e_konvertuara (total liters sold)
-// Col F: litrat_e_konvertuara WHERE fature payment method (liters invoiced)
-// Col I: sasia (bottles distributed)
-// Col J: pagesa (sales total from Excel)
 $distByMonth = [];
 foreach ($db->query("
     SELECT DATE_FORMAT(data, '%Y-%m') as m,
@@ -37,8 +37,6 @@ foreach ($db->query("
 }
 
 // Plini depo liters - total and with-invoice breakdown (single query)
-// Col C: all liters bought
-// Col E: liters bought with invoice (menyra_e_pageses = 'Me fature')
 $pliniByMonth = [];
 foreach ($db->query("
     SELECT DATE_FORMAT(data, '%Y-%m') as m,
@@ -53,9 +51,16 @@ foreach ($db->query("
 $allMonths = array_unique(array_merge(array_keys($distByMonth), array_keys($pliniByMonth)));
 rsort($allMonths);
 
+// Apply date range filter on months
+$fromMonth = $filterFrom ? substr($filterFrom, 0, 7) : '';
+$toMonth = $filterTo ? substr($filterTo, 0, 7) : '';
+
 $data = [];
 foreach ($allMonths as $m) {
     if (!$m) continue;
+    if ($fromMonth && $m < $fromMonth) continue;
+    if ($toMonth && $m > $toMonth) continue;
+
     $d = $distByMonth[$m] ?? [];
     $p = $pliniByMonth[$m] ?? [];
     $litraBleraMeFature = (float)($p['litraBleraMeFature'] ?? 0);
@@ -78,24 +83,10 @@ foreach ($allMonths as $m) {
     ];
 }
 
-// Col H: per-row cumulative (running total oldest-first of E - F)
+// Col H: grand total (SUM of all E) - (SUM of all F) — shown as summary card only
 $totBleraMeFature = array_sum(array_column($data, 'litraBleraMeFature'));
 $totFaturuara = array_sum(array_column($data, 'litraFaturuara'));
 $litratNeDispozicion = $totBleraMeFature - $totFaturuara;
-
-// Calculate per-row cumulative Col H (oldest first)
-$sortedForCum = $data;
-usort($sortedForCum, fn($a, $b) => strcmp($a['m'], $b['m']));
-$cumBalance = 0;
-$cumMap = [];
-foreach ($sortedForCum as $row) {
-    $cumBalance += $row['litraBleraMeFature'] - $row['litraFaturuara'];
-    $cumMap[$row['m']] = $cumBalance;
-}
-foreach ($data as &$d) {
-    $d['litratNeDispozicionCum'] = $cumMap[$d['m']] ?? 0;
-}
-unset($d);
 
 $monthNames = ['01'=>'Janar','02'=>'Shkurt','03'=>'Mars','04'=>'Prill','05'=>'Maj','06'=>'Qershor',
                '07'=>'Korrik','08'=>'Gusht','09'=>'Shtator','10'=>'Tetor','11'=>'Nëntor','12'=>'Dhjetor'];
@@ -107,12 +98,11 @@ $litShituraVals = array_values(array_unique(array_map(fn($d) => eur($d['litraShi
 $litBleraMeFatVals = array_values(array_unique(array_map(fn($d) => eur($d['litraBleraMeFature']), $data)));
 $litFaturuaraVals = array_values(array_unique(array_map(fn($d) => eur($d['litraFaturuara']), $data)));
 $litMbeturVals = array_values(array_unique(array_map(fn($d) => eur($d['litraMbeturMeFature']), $data)));
-$litDispVals = array_values(array_unique(array_map(fn($d) => eur($d['litratNeDispozicionCum']), $data)));
 $litBocaVals = array_values(array_unique(array_map(fn($d) => num($d['bocaShperndara']), $data)));
 $litShitjeVals = array_values(array_unique(array_map(fn($d) => eur($d['shitje']), $data)));
 $litKthimVals = array_values(array_unique(array_map(fn($d) => number_format($d['kthimPerBoce'], 2), $data)));
 sort($litMonths); sort($litBleraVals); sort($litShituraVals); sort($litBleraMeFatVals);
-sort($litFaturuaraVals); sort($litMbeturVals); sort($litDispVals); sort($litBocaVals);
+sort($litFaturuaraVals); sort($litMbeturVals); sort($litBocaVals);
 sort($litShitjeVals); sort($litKthimVals);
 
 ob_start();
@@ -127,6 +117,20 @@ ob_start();
 
 <div class="card">
     <div class="card-header"><h3><i class="fas fa-tint"></i> Litrat - Raport mujor</h3></div>
+    <div class="filters">
+        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;">
+            <div class="form-group" style="min-width:auto;">
+                <label>Data nga</label>
+                <input type="date" name="date_from" value="<?= e($filterFrom) ?>" style="padding:6px 8px;">
+            </div>
+            <div class="form-group" style="min-width:auto;">
+                <label>Data deri</label>
+                <input type="date" name="date_to" value="<?= e($filterTo) ?>" style="padding:6px 8px;">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
+            <a href="litrat.php" class="btn btn-outline btn-sm">Pastro</a>
+        </form>
+    </div>
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table">
@@ -138,10 +142,9 @@ ob_start();
                         <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;" data-filter="f_lit_bleramefat" data-filter-values="<?= e(json_encode($litBleraMeFatVals)) ?>" data-filter-mode="client" data-filter-col="3">Totali i litrave te blera me fature per muaj <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_lit_faturuara" data-filter-values="<?= e(json_encode($litFaturuaraVals)) ?>" data-filter-mode="client" data-filter-col="4">Totali i litrave te leshuar me fature <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_lit_mbetur" data-filter-values="<?= e(json_encode($litMbeturVals)) ?>" data-filter-mode="client" data-filter-col="5">Totali i litrave te mbetur me fature te rregullte per muaj <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_lit_disp" data-filter-values="<?= e(json_encode($litDispVals)) ?>" data-filter-mode="client" data-filter-col="6">Litrat ne dispozicion me fature <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;" data-filter="f_lit_boca" data-filter-values="<?= e(json_encode($litBocaVals)) ?>" data-filter-mode="client" data-filter-col="7">Nr i bocave te shperndara per muaj <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;" data-filter="f_lit_shitje" data-filter-values="<?= e(json_encode($litShitjeVals)) ?>" data-filter-mode="client" data-filter-col="8">Shitjet totale per muaj <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" data-filter="f_lit_kthim" data-filter-values="<?= e(json_encode($litKthimVals)) ?>" data-filter-mode="client" data-filter-col="9">Kthim i litrave per boce <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_lit_boca" data-filter-values="<?= e(json_encode($litBocaVals)) ?>" data-filter-mode="client" data-filter-col="6">Nr i bocave te shperndara per muaj <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;" data-filter="f_lit_shitje" data-filter-values="<?= e(json_encode($litShitjeVals)) ?>" data-filter-mode="client" data-filter-col="7">Shitjet totale per muaj <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;" data-filter="f_lit_kthim" data-filter-values="<?= e(json_encode($litKthimVals)) ?>" data-filter-mode="client" data-filter-col="8">Kthim i litrave per boce <i class="fas fa-sort"></i></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -158,9 +161,6 @@ ob_start();
                         <td class="amount" style="color:<?= $d['litraMbeturMeFature'] >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
                             <?= eur($d['litraMbeturMeFature']) ?>
                         </td>
-                        <td class="amount" style="font-weight:600;color:<?= $d['litratNeDispozicionCum'] >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
-                            <?= eur($d['litratNeDispozicionCum']) ?>
-                        </td>
                         <td class="num"><?= num($d['bocaShperndara']) ?></td>
                         <td class="amount">&euro; <?= eur($d['shitje']) ?></td>
                         <td class="amount"><?= number_format($d['kthimPerBoce'], 2) ?></td>
@@ -175,9 +175,6 @@ ob_start();
                         <td class="amount"><?= eur($totBleraMeFature) ?></td>
                         <td class="amount"><?= eur($totFaturuara) ?></td>
                         <td class="amount" style="color:<?= $litratNeDispozicion >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
-                            <?= eur($litratNeDispozicion) ?>
-                        </td>
-                        <td class="amount" style="font-weight:600;color:<?= $litratNeDispozicion >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
                             <?= eur($litratNeDispozicion) ?>
                         </td>
                         <td class="num"><?= num(array_sum(array_column($data,'bocaShperndara'))) ?></td>
