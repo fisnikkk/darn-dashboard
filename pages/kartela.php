@@ -287,8 +287,6 @@ ob_start();
 .clickable-row:hover { filter: brightness(0.96); }
 #kartelaTable th.num, #kartelaTable td.amount { text-align: right; padding-right: 16px; }
 #kartelaTable th.num { text-align: right; padding-right: 16px; }
-.kartela-sort-btn { cursor:pointer; user-select:none; }
-.kartela-sort-btn:hover { background: rgba(0,0,0,0.04); }
 </style>
 
 <div class="summary-grid">
@@ -315,20 +313,20 @@ ob_start();
             <table class="data-table" id="kartelaTable">
                 <thead>
                     <tr>
-                        <th class="kartela-sort-btn" onclick="kartelaSortColumn(this, 0)"
+                        <th class="server-sort" onclick="kartelaSortColumn(this, 0)"
                             data-filter="f_klienti" data-filter-values="<?= e(json_encode($allClients, JSON_UNESCAPED_UNICODE)) ?>">
                             Klienti <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 1)" style="color:var(--danger);">
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 1)" style="color:var(--danger);">
                             Total Debi (&euro;) <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 2)" style="color:var(--success);">
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 2)" style="color:var(--success);">
                             Kredi Cash (&euro;) <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 3)" style="color:var(--success);">
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 3)" style="color:var(--success);">
                             Kredi Bank (&euro;) <i class="fas fa-sort"></i>
                         </th>
-                        <th class="num kartela-sort-btn" onclick="kartelaSortColumn(this, 4)" style="font-weight:700;">
+                        <th class="num server-sort" onclick="kartelaSortColumn(this, 4)" style="font-weight:700;">
                             Gjendja (&euro;) <i class="fas fa-sort"></i>
                         </th>
                     </tr>
@@ -379,7 +377,7 @@ function kartelaSortColumn(th, colIdx) {
     const icon = th.querySelector('i');
     const asc = icon.classList.contains('fa-sort-down') || icon.classList.contains('fa-sort');
     // Reset all sort icons
-    th.closest('tr').querySelectorAll('.kartela-sort-btn > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
+    th.closest('tr').querySelectorAll('th.server-sort > i.fas').forEach(i => { i.className = 'fas fa-sort'; });
     icon.className = 'fas ' + (asc ? 'fa-sort-up' : 'fa-sort-down');
     rows.sort((a, b) => {
         const ta = a.cells[colIdx]?.textContent?.trim() || '';
