@@ -111,6 +111,18 @@ $totalKliente = $db->query("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribui
 // Deponime ne banke — Excel starts at row 42 (date >= 2021-10-23), skipping 2 early DEPONIM rows (€695)
 $deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHERE UPPER(shpjegim) LIKE '%DEPONIM%' AND data >= '2021-10-23'")->fetchColumn();
 
+// Sasia e blere me fature ne kg (from Plini Depo)
+$blereMeFatureKg = $db->query("SELECT COALESCE(SUM(kg), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'me fature'")->fetchColumn();
+
+// Shpenzimet me fature = SUMIF(fatura_e_rregullte = "Fature e rregullte", shuma)
+$shpenzimetMeFature = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(fatura_e_rregullte)) = 'fature e rregullte'")->fetchColumn();
+
+// Pagesat me fature cash per boca dhe gaz = produkteCash + fature_cash + 281.9
+$pagesatMeFatureCash = $produkteCash + $payments['fature_cash'] + 281.9;
+
+// Mund te deponohen = pagesatMeFatureCash - deponime - shpenzimetMeFature
+$mundTeDeponohen = $pagesatMeFatureCash - $deponime - $shpenzimetMeFature;
+
 // Babi Cash (Excel Distribuimi L4, M4, N4)
 // L4: Cash + invoice-cash from 2022-08-29 minus cash expenses from Excel row 217 (id>=10319) + manual adj
 $babiPayments = $db->query("
@@ -224,7 +236,7 @@ ob_start();
         <div class="value">&euro; <?= eur($totalPareCash) ?></div>
     </div>
     <div class="summary-card">
-        <div class="label">Total pare cash + banke</div>
+        <div class="label">Pare cash Labi dhe ne banke</div>
         <div class="value">&euro; <?= eur($totalPareCashBanke) ?></div>
     </div>
     <div class="summary-card">
@@ -290,6 +302,24 @@ ob_start();
         <div class="label">Fitimi Neto</div>
         <div class="value <?= $fitimiNeto >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($fitimiNeto) ?></div>
         <small style="color:var(--text-muted);">Fitimi bruto - Shpenzime tjera - Dhurate</small>
+    </div>
+</div>
+
+<!-- Fature & Deponime summary -->
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="label">Sasia e blere me fature ne kg</div>
+        <div class="value"><?= eur($blereMeFatureKg) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Pagesat me fature cash per boca dhe gaz</div>
+        <div class="value">&euro; <?= eur($pagesatMeFatureCash) ?></div>
+        <small style="color:var(--text-muted);">Produkte cash + Faturë cash + 281.9</small>
+    </div>
+    <div class="summary-card">
+        <div class="label">Mund te deponohen keto para ne banke</div>
+        <div class="value <?= $mundTeDeponohen >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($mundTeDeponohen) ?></div>
+        <small style="color:var(--text-muted);">Shitjet me fature cash - Deponimet - Shpenzimet me fature</small>
     </div>
 </div>
 
