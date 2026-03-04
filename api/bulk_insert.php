@@ -26,6 +26,9 @@ try {
     $db->beginTransaction();
     $inserted = 0;
 
+    // Prepare changelog statement for logging each inserted row
+    $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', ?, ?, 'bulk_paste', NULL, ?)");
+
     if ($table === 'gjendja_bankare') {
         $sql = "INSERT INTO gjendja_bankare (data, data_valutes, ora, shpjegim, valuta, debia, kredi, bilanci, deftesa, lloji, komentet)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -58,7 +61,12 @@ try {
             }
 
             $stmt->execute([$data, $dataValutes, $ora, $shpjegim, $valuta, $debia, $kredi, $bilanci, $deftesa, $lloji, $komentet]);
+            $newId = (int)$db->lastInsertId();
             $inserted++;
+
+            // Log to changelog
+            $insertedData = ['data'=>$data, 'data_valutes'=>$dataValutes, 'ora'=>$ora, 'shpjegim'=>$shpjegim, 'valuta'=>$valuta, 'debia'=>$debia, 'kredi'=>$kredi, 'bilanci'=>$bilanci, 'deftesa'=>$deftesa, 'lloji'=>$lloji, 'komentet'=>$komentet];
+            $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE)]);
 
             // Track running balance for subsequent rows
             $prevBilanci = $bilanci;
@@ -88,7 +96,12 @@ try {
             if ($klienti === null && $sasia === null && $pagesa === null) continue;
 
             $stmt->execute([$klienti, $data, $sasia, $boca_te_kthyera, $litra, $cmimi, $pagesa, $menyra_e_pageses, $fatura_e_derguar, $data_e_fletepageses, $koment, $litrat_total, $litrat_e_konvertuara]);
+            $newId = (int)$db->lastInsertId();
             $inserted++;
+
+            // Log to changelog
+            $insertedData = ['klienti'=>$klienti, 'data'=>$data, 'sasia'=>$sasia, 'boca_te_kthyera'=>$boca_te_kthyera, 'litra'=>$litra, 'cmimi'=>$cmimi, 'pagesa'=>$pagesa, 'menyra_e_pageses'=>$menyra_e_pageses, 'fatura_e_derguar'=>$fatura_e_derguar, 'data_e_fletepageses'=>$data_e_fletepageses, 'koment'=>$koment, 'litrat_total'=>$litrat_total, 'litrat_e_konvertuara'=>$litrat_e_konvertuara];
+            $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE)]);
         }
     }
 

@@ -54,6 +54,7 @@ $tableLabels = [
     'gjendja_bankare' => 'Gjendja Bankare', 'nxemese' => 'Nxemëse',
     'klientet' => 'Klientët', 'stoku_zyrtar' => 'Stoku Zyrtar', 'depo' => 'Depo',
     'borxhet_notes' => 'Borxhet (Shënime)',
+    'snapshot' => 'Snapshot',
 ];
 
 // Key fields to show for insert/delete summaries
@@ -86,6 +87,13 @@ function describeChange($r, $fieldLabels, $tableLabels, $keyFields) {
 
     if ($type === 'insert') {
         $data = json_decode($r['new_value'] ?? '{}', true);
+        // Determine source for display
+        $fieldName = $r['field_name'] ?? null;
+        $sourceTag = '';
+        if ($fieldName === 'bulk_paste') $sourceTag = ' <span style="font-size:0.72rem;background:#e0e7ff;color:#4338ca;padding:1px 6px;border-radius:8px;">Ngjit nga Excel</span>';
+        elseif ($fieldName === 'import_script') $sourceTag = ' <span style="font-size:0.72rem;background:#fce7f3;color:#be185d;padding:1px 6px;border-radius:8px;">Import</span>';
+        elseif ($fieldName === 'import_excel') $sourceTag = ' <span style="font-size:0.72rem;background:#fce7f3;color:#be185d;padding:1px 6px;border-radius:8px;">Import Excel</span>';
+
         if ($data && is_array($data)) {
             $keys = $keyFields[$r['table_name']] ?? array_slice(array_keys($data), 0, 4);
             $parts = [];
@@ -98,9 +106,9 @@ function describeChange($r, $fieldLabels, $tableLabels, $keyFields) {
                 }
             }
             $summary = $parts ? ' &mdash; ' . implode(', ', $parts) : '';
-            return "<strong>{$table}</strong> #{$rowId} &mdash; Rresht i ri shtuar{$summary}";
+            return "<strong>{$table}</strong> #{$rowId} &mdash; Rresht i ri shtuar{$sourceTag}{$summary}";
         }
-        return "<strong>{$table}</strong> #{$rowId} &mdash; Rresht i ri shtuar";
+        return "<strong>{$table}</strong> #{$rowId} &mdash; Rresht i ri shtuar{$sourceTag}";
     }
 
     if ($type === 'delete') {
@@ -120,6 +128,22 @@ function describeChange($r, $fieldLabels, $tableLabels, $keyFields) {
             return "<strong>{$table}</strong> #{$rowId} &mdash; Rreshti u fshi{$summary}";
         }
         return "<strong>{$table}</strong> #{$rowId} &mdash; Rreshti u fshi";
+    }
+
+    if ($type === 'revert') {
+        $field = $fieldLabels[$r['field_name']] ?? $r['field_name'];
+        $old = $r['old_value'] ?? '-';
+        $new = $r['new_value'] ?? '-';
+        if (strlen($old) > 60) $old = mb_substr($old, 0, 57) . '...';
+        if (strlen($new) > 60) $new = mb_substr($new, 0, 57) . '...';
+        return "<strong>{$table}</strong> #{$rowId} &mdash; U kthye <em>{$field}</em> nga <code>" . e($old) . "</code> në <code>" . e($new) . "</code>";
+    }
+
+    if ($type === 'restore') {
+        $data = json_decode($r['new_value'] ?? '{}', true);
+        $snapName = $data['snapshot'] ?? 'i panjohur';
+        $tableCount = isset($data['tables']) ? count($data['tables']) : 0;
+        return "<strong>Snapshot</strong> &mdash; U rikthye snapshot <code>" . e($snapName) . "</code> ({$tableCount} tabela)";
     }
 
     return "<strong>{$table}</strong> #{$rowId} &mdash; {$type}";
@@ -201,6 +225,8 @@ ob_start();
 .log-badge-insert { background: rgba(16,185,129,0.15); color: var(--success); }
 .log-badge-update { background: rgba(245,158,11,0.15); color: var(--warning); }
 .log-badge-delete { background: rgba(239,68,68,0.15); color: var(--danger); }
+.log-badge-revert { background: rgba(99,102,241,0.15); color: #6366f1; }
+.log-badge-restore { background: rgba(139,92,246,0.15); color: #8b5cf6; }
 .log-desc {
     flex: 1;
     font-size: 0.85rem;
@@ -272,6 +298,8 @@ ob_start();
                 <option value="insert" <?= $filterAction === 'insert' ? 'selected' : '' ?>>Insert</option>
                 <option value="update" <?= $filterAction === 'update' ? 'selected' : '' ?>>Update</option>
                 <option value="delete" <?= $filterAction === 'delete' ? 'selected' : '' ?>>Delete</option>
+                <option value="revert" <?= $filterAction === 'revert' ? 'selected' : '' ?>>Revert</option>
+                <option value="restore" <?= $filterAction === 'restore' ? 'selected' : '' ?>>Restore</option>
             </select>
         </div>
         <div class="log-summary">

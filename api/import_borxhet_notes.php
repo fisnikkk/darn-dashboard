@@ -59,9 +59,20 @@ $stmt = $db->prepare("
         koment = IF(VALUES(koment) != '', VALUES(koment), koment)
 ");
 
+$checkStmt = $db->prepare("SELECT id FROM borxhet_notes WHERE klienti = ?");
+$logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES (?, 'borxhet_notes', ?, 'import_excel', NULL, ?)");
+
 $imported = 0;
 foreach ($toImport as $r) {
+    // Check if row exists before upsert
+    $checkStmt->execute([$r['klienti']]);
+    $existingId = $checkStmt->fetchColumn();
+    $actionType = $existingId ? 'update' : 'insert';
+
     $stmt->execute([$r['klienti'], $r['bc'] ?: null, $r['km'] ?: null, $r['ko'] ?: null]);
+
+    $rowId = $existingId ?: (int)$db->lastInsertId();
+    $logStmt->execute([$actionType, (int)$rowId, json_encode(['klienti'=>$r['klienti'], 'klient_bank_cash'=>$r['bc'], 'kush_merr_borxhin'=>$r['km'], 'koment'=>$r['ko']], JSON_UNESCAPED_UNICODE)]);
     $imported++;
 }
 

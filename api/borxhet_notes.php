@@ -24,12 +24,31 @@ if (!in_array($field, $allowedFields)) {
 
 try {
     $db = getDB();
+
+    // Get old value before upsert for changelog
+    $oldRow = $db->prepare("SELECT id, {$field} FROM borxhet_notes WHERE klienti = ?");
+    $oldRow->execute([$klienti]);
+    $existing = $oldRow->fetch();
+    $oldValue = $existing ? $existing[$field] : null;
+    $isUpdate = (bool)$existing;
+
     $stmt = $db->prepare("
         INSERT INTO borxhet_notes (klienti, {$field})
         VALUES (?, ?)
         ON DUPLICATE KEY UPDATE {$field} = VALUES({$field})
     ");
     $stmt->execute([$klienti, $value]);
+
+    // Log to changelog
+    $rowId = $existing ? (int)$existing['id'] : (int)$db->lastInsertId();
+    if ($isUpdate) {
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'borxhet_notes', ?, ?, ?, ?)")
+            ->execute([$rowId, $field, $oldValue, $value]);
+    } else {
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', 'borxhet_notes', ?, NULL, NULL, ?)")
+            ->execute([$rowId, json_encode(['klienti' => $klienti, $field => $value], JSON_UNESCAPED_UNICODE)]);
+    }
+
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

@@ -75,6 +75,9 @@ try {
         $allowedTables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata',
                           'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo'];
 
+        // Prepare changelog statement for revert logging
+        $revertLog = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('revert', ?, ?, ?, ?, ?)");
+
         foreach ($changes as $ch) {
             if (!in_array($ch['table_name'], $allowedTables)) continue;
 
@@ -86,6 +89,9 @@ try {
             if ($currentVal != $ch['old_value']) {
                 $db->prepare("UPDATE `{$ch['table_name']}` SET `{$ch['field_name']}` = ? WHERE id = ?")
                    ->execute([$ch['old_value'], $ch['row_id']]);
+
+                // Log the revert to changelog
+                $revertLog->execute([$ch['table_name'], $ch['row_id'], $ch['field_name'], $currentVal, $ch['old_value']]);
                 $reverted++;
             } else {
                 $skipped++;
