@@ -163,13 +163,13 @@ if ($selectedClient !== '') {
                                 <?= e($t['pershkrim']) ?>
                             </td>
                             <td class="amount" style="color:var(--danger);font-weight:<?= (float)$t['debi'] > 0 ? '600' : '400' ?>;">
-                                <?= (float)$t['debi'] > 0 ? eur($t['debi']) : '' ?>
+                                <?= (float)$t['debi'] > 0 ? '&euro; ' . eur($t['debi']) : '' ?>
                             </td>
                             <td class="amount" style="color:var(--success);font-weight:<?= (float)$t['kredi'] > 0 ? '600' : '400' ?>;">
-                                <?= (float)$t['kredi'] > 0 ? eur($t['kredi']) : '' ?>
+                                <?= (float)$t['kredi'] > 0 ? '&euro; ' . eur($t['kredi']) : '' ?>
                             </td>
                             <td class="amount" style="font-weight:700;color:<?= $t['gjendja'] > 0.01 ? 'var(--danger)' : ($t['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
-                                <?= eur(abs($t['gjendja'])) ?><?= $t['gjendja'] < -0.01 ? ' <small style="font-weight:400;">(avancë)</small>' : '' ?>
+                                &euro; <?= eur(abs($t['gjendja'])) ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -179,12 +179,12 @@ if ($selectedClient !== '') {
                     <tfoot>
                         <tr style="font-weight:700;background:#f8fafc;">
                             <td>TOTALI</td>
-                            <td><?= count($transactions) ?> transaksione</td>
+                            <td style="font-weight:400;"><?= count($transactions) ?> transaksione</td>
                             <td class="amount" style="color:var(--danger);">&euro; <?= eur($totalDebi) ?></td>
                             <td class="amount" style="color:var(--success);">&euro; <?= eur($totalKredi) ?></td>
                             <td class="amount" style="color:<?= $gjendja > 0.01 ? 'var(--danger)' : ($gjendja < -0.01 ? 'var(--success)' : 'inherit') ?>;">
                                 &euro; <?= eur(abs($gjendja)) ?>
-                                <?= $gjendja > 0.01 ? ' (borxh)' : ($gjendja < -0.01 ? ' (avancë)' : '') ?>
+                                <div style="font-weight:400;font-size:0.72rem;opacity:0.7;"><?= $gjendja > 0.01 ? 'borxh' : ($gjendja < -0.01 ? 'avancë' : '&nbsp;') ?></div>
                             </td>
                         </tr>
                     </tfoot>
@@ -305,16 +305,14 @@ ob_start();
                         onclick="window.location.href='?klient=<?= urlencode($cs['klienti']) ?>'"
                         class="clickable-row">
                         <td><a href="?klient=<?= urlencode($cs['klienti']) ?>" style="color:inherit;text-decoration:none;font-weight:500;"><?= e($cs['klienti']) ?></a></td>
-                        <td class="amount" style="color:var(--danger);"><?= eur($cs['total_debi']) ?></td>
-                        <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_cash']) ?></td>
-                        <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_bank']) ?></td>
+                        <td class="amount" style="color:var(--danger);">&euro; <?= eur($cs['total_debi']) ?></td>
+                        <td class="amount" style="color:var(--success);">&euro; <?= eur($cs['kredi_cash']) ?></td>
+                        <td class="amount" style="color:var(--success);">&euro; <?= eur($cs['kredi_bank']) ?></td>
                         <td class="amount" style="font-weight:700;color:<?= $cs['gjendja'] > 0.01 ? 'var(--danger)' : ($cs['gjendja'] < -0.01 ? 'var(--success)' : 'inherit') ?>;">
                             &euro; <?= eur(abs($cs['gjendja'])) ?>
-                            <?php if ($cs['gjendja'] > 0.01): ?>
-                                <small style="font-weight:400;opacity:0.7;">borxh</small>
-                            <?php elseif ($cs['gjendja'] < -0.01): ?>
-                                <small style="font-weight:400;opacity:0.7;">avancë</small>
-                            <?php endif; ?>
+                            <div style="font-weight:400;font-size:0.72rem;opacity:0.7;margin-top:1px;">
+                            <?php if ($cs['gjendja'] > 0.01): ?>borxh<?php elseif ($cs['gjendja'] < -0.01): ?>avancë<?php else: ?>&nbsp;<?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
