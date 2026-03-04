@@ -172,7 +172,26 @@ $totalPages = max(1, ceil($totalRows / $perPage));
 
 $stmt = $db->prepare("SELECT * FROM changelog {$whereSQL} ORDER BY created_at DESC LIMIT {$perPage} OFFSET {$offset}");
 $stmt->execute($params);
-$rows = $stmt->fetchAll();
+$rawRows = $stmt->fetchAll();
+
+// Group consecutive update/revert entries for the same row (same table+row_id+timestamp)
+// into a single "grouped" entry with multiple field changes
+$rows = [];
+$groupMap = []; // key => index in $rows
+foreach ($rawRows as $r) {
+    $type = $r['action_type'];
+    if (in_array($type, ['update', 'revert'])) {
+        $groupKey = "{$type}:{$r['table_name']}:{$r['row_id']}:{$r['created_at']}";
+        if (isset($groupMap[$groupKey])) {
+            // Add this field change to existing group
+            $rows[$groupMap[$groupKey]]['_grouped_fields'][] = $r;
+            continue;
+        }
+        $r['_grouped_fields'] = [$r];
+        $groupMap[$groupKey] = count($rows);
+    }
+    $rows[] = $r;
+}
 
 $tables = $db->query("SELECT DISTINCT table_name FROM changelog ORDER BY table_name")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -410,7 +429,9 @@ ob_start();
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    margin-bottom: 4px;
 }
+.log-diff:last-child { margin-bottom: 0; }
 .log-diff-field {
     font-size: 0.78rem;
     font-weight: 600;
@@ -634,10 +655,17 @@ ob_start();
             </div>
         <?php else: ?>
             <?php foreach ($rows as $idx => $r):
-                // Skip hidden fields (e.g. e_kontrolluar checkbox toggles)
-                if (in_array($r['field_name'] ?? '', $hiddenFields) && in_array($r['action_type'], ['update', 'revert'])) continue;
+                // Skip hidden fields (e.g. e_kontrolluar checkbox toggles) — only for non-grouped entries
+                if (!isset($r['_grouped_fields']) && in_array($r['field_name'] ?? '', $hiddenFields) && in_array($r['action_type'], ['update', 'revert'])) continue;
 
+                // For grouped entries, check if ALL fields are reverted
                 $isReverted = !empty($r['reverted']);
+                if (isset($r['_grouped_fields'])) {
+                    $isReverted = true;
+                    foreach ($r['_grouped_fields'] as $gf) {
+                        if (empty($gf['reverted'])) { $isReverted = false; break; }
+                    }
+                }
                 $type = $r['action_type'];
                 $tableName = $r['table_name'];
                 $tableLabel = $tableLabels[$tableName] ?? $tableName;
@@ -662,6 +690,11 @@ ob_start();
                 <div class="log-header">
                     <span class="log-table-tag"><i class="fas <?= $tableIcon ?>"></i> <?= e($tableLabel) ?></span>
                     <span class="log-badge log-badge-<?= $type ?>"><?= e($actionLabel) ?></span>
+                    <?php
+                    $groupCount = isset($r['_grouped_fields']) ? count($r['_grouped_fields']) : 0;
+                    if ($groupCount > 1): ?>
+                    <span class="log-badge" style="background:#e2e8f0;color:var(--text);"><?= $groupCount ?> fusha</span>
+                    <?php endif; ?>
                     <?php if ($r['row_id']): ?>
                     <span class="log-row-id">#<?= (int)$r['row_id'] ?></span>
                     <?php endif; ?>
@@ -694,17 +727,21 @@ ob_start();
                     </div>
                     <?php endif; ?>
                     <?php
-                    $rawFieldName = $r['field_name'] ?? '';
-                    $field = $fieldLabels[$rawFieldName] ?? $rawFieldName;
-                    $old = $r['old_value'] ?? '';
-                    $new = $r['new_value'] ?? '';
-                    // Apply human-friendly formatting for known fields
-                    $oldFormatted = formatFieldValue($rawFieldName, $old, $valueFormatters);
-                    $newFormatted = formatFieldValue($rawFieldName, $new, $valueFormatters);
-                    $oldDisplay = mb_strlen($oldFormatted) > 80 ? mb_substr($oldFormatted, 0, 77) . '...' : $oldFormatted;
-                    $newDisplay = mb_strlen($newFormatted) > 80 ? mb_substr($newFormatted, 0, 77) . '...' : $newFormatted;
-                    if ($old === '' || $old === null) $oldDisplay = '(bosh)';
-                    if ($new === '' || $new === null) $newDisplay = '(bosh)';
+                    // Render all field changes (grouped or single)
+                    $fieldChanges = $r['_grouped_fields'] ?? [$r];
+                    foreach ($fieldChanges as $fc):
+                        $rawFieldName = $fc['field_name'] ?? '';
+                        // Skip hidden fields within a group
+                        if (in_array($rawFieldName, $hiddenFields)) continue;
+                        $field = $fieldLabels[$rawFieldName] ?? $rawFieldName;
+                        $old = $fc['old_value'] ?? '';
+                        $new = $fc['new_value'] ?? '';
+                        $oldFormatted = formatFieldValue($rawFieldName, $old, $valueFormatters);
+                        $newFormatted = formatFieldValue($rawFieldName, $new, $valueFormatters);
+                        $oldDisplay = mb_strlen($oldFormatted) > 80 ? mb_substr($oldFormatted, 0, 77) . '...' : $oldFormatted;
+                        $newDisplay = mb_strlen($newFormatted) > 80 ? mb_substr($newFormatted, 0, 77) . '...' : $newFormatted;
+                        if ($old === '' || $old === null) $oldDisplay = '(bosh)';
+                        if ($new === '' || $new === null) $newDisplay = '(bosh)';
                     ?>
                     <div class="log-diff">
                         <span class="log-diff-field"><?= e($field) ?></span>
@@ -712,6 +749,7 @@ ob_start();
                         <i class="fas fa-long-arrow-alt-right log-arrow"></i>
                         <span class="log-new" title="<?= e($new) ?>"><?= e($newDisplay) ?></span>
                     </div>
+                    <?php endforeach; ?>
 
                 <?php elseif ($type === 'insert'): ?>
                     <?php
