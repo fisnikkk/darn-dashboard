@@ -49,7 +49,7 @@ foreach ($db->query("
 }
 
 $allMonths = array_unique(array_merge(array_keys($distByMonth), array_keys($pliniByMonth)));
-rsort($allMonths);
+sort($allMonths);
 
 // Apply date range filter on months
 $fromMonth = $filterFrom ? substr($filterFrom, 0, 7) : '';
