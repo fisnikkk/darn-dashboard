@@ -170,6 +170,9 @@ ob_start();
                         </datalist>
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Komentet</label><input type="text" name="komentet" placeholder="Shto koment..."></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addBank')">Anulo</button>
@@ -186,7 +189,7 @@ ob_start();
         <div class="modal-body">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
                 Kopjo rreshtat nga Excel dhe ngjiti ketu. Kolonat duhet te jene ne kete rend:<br>
-                <strong>Data | Data Valutes | Ora | Shpjegim | Valuta | Debi | Kredi | Bilanci | Deftesa | Lloji</strong>
+                <strong>Data | Data Valutes | Ora | Shpjegim | Valuta | Debi | Kredi | Bilanci | Deftesa | Lloji | Komentet</strong>
             </p>
             <textarea id="pasteArea" rows="10" style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;" placeholder="Ngjit ketu te dhenat nga Excel (Ctrl+V)..."></textarea>
             <div id="pastePreview" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
@@ -276,7 +279,8 @@ function submitPastedData() {
             kredi: parseNumber(cols[6]),
             bilanci: parseNumber(cols[7]),
             deftesa: (cols[8] || '').trim(),
-            lloji: (cols[9] || '').trim() || null
+            lloji: (cols[9] || '').trim() || null,
+            komentet: (cols[10] || '').trim() || null
         });
     }
 

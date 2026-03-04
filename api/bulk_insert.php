@@ -27,8 +27,8 @@ try {
     $inserted = 0;
 
     if ($table === 'gjendja_bankare') {
-        $sql = "INSERT INTO gjendja_bankare (data, data_valutes, ora, shpjegim, valuta, debia, kredi, bilanci, deftesa, lloji)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO gjendja_bankare (data, data_valutes, ora, shpjegim, valuta, debia, kredi, bilanci, deftesa, lloji, komentet)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $db->prepare($sql);
 
         // Get the latest bilanci for fallback auto-calculation
@@ -45,6 +45,7 @@ try {
             $bilanci = is_numeric($row['bilanci'] ?? '') ? (float)$row['bilanci'] : null;
             $deftesa = ($row['deftesa'] ?? '') !== '' ? $row['deftesa'] : null;
             $lloji = ($row['lloji'] ?? '') !== '' ? $row['lloji'] : null;
+            $komentet = ($row['komentet'] ?? '') !== '' ? $row['komentet'] : null;
 
             // Skip rows with no meaningful data (strict check — don't drop valid rows with "0" descriptions)
             if (($shpjegim === null) && $debia === null && $kredi === null) continue;
@@ -56,7 +57,7 @@ try {
                 $bilanci = round($prevBilanci + $k - $d, 2);
             }
 
-            $stmt->execute([$data, $dataValutes, $ora, $shpjegim, $valuta, $debia, $kredi, $bilanci, $deftesa, $lloji]);
+            $stmt->execute([$data, $dataValutes, $ora, $shpjegim, $valuta, $debia, $kredi, $bilanci, $deftesa, $lloji, $komentet]);
             $inserted++;
 
             // Track running balance for subsequent rows

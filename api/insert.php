@@ -21,7 +21,7 @@ $schemas = [
                    'bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit',
                    'koment','email','ne_grup_njoftues','lloji_i_bocave','bocat_e_paguara',
                    'kontrate_e_vjeter','data_rregullatoret','sipas_skenimit_pda'],
-    'gjendja_bankare' => ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji'],
+    'gjendja_bankare' => ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji','komentet'],
     'nxemese' => ['klienti','data','te_dhena','te_marra','lloji_i_nxemjes','koment'],
     'klientet' => ['emri','bashkepunim','data_e_kontrates','stoku','kontakti','adresa','telefoni','koment',
                    'i_regjistruar_ne_emer','numri_unik_identifikues','telefoni_2'],
