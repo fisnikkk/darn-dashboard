@@ -148,7 +148,7 @@ $uniqueClients = $summStmt->fetchColumn();
 $stokuTotal = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi")->fetchColumn();
 
 // Payment types for dropdown
-$paymentTypes = ['Cash', 'Bank', 'Po (Fature te rregullte) cash', 'Po (Fature te rregullte) banke', 'No payment', 'Dhurate'];
+$paymentTypes = ['CASH', 'BANK', 'PO (FATURE TE RREGULLTE) CASH', 'PO (FATURE TE RREGULLTE) BANKE', 'NO PAYMENT', 'DHURATE'];
 $paymentJSON = json_encode($paymentTypes);
 
 // Unique clients for filter (from distribuimi + kontrata)
@@ -191,7 +191,6 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3>Distribuimi - Të dhënat</h3>
-        <a href="?sort=updated_at&dir=DESC&page=1" class="btn btn-sm" style="margin-right:6px;background:#7c3aed;color:#fff;text-decoration:none;"><i class="fas fa-history"></i> Ndryshimi i fundit</a>
         <button class="btn btn-primary btn-sm" onclick="openModal('pasteDist')" style="margin-right:6px;"><i class="fas fa-paste"></i> Ngjit nga Excel</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">
             <i class="fas fa-plus"></i> Shto rresht
