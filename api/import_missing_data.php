@@ -37,6 +37,8 @@ if (file_exists($jsonPath)) {
         if (!$df && !$sf && !$lf) continue;
         // Skip non-date values like "Cash", "Bank" in date field
         if ($df && !preg_match('/^\d{4}-\d{2}-\d{2}/', $df)) $df = null;
+        // Skip non-numeric values in shuma_fatures
+        if ($sf && !is_numeric($sf)) $sf = null;
         if (!$df && !$sf && !$lf) continue;
         // Match by date + shuma + arsyetimi
         $toUpdate[] = [
