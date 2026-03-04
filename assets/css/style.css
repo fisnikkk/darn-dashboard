@@ -114,6 +114,35 @@ body {
 
 .content-area { padding: 16px; }
 
+/* Section Headers (Dashboard grouping) */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 28px 0 12px 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--border);
+}
+.section-header:first-child { margin-top: 0; }
+.section-header i {
+    font-size: 0.85rem;
+    color: var(--primary);
+    width: 20px;
+    text-align: center;
+}
+.section-header h2 {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+.section-header .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
 /* Summary Cards */
 .summary-grid {
     display: grid;

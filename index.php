@@ -154,7 +154,12 @@ $babiTotal = $babiGasCash + $babiProductCash;
 ob_start();
 ?>
 
-<!-- Row 2-3 Summary: Exactly matching Excel labels -->
+<!-- Section: Permbledhje -->
+<div class="section-header">
+    <i class="fas fa-chart-pie"></i>
+    <h2>Përmbledhje e Përgjithshme</h2>
+    <div class="section-line"></div>
+</div>
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Total Blerje</div>
@@ -205,7 +210,12 @@ ob_start();
     </div>
 </div>
 
-<!-- Financial summary -->
+<!-- Section: Financat -->
+<div class="section-header">
+    <i class="fas fa-wallet"></i>
+    <h2>Financat & Cash</h2>
+    <div class="section-line"></div>
+</div>
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Blerje me fature</div>
@@ -245,6 +255,12 @@ ob_start();
     </div>
 </div>
 
+<!-- Section: Shpenzimet -->
+<div class="section-header">
+    <i class="fas fa-money-bill-wave"></i>
+    <h2>Shpenzimet</h2>
+    <div class="section-line"></div>
+</div>
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Shpenzime tjera</div>
@@ -262,11 +278,14 @@ ob_start();
     </div>
 </div>
 
+<!-- Section: Litrat -->
+<div class="section-header">
+    <i class="fas fa-tint"></i>
+    <h2>Litrat</h2>
+    <div class="section-line"></div>
+</div>
 <!-- Litra Row 1 — uses litrat_e_konvertuara (Excel Column Z) -->
 <div class="card">
-    <div class="card-header">
-        <h3><i class="fas fa-tint"></i> Litrat</h3>
-    </div>
     <div class="card-body">
         <table class="data-table summary-table">
             <thead>
@@ -289,6 +308,12 @@ ob_start();
     </div>
 </div>
 
+<!-- Section: Deponime & Fitimi -->
+<div class="section-header">
+    <i class="fas fa-landmark"></i>
+    <h2>Deponime & Fitimi</h2>
+    <div class="section-line"></div>
+</div>
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Deponime ne banke</div>
@@ -305,7 +330,12 @@ ob_start();
     </div>
 </div>
 
-<!-- Fature & Deponime summary -->
+<!-- Section: Fatura & Deponime -->
+<div class="section-header">
+    <i class="fas fa-file-invoice-dollar"></i>
+    <h2>Fatura & Deponime</h2>
+    <div class="section-line"></div>
+</div>
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Sasia e blere me fature ne kg</div>
@@ -323,7 +353,12 @@ ob_start();
     </div>
 </div>
 
-<!-- Babi Cash (Excel L4, M4, N4) -->
+<!-- Section: Babi Cash -->
+<div class="section-header">
+    <i class="fas fa-cash-register"></i>
+    <h2>Babi Cash</h2>
+    <div class="section-line"></div>
+</div>
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Babi Cash (Gaz)</div>
