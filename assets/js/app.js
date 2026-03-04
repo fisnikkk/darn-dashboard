@@ -688,8 +688,14 @@ function initColumnFilters() {
         if (!values.length) return;
 
         // Read currently active filter from URL
+        // Handle both JS format (f_lloji[]) and PHP http_build_query format (f_lloji[0], f_lloji[1], ...)
         const url = new URL(window.location);
         const activeFilters = url.searchParams.getAll(paramName + '[]');
+        for (let i = 0; i < 200; i++) {
+            const v = url.searchParams.get(paramName + '[' + i + ']');
+            if (v === null) break;
+            activeFilters.push(v);
+        }
 
         // Build filter button
         const wrap = document.createElement('span');
@@ -800,7 +806,12 @@ function initColumnFilters() {
 
             // Server-side filter (URL-based)
             const newUrl = new URL(window.location);
+            // Delete both f_xxx[] (JS format) and f_xxx[0], f_xxx[1]... (PHP http_build_query format)
             newUrl.searchParams.delete(paramName + '[]');
+            for (let i = 0; i < 200; i++) {
+                if (!newUrl.searchParams.has(paramName + '[' + i + ']')) break;
+                newUrl.searchParams.delete(paramName + '[' + i + ']');
+            }
             newUrl.searchParams.set('page', '1');
 
             if (!allChecked && !noneChecked) {
@@ -833,9 +844,13 @@ function initColumnFilters() {
                 return;
             }
 
-            // Server-side filter
+            // Server-side filter — delete both JS and PHP array formats
             const newUrl = new URL(window.location);
             newUrl.searchParams.delete(paramName + '[]');
+            for (let i = 0; i < 200; i++) {
+                if (!newUrl.searchParams.has(paramName + '[' + i + ']')) break;
+                newUrl.searchParams.delete(paramName + '[' + i + ']');
+            }
             newUrl.searchParams.set('page', '1');
             window.location.href = newUrl.toString();
         });

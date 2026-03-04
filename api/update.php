@@ -31,7 +31,7 @@ $allowed = [
                       'litrat_e_konvertuara'],
     'shpenzimet' => ['data_e_pageses','shuma','arsyetimi','lloji_i_pageses',
                      'lloji_i_transaksionit','pershkrim_i_detajuar','nafta_ne_litra',
-                     'numri_i_fatures','fatura_e_rregullte'],
+                     'numri_i_fatures','fatura_e_rregullte','data_e_fatures','shuma_fatures','lloji_fatures'],
     'plini_depo' => ['nr_i_fatures','data','kg','sasia_ne_litra','cmimi','faturat_e_pranuara',
                      'dalje_pagesat_sipas_bankes','menyra_e_pageses','cash_banke','furnitori','koment'],
     'shitje_produkteve' => ['data','cilindra_sasia','produkti','klienti','adresa','qyteti',
@@ -39,7 +39,7 @@ $allowed = [
     'kontrata' => ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates',
                    'bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit',
                    'koment','email','ne_grup_njoftues','lloji_i_bocave','bocat_e_paguara',
-                   'kontrate_e_vjeter','data_rregullatoret'],
+                   'kontrate_e_vjeter','data_rregullatoret','sipas_skenimit_pda'],
     'gjendja_bankare' => ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji','klienti','e_kontrolluar','komentet'],
     'nxemese' => ['klienti','data','te_dhena','te_marra','lloji_i_nxemjes','koment'],
     'klientet' => ['emri','bashkepunim','data_e_kontrates','stoku','kontakti','adresa','telefoni','koment',
@@ -120,16 +120,18 @@ try {
         }
     }
 
-    // Auto-recalculate pagesa & litrat_total when litra or cmimi changes in distribuimi
-    // Formula: pagesa = litra × cmimi (litra column = total liters, NOT per-unit)
-    if ($table === 'distribuimi' && array_intersect(['litra', 'cmimi'], $changedFields)) {
-        $row = $db->prepare("SELECT litra, cmimi FROM distribuimi WHERE id = ?");
+    // Auto-recalculate pagesa, litrat_total, litrat_e_konvertuara when sasia, litra, or cmimi changes
+    // Formula: pagesa = sasia × litra × cmimi, litrat_total = sasia × litra (matches insert.php)
+    if ($table === 'distribuimi' && array_intersect(['sasia', 'litra', 'cmimi'], $changedFields)) {
+        $row = $db->prepare("SELECT sasia, litra, cmimi FROM distribuimi WHERE id = ?");
         $row->execute([$id]);
         $cur = $row->fetch();
+        $s = (float)($cur['sasia'] ?? 0);
         $l = (float)($cur['litra'] ?? 0);
         $c = (float)($cur['cmimi'] ?? 0);
-        $newPagesa = round($l * $c, 2);
-        $db->prepare("UPDATE distribuimi SET pagesa = ? WHERE id = ?")->execute([$newPagesa, $id]);
+        $newPagesa = round($s * $l * $c, 2);
+        $newLitratTotal = round($s * $l, 2);
+        $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")->execute([$newPagesa, $newLitratTotal, $newLitratTotal, $id]);
     }
 
     // Auto-recalculate totali when cilindra_sasia or cmimi changes in shitje_produkteve
