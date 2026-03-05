@@ -77,7 +77,7 @@ try {
         $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
         $running = 0;
         foreach ($all as $r) {
-            $running = round($running + (float)$r['kredi'] - (float)$r['debia'], 2);
+            $running = round($running + (float)$r['kredi'] + (float)$r['debia'], 2);
             $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
         }
 
