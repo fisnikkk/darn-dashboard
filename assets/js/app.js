@@ -111,7 +111,7 @@ function startRowEdit(row) {
                     o.value = opt;
                     datalist.appendChild(o);
                 });
-                td.appendChild(datalist);
+                input._datalist = datalist; // store to append after td is cleared
             } else {
                 input = document.createElement('select');
                 const emptyOpt = document.createElement('option');
@@ -144,6 +144,7 @@ function startRowEdit(row) {
         });
         td.textContent = '';
         td.appendChild(input);
+        if (input._datalist) td.appendChild(input._datalist);
     });
 
     // Store originals on the row element

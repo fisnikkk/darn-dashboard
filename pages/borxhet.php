@@ -55,7 +55,7 @@ foreach ($debts as $d) {
 // Load per-client notes (3 extra columns)
 $notesRaw = $db->query("SELECT klienti, klient_bank_cash, kush_merr_borxhin, koment FROM borxhet_notes")->fetchAll();
 $notes = [];
-foreach ($notesRaw as $n) { $notes[$n['klienti']] = $n; }
+foreach ($notesRaw as $n) { $notes[strtolower($n['klienti'])] = $n; }
 
 // Build filter value arrays for client-side filters
 $borxhCashVals = array_values(array_unique(array_map(fn($d) => eur($d['cash']), $debts)));

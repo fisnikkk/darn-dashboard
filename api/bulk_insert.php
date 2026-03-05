@@ -73,6 +73,14 @@ try {
             $prevBilanci = $bilanci;
         }
 
+        // Full bilanci recalculation (handles backdated inserts)
+        $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+        $running = 0;
+        foreach ($all as $r) {
+            $running = round($running + (float)$r['kredi'] - (float)$r['debia'], 2);
+            $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
+        }
+
     } elseif ($table === 'distribuimi') {
         $sql = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, data_e_fletepageses, koment, litrat_total, litrat_e_konvertuara)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -95,6 +103,14 @@ try {
 
             // Skip rows with no meaningful data
             if ($klienti === null && $sasia === null && $pagesa === null) continue;
+
+            // Server-side formula enforcement (matches insert.php/update.php)
+            $s = $sasia ?? 0;
+            $l = $litra ?? 0;
+            $c = $cmimi ?? 0;
+            if ($litrat_total === null) $litrat_total = round($s * $l, 2);
+            if ($litrat_e_konvertuara === null) $litrat_e_konvertuara = $l;
+            if ($pagesa === null) $pagesa = round($s * $l * $c, 2);
 
             $stmt->execute([$klienti, $data, $sasia, $boca_te_kthyera, $litra, $cmimi, $pagesa, $menyra_e_pageses, $fatura_e_derguar, $data_e_fletepageses, $koment, $litrat_total, $litrat_e_konvertuara]);
             $newId = (int)$db->lastInsertId();

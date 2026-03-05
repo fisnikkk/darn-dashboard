@@ -119,7 +119,8 @@ function withFilter($thHtml, $filterName, $filterValues) {
  * Returns array of selected values, or empty array if no filter active.
  */
 function getFilterParam($name) {
-    return $_GET[$name] ?? [];
+    $val = $_GET[$name] ?? [];
+    return is_array($val) ? $val : [$val];
 }
 
 /**
