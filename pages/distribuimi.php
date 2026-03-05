@@ -532,7 +532,7 @@ function submitPastedDistData() {
         const s = sasia ?? 0;
         const l = litra ?? 0;
         const litrat_total = s * l;
-        const litrat_e_konvertuara = litrat_total;
+        const litrat_e_konvertuara = l;
 
         // If pagesa is empty, auto-calculate: pagesa = sasia * litra * cmimi
         if (pagesa === null) {

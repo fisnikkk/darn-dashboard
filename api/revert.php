@@ -162,7 +162,16 @@ try {
         if ($r && (in_array('sasia', $reverted) || in_array('litra', $reverted) || in_array('cmimi', $reverted))) {
             $s = (float)$r['sasia']; $l = (float)$r['litra']; $c = (float)$r['cmimi'];
             $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")
-                ->execute([round($s * $l * $c, 2), round($s * $l, 2), round($s * $l, 2), $id]);
+                ->execute([round($s * $l * $c, 2), round($s * $l, 2), $l, $id]);
+        }
+    }
+
+    if ($table === 'stoku_zyrtar' && (in_array('sasia', $reverted) || in_array('cmimi', $reverted))) {
+        $row = $db->prepare("SELECT sasia, cmimi FROM stoku_zyrtar WHERE id = ?");
+        $row->execute([$id]);
+        $r = $row->fetch();
+        if ($r) {
+            $db->prepare("UPDATE stoku_zyrtar SET vlera = ? WHERE id = ?")->execute([round((float)$r['sasia'] * (float)$r['cmimi'], 2), $id]);
         }
     }
 

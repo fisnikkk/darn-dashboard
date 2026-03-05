@@ -116,6 +116,15 @@ ob_start();
                     <label style="font-size:0.78rem;margin-bottom:2px;">Data deri</label>
                     <input type="date" name="date_to" value="<?= e($filterDateTo) ?>" style="padding:5px 8px;font-size:0.82rem;">
                 </div>
+                <div class="form-group" style="min-width:auto;margin-bottom:0;">
+                    <label style="font-size:0.78rem;margin-bottom:2px;">Rreshta</label>
+                    <select name="per_page" style="width:70px;padding:5px 8px;font-size:0.82rem;">
+                        <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                        <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                        <option value="1000" <?= $perPage==1000?'selected':'' ?>>1000</option>
+                        <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filtro</button>
                 <?php if ($filterDateFrom || $filterDateTo): ?>
                 <a href="?<?= http_build_query(array_diff_key($_GET, array_flip(['date_from','date_to','page']))) ?>" class="btn btn-outline btn-sm">Pastro datat</a>

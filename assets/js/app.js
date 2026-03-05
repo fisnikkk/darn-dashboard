@@ -101,7 +101,7 @@ function startRowEdit(row) {
                 input = document.createElement('input');
                 input.type = 'text';
                 input.value = rawText;
-                const dlId = 'dl_' + field + '_' + id;
+                const dlId = 'dl_' + field + '_' + row.dataset.id;
                 input.setAttribute('list', dlId);
                 input.placeholder = 'Shkruaj ose zgjidh...';
                 const datalist = document.createElement('datalist');
@@ -202,9 +202,12 @@ function cancelRowEdit(row) {
     const lastTd = row.querySelector('td:last-child');
     lastTd.innerHTML = row._originalButtons;
 
-    // Re-attach edit button listener
+    // Re-attach button listeners (edit & revert are added by JS, delete uses inline onclick)
+    const table = row.closest('table').dataset.table;
     const editBtn = lastTd.querySelector('.row-edit-btn');
     if (editBtn) editBtn.addEventListener('click', () => startRowEdit(row));
+    const revertBtn = lastTd.querySelector('.row-revert-btn');
+    if (revertBtn) revertBtn.addEventListener('click', () => revertRow(table, row.dataset.id));
 
     row.classList.remove('editing');
     if (row._keyHandler) {
