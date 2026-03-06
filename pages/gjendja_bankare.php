@@ -74,9 +74,14 @@ $deponime = $sumStmt->fetchColumn();
 
 $llojet = $db->query("SELECT DISTINCT lloji FROM gjendja_bankare WHERE lloji IS NOT NULL ORDER BY lloji")->fetchAll(PDO::FETCH_COLUMN);
 $llojiJSON = json_encode($llojet);
+$llojetFilter = $llojet;
+if (!in_array('', $llojetFilter)) array_unshift($llojetFilter, '');
 $gbValutat = $db->query("SELECT DISTINCT valuta FROM gjendja_bankare WHERE valuta IS NOT NULL AND valuta != '' ORDER BY valuta")->fetchAll(PDO::FETCH_COLUMN);
+if (!in_array('', $gbValutat)) array_unshift($gbValutat, '');
 $gbShpjegimVals = $db->query("SELECT DISTINCT shpjegim FROM gjendja_bankare WHERE shpjegim IS NOT NULL AND shpjegim != '' ORDER BY shpjegim LIMIT 3000")->fetchAll(PDO::FETCH_COLUMN);
+if (!in_array('', $gbShpjegimVals)) array_unshift($gbShpjegimVals, '');
 $gbDeftesaVals = $db->query("SELECT DISTINCT deftesa FROM gjendja_bankare WHERE deftesa IS NOT NULL AND deftesa != '' ORDER BY deftesa LIMIT 3000")->fetchAll(PDO::FETCH_COLUMN);
+if (!in_array('', $gbDeftesaVals)) array_unshift($gbDeftesaVals, '');
 $gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 // Client names from distribuimi for the klienti datalist/select
 $distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi WHERE klienti IS NOT NULL AND TRIM(klienti) != '' GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
@@ -84,6 +89,7 @@ $distKlientetJSON = json_encode($distKlientet, JSON_UNESCAPED_UNICODE);
 // Merge both sources for the column filter dropdown (useful before clients are assigned)
 $allKlientetFilter = array_values(array_unique(array_merge($gbKlientetVals, $distKlientet)));
 sort($allKlientetFilter);
+if (!in_array('', $allKlientetFilter)) array_unshift($allKlientetFilter, '');
 
 ob_start();
 ?>
@@ -148,7 +154,7 @@ ob_start();
                         <?= sortThGB('kredi', 'Kredi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir), 'f_deftesa', $gbDeftesaVals) ?>
-                        <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
+                        <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojetFilter) ?>
                         <?= withFilter(sortThGB('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $allKlientetFilter) ?>
                         <?= sortThGB('komentet', 'Komentet', $sortCol, $sortDir) ?>
                         <th></th>
