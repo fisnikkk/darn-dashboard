@@ -2,11 +2,6 @@
 /**
  * Temporary debug endpoint: investigate "leshuar me fature" differences
  * between Dashboard and Excel snapshot (Feb 9, 2026).
- *
- * Differences to explain:
- *   Dec 2025: Dashboard 44,330 vs Excel 44,430 (dashboard -100)
- *   Jan 2026: Dashboard 41,420 vs Excel 41,440 (dashboard -20)
- *   Feb 2026: Dashboard 1,930 vs Excel 0 (dashboard +1,930)
  */
 ini_set('memory_limit', '512M');
 require_once __DIR__ . '/../config/database.php';
@@ -14,6 +9,9 @@ header('Content-Type: application/json');
 
 try {
     $db = getDB();
+
+    // First, discover changelog column names
+    $clCols = $db->query("SHOW COLUMNS FROM changelog")->fetchAll(PDO::FETCH_COLUMN);
 
     $invoiceMethods = ['po (fature te rregullte) cash', 'bank', 'po (fature te rregullte) banke'];
     $placeholders = implode(',', array_fill(0, count($invoiceMethods), '?'));
@@ -52,20 +50,16 @@ try {
         ];
     }
 
-    // ---- 2) Changelog entries for distribuimi after Feb 9, 2026 ----
-    $stmt = $db->prepare("
-        SELECT id, table_name, row_id, action, field_name, old_value, new_value, created_at
-        FROM changelog
+    // ---- 2) All changelog entries for distribuimi after Feb 9, 2026 ----
+    $changes = $db->query("
+        SELECT * FROM changelog
         WHERE table_name = 'distribuimi'
           AND created_at >= '2026-02-09 00:00:00'
         ORDER BY created_at DESC
         LIMIT 200
-    ");
-    $stmt->execute();
-    $changes = $stmt->fetchAll();
+    ")->fetchAll();
 
-    // ---- 3) Find changelog entries specifically for invoice rows in Dec/Jan/Feb ----
-    // Get all distribuimi row IDs for these months (invoice-type)
+    // ---- 3) Find changelog entries specifically for our invoice row IDs ----
     $allInvoiceIds = [];
     foreach ($result as $mdata) {
         foreach ($mdata['rows'] as $r) {
@@ -77,8 +71,7 @@ try {
     if ($allInvoiceIds) {
         $idPlaceholders = implode(',', array_fill(0, count($allInvoiceIds), '?'));
         $stmt = $db->prepare("
-            SELECT id, table_name, row_id, action, field_name, old_value, new_value, created_at
-            FROM changelog
+            SELECT * FROM changelog
             WHERE table_name = 'distribuimi'
               AND row_id IN ($idPlaceholders)
             ORDER BY created_at DESC
@@ -87,22 +80,8 @@ try {
         $relevantChanges = $stmt->fetchAll();
     }
 
-    // ---- 4) Also check for deleted rows or rows whose payment method changed ----
-    $stmt = $db->prepare("
-        SELECT id, table_name, row_id, action, field_name, old_value, new_value, created_at
-        FROM changelog
-        WHERE table_name = 'distribuimi'
-          AND (field_name IN ('menyra_e_pageses', 'litrat_e_konvertuara', 'data')
-               OR action IN ('delete', 'insert'))
-          AND created_at >= '2026-02-09 00:00:00'
-        ORDER BY created_at DESC
-        LIMIT 200
-    ");
-    $stmt->execute();
-    $fieldChanges = $stmt->fetchAll();
-
-    // ---- 5) All distribuimi rows for these months (any payment method) for totals ----
-    $allRowsTotals = [];
+    // ---- 4) All distribuimi rows for these months grouped by method ----
+    $allMethodsTotals = [];
     foreach ($months as $key => [$from, $to, $excelExpected]) {
         $stmt = $db->prepare("
             SELECT LOWER(TRIM(menyra_e_pageses)) as method, 
@@ -114,18 +93,18 @@ try {
             ORDER BY total_litrat DESC
         ");
         $stmt->execute([$from, $to]);
-        $allRowsTotals[$key] = $stmt->fetchAll();
+        $allMethodsTotals[$key] = $stmt->fetchAll();
     }
 
     echo json_encode([
+        'changelog_columns' => $clCols,
         'invoice_rows_by_month' => $result,
         'all_changes_after_feb9' => $changes,
         'changes_to_invoice_rows' => $relevantChanges,
-        'field_changes_after_feb9' => $fieldChanges,
-        'all_methods_totals' => $allRowsTotals,
+        'all_methods_totals' => $allMethodsTotals,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
 }
