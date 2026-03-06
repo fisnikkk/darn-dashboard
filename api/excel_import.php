@@ -42,6 +42,14 @@ if ($action === 'import_rows') {
         $db = getDB();
         $deleted = 0;
 
+        // Ensure TEXT columns are wide enough (one-time fix, safe to run repeatedly)
+        try {
+            $db->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL");
+            $db->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL");
+            $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL");
+            $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL");
+        } catch (PDOException $e) { /* ignore */ }
+
         // Replace mode: delete existing data first
         if ($mode === 'replace') {
             $deleted = (int)$db->query("SELECT COUNT(*) FROM {$tableName}")->fetchColumn();
