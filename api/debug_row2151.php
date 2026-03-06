@@ -73,3 +73,4 @@ try {
 } catch (Exception $e) {
     echo json_encode(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()], JSON_PRETTY_PRINT);
 }
+// force rebuild
