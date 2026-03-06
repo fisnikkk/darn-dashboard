@@ -25,7 +25,6 @@ $filterPayment = $_GET['payment'] ?? '';
 // Multi-select column filters
 $fKlienti = getFilterParam('f_klienti');
 $fMenyra = getFilterParam('f_menyra');
-$fStatusi = getFilterParam('f_fatura');
 $fSasia = getFilterParam('f_sasia');
 $fBocaKth = getFilterParam('f_boca_kth');
 $fLitra = getFilterParam('f_litra');
@@ -42,7 +41,7 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','fatura_e_derguar','data_e_fletepageses','koment','litrat_total','updated_at','created_at','boca_running','boca_total'];
+$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','data_e_fletepageses','koment','litrat_total','updated_at','created_at','boca_running','boca_total'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -70,7 +69,6 @@ if ($filterPayment) { $where[] = "LOWER(TRIM(d.menyra_e_pageses)) = LOWER(TRIM(?
 // Multi-select column filters
 if ($fKlienti) { $fin = buildFilterIn($fKlienti, 'klienti', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fMenyra) { $fin = buildFilterIn($fMenyra, 'menyra_e_pageses', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
-if ($fStatusi) { $fin = buildFilterIn($fStatusi, 'fatura_e_derguar', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fSasia) { $fin = buildFilterIn($fSasia, 'sasia', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fBocaKth) { $fin = buildFilterIn($fBocaKth, 'boca_te_kthyera', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLitra) { $fin = buildFilterIn($fLitra, 'litra', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
@@ -106,7 +104,7 @@ $sql = "
         FROM distribuimi
     )
     SELECT d.id, d.row_nr, d.klienti, d.data, d.sasia, d.boca_te_kthyera,
-        d.litra, d.cmimi, d.pagesa, d.menyra_e_pageses, d.fatura_e_derguar,
+        d.litra, d.cmimi, d.pagesa, d.menyra_e_pageses,
         d.data_e_fletepageses, d.koment, d.litrat_total,
         t.boca_running, t.boca_total
     FROM distribuimi d
@@ -138,7 +136,6 @@ sort($clients);
 
 // Distinct values for Excel-like column filters
 $distMenyraVals = $db->query("SELECT DISTINCT menyra_e_pageses FROM distribuimi WHERE menyra_e_pageses IS NOT NULL AND menyra_e_pageses != '' ORDER BY menyra_e_pageses")->fetchAll(PDO::FETCH_COLUMN);
-$distFaturaVals = $db->query("SELECT DISTINCT fatura_e_derguar FROM distribuimi WHERE fatura_e_derguar IS NOT NULL AND fatura_e_derguar != '' ORDER BY fatura_e_derguar")->fetchAll(PDO::FETCH_COLUMN);
 $distSasiaVals = $db->query("SELECT DISTINCT CAST(sasia AS CHAR) FROM distribuimi WHERE sasia IS NOT NULL ORDER BY sasia")->fetchAll(PDO::FETCH_COLUMN);
 $distBocaKthVals = $db->query("SELECT DISTINCT CAST(boca_te_kthyera AS CHAR) FROM distribuimi WHERE boca_te_kthyera IS NOT NULL ORDER BY boca_te_kthyera")->fetchAll(PDO::FETCH_COLUMN);
 $distLitraVals = $db->query("SELECT DISTINCT CAST(litra AS CHAR) FROM distribuimi WHERE litra IS NOT NULL ORDER BY litra")->fetchAll(PDO::FETCH_COLUMN);
@@ -256,7 +253,6 @@ ob_start();
                         <?= withFilter(sortTh('cmimi', 'Çmimi', $sortCol, $sortDir, 'num'), 'f_cmimi', $distCmimiVals) ?>
                         <?= withFilter(sortTh('pagesa', 'Pagesa', $sortCol, $sortDir, 'num'), 'f_pagesa', $distPagesaVals) ?>
                         <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
-                        <?= withFilter(sortTh('fatura_e_derguar', 'Fatura e dërguar', $sortCol, $sortDir), 'f_fatura', $distFaturaVals) ?>
                         <?= withFilter(sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir), 'f_data_fp', $distDataFpVals) ?>
                         <?= withFilter(sortTh('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $distKomentVals) ?>
                         <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
@@ -294,7 +290,6 @@ ob_start();
                             ?>
                             <span class="badge <?= $badge ?>"><?= e($r['menyra_e_pageses']) ?></span>
                         </td>
-                        <td class="editable" data-field="fatura_e_derguar"><?= e($r['fatura_e_derguar']) ?></td>
                         <td class="editable" data-field="data_e_fletepageses" data-type="date"><?= $r['data_e_fletepageses'] ?></td>
                         <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>"><?= e($r['koment']) ?></td>
                         <td class="num"><?= eur($r['litrat_total']) ?></td>
@@ -403,10 +398,6 @@ ob_start();
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Fatura e dërguar</label>
-                        <input type="text" name="fatura_e_derguar">
-                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -455,7 +446,7 @@ ob_start();
         <div class="modal-body">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
                 Kopjo rreshtat nga Excel dhe ngjiti ketu. Kolonat duhet te jene ne kete rend:<br>
-                <strong>Klienti | Data | Sasia | Boca te kthyera | Litra | Cmimi | Pagesa | Menyra e pageses | Fatura e derguar | Data fletepageses | Koment</strong>
+                <strong>Klienti | Data | Sasia | Boca te kthyera | Litra | Cmimi | Pagesa | Menyra e pageses | Data fletepageses | Koment</strong>
             </p>
             <textarea id="pasteAreaDist" rows="10" style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;" placeholder="Ngjit ketu te dhenat nga Excel (Ctrl+V)..."></textarea>
             <div id="pastePreviewDist" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
@@ -524,9 +515,8 @@ function submitPastedDistData() {
         const cmimi = parseNumberDist(cols[5]);
         let pagesa = parseNumberDist(cols[6]);
         const menyra_e_pageses = (cols[7] || '').trim();
-        const fatura_e_derguar = (cols[8] || '').trim();
-        const data_e_fletepageses = parseDateDist(cols[9]);
-        const koment = (cols[10] || '').trim();
+        const data_e_fletepageses = parseDateDist(cols[8]);
+        const koment = (cols[9] || '').trim();
 
         // Auto-calculate litrat_total = sasia * litra
         const s = sasia ?? 0;
@@ -549,7 +539,6 @@ function submitPastedDistData() {
             cmimi: cmimi,
             pagesa: pagesa,
             menyra_e_pageses: menyra_e_pageses || null,
-            fatura_e_derguar: fatura_e_derguar || null,
             data_e_fletepageses: data_e_fletepageses,
             koment: koment || null,
             litrat_total: litrat_total,
