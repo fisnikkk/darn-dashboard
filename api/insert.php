@@ -27,6 +27,7 @@ $schemas = [
                    'i_regjistruar_ne_emer','numri_unik_identifikues','telefoni_2'],
     'stoku_zyrtar' => ['data','kodi','kodi_2','pershkrimi','njesi','sasia','cmimi','vlera'],
     'depo' => ['data','produkti','sasia','cmimi'],
+    'notes' => ['data','teksti','barazu_nga'],
 ];
 
 if (!isset($schemas[$table])) {

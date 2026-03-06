@@ -125,15 +125,16 @@ usort($avgFilterVals, function($a, $b) { return (float)$a - (float)$b; });
 $bashkValues = $db->query("SELECT DISTINCT bashkepunim FROM kontrata WHERE bashkepunim IS NOT NULL AND bashkepunim != '' ORDER BY bashkepunim")->fetchAll(PDO::FETCH_COLUMN);
 $qytetValues = $db->query("SELECT DISTINCT qyteti FROM kontrata WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
 $nameDbVals = $db->query("SELECT DISTINCT name_from_database FROM kontrata WHERE name_from_database IS NOT NULL AND name_from_database != '' ORDER BY name_from_database")->fetchAll(PDO::FETCH_COLUMN);
-$rrugaVals = $db->query("SELECT DISTINCT rruga FROM kontrata WHERE rruga IS NOT NULL AND rruga != '' ORDER BY rruga LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$rrugaVals = $db->query("SELECT DISTINCT rruga FROM kontrata WHERE rruga IS NOT NULL AND rruga != '' ORDER BY rruga")->fetchAll(PDO::FETCH_COLUMN);
 $perfaqVals = $db->query("SELECT DISTINCT perfaqesuesi FROM kontrata WHERE perfaqesuesi IS NOT NULL AND perfaqesuesi != '' ORDER BY perfaqesuesi")->fetchAll(PDO::FETCH_COLUMN);
 $llojiBocaVals = $db->query("SELECT DISTINCT lloji_i_bocave FROM kontrata WHERE lloji_i_bocave IS NOT NULL AND lloji_i_bocave != '' ORDER BY lloji_i_bocave")->fetchAll(PDO::FETCH_COLUMN);
 $grupNjoftVals = $db->query("SELECT DISTINCT ne_grup_njoftues FROM kontrata WHERE ne_grup_njoftues IS NOT NULL AND ne_grup_njoftues != '' ORDER BY ne_grup_njoftues")->fetchAll(PDO::FETCH_COLUMN);
 $stokVals = $db->query("SELECT DISTINCT CAST(numri_ne_stok_sipas_kontrates AS CHAR) as v FROM kontrata WHERE numri_ne_stok_sipas_kontrates IS NOT NULL ORDER BY numri_ne_stok_sipas_kontrates+0")->fetchAll(PDO::FETCH_COLUMN);
-$pdaVals = $db->query("SELECT DISTINCT sipas_skenimit_pda FROM kontrata WHERE sipas_skenimit_pda IS NOT NULL AND sipas_skenimit_pda != '' ORDER BY sipas_skenimit_pda LIMIT 200")->fetchAll(PDO::FETCH_COLUMN);
+$pdaVals = $db->query("SELECT DISTINCT sipas_skenimit_pda FROM kontrata WHERE sipas_skenimit_pda IS NOT NULL AND sipas_skenimit_pda != '' ORDER BY sipas_skenimit_pda")->fetchAll(PDO::FETCH_COLUMN);
 $kontrateVjeterVals = $db->query("SELECT DISTINCT kontrate_e_vjeter FROM kontrata WHERE kontrate_e_vjeter IS NOT NULL AND kontrate_e_vjeter != '' ORDER BY kontrate_e_vjeter")->fetchAll(PDO::FETCH_COLUMN);
 $bocatPagVals = $db->query("SELECT DISTINCT bocat_e_paguara FROM kontrata WHERE bocat_e_paguara IS NOT NULL AND bocat_e_paguara != '' ORDER BY bocat_e_paguara")->fetchAll(PDO::FETCH_COLUMN);
-$komentVals = $db->query("SELECT DISTINCT koment FROM kontrata WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 300")->fetchAll(PDO::FETCH_COLUMN);
+array_unshift($bocatPagVals, ''); // Allow filtering for blank/empty values
+$komentVals = $db->query("SELECT DISTINCT koment FROM kontrata WHERE koment IS NOT NULL AND koment != '' ORDER BY koment")->fetchAll(PDO::FETCH_COLUMN);
 
 // Helper: add client-side filter attributes to a server-sorted th element
 function withClientFilter($thHtml, $filterName, $filterValues, $colIdx) {
@@ -246,7 +247,7 @@ ob_start();
                         <td class="editable" data-field="numri_unik"><?= e($r['numri_unik']) ?></td>
                         <td class="editable" data-field="perfaqesuesi"><?= e($r['perfaqesuesi']) ?></td>
                         <td class="editable" data-field="nr_telefonit"><?= e($r['nr_telefonit']) ?></td>
-                        <td class="editable" data-field="email"><?= e($r['email']) ?></td>
+                        <td class="editable truncate" data-field="email" style="max-width:150px;" title="<?= e($r['email']) ?>"><?= e($r['email']) ?></td>
                         <td class="editable" data-field="ne_grup_njoftues"><?= e($r['ne_grup_njoftues']) ?></td>
                         <td class="editable" data-field="kontrate_e_vjeter"><?= e($r['kontrate_e_vjeter']) ?></td>
                         <td class="editable" data-field="lloji_i_bocave"><?= e($r['lloji_i_bocave']) ?></td>

@@ -129,6 +129,7 @@ if ($selectedClient !== '') {
                 <?php if ($dateFrom || $dateTo): ?>
                 <a href="?klient=<?= urlencode($selectedClient) ?>" class="btn btn-outline btn-sm">Pastro</a>
                 <?php endif; ?>
+                <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="margin-left:auto;"><i class="fas fa-file-pdf"></i> Shkarko PDF</button>
             </form>
         </div>
         <div class="card-body">
@@ -137,7 +138,7 @@ if ($selectedClient !== '') {
                     <thead>
                         <tr>
                             <th>Data</th>
-                            <th>Përshkrimi</th>
+                            <th class="print-hide">Përshkrimi</th>
                             <th class="num" style="color:var(--danger);">Debi (&euro;)</th>
                             <th class="num" style="color:var(--success);">Kredi (&euro;)</th>
                             <th class="num" style="font-weight:700;">Gjendja (&euro;)</th>
@@ -152,7 +153,7 @@ if ($selectedClient !== '') {
                         <?php foreach ($transactions as $t): ?>
                         <tr style="<?= $t['lloji'] === 'kredi' ? 'background:#f0fdf4;' : '' ?>">
                             <td style="white-space:nowrap;"><?= $t['data'] ?></td>
-                            <td class="truncate" title="<?= e($t['pershkrim']) ?>">
+                            <td class="truncate print-hide" title="<?= e($t['pershkrim']) ?>">
                                 <?php if ($t['lloji'] === 'debi'): ?>
                                     <i class="fas fa-truck" style="color:var(--danger);margin-right:4px;"></i>
                                 <?php elseif ($t['src'] === 'auto_cash'): ?>

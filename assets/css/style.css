@@ -819,3 +819,31 @@ th.sort-desc .sort-icon { opacity: 1; }
 
 /* Utilities */
 .hidden { display: none !important; }
+
+/* Print styles for PDF export */
+@media print {
+    .sidebar, .sidebar-backdrop, .top-bar, .pagination, .btn,
+    .print-hide, footer, .filters, .col-filter-btn {
+        display: none !important;
+    }
+    .main-content {
+        margin-left: 0 !important;
+        padding: 10px !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+    .summary-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    table.data-table {
+        font-size: 10pt;
+    }
+    table.data-table th, table.data-table td {
+        padding: 4px 8px;
+    }
+    body {
+        background: white;
+    }
+}

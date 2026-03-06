@@ -99,8 +99,8 @@ $totalShpenzim = $totalShpenzimStmt->fetchColumn();
 $llojetTrans = $db->query("SELECT DISTINCT lloji_i_transaksionit FROM shpenzimet WHERE lloji_i_transaksionit IS NOT NULL ORDER BY lloji_i_transaksionit")->fetchAll(PDO::FETCH_COLUMN);
 $llojetPag = $db->query("SELECT DISTINCT lloji_i_pageses FROM shpenzimet WHERE lloji_i_pageses IS NOT NULL ORDER BY lloji_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
 $arsyet = $db->query("SELECT DISTINCT arsyetimi FROM shpenzimet WHERE arsyetimi IS NOT NULL ORDER BY arsyetimi")->fetchAll(PDO::FETCH_COLUMN);
-$pershkrimVals = $db->query("SELECT DISTINCT pershkrim_i_detajuar FROM shpenzimet WHERE pershkrim_i_detajuar IS NOT NULL AND pershkrim_i_detajuar != '' ORDER BY pershkrim_i_detajuar LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
-$nrFaturVals = $db->query("SELECT DISTINCT numri_i_fatures FROM shpenzimet WHERE numri_i_fatures IS NOT NULL AND numri_i_fatures != '' ORDER BY numri_i_fatures LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$pershkrimVals = $db->query("SELECT DISTINCT pershkrim_i_detajuar FROM shpenzimet WHERE pershkrim_i_detajuar IS NOT NULL AND pershkrim_i_detajuar != '' ORDER BY pershkrim_i_detajuar")->fetchAll(PDO::FETCH_COLUMN);
+$nrFaturVals = $db->query("SELECT DISTINCT numri_i_fatures FROM shpenzimet WHERE numri_i_fatures IS NOT NULL AND numri_i_fatures != '' ORDER BY numri_i_fatures")->fetchAll(PDO::FETCH_COLUMN);
 $fatRregulltVals = $db->query("SELECT DISTINCT fatura_e_rregullte FROM shpenzimet WHERE fatura_e_rregullte IS NOT NULL AND fatura_e_rregullte != '' ORDER BY fatura_e_rregullte")->fetchAll(PDO::FETCH_COLUMN);
 
 $transJSON = json_encode($llojetTrans);

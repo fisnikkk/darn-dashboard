@@ -1,0 +1,164 @@
+<?php
+/**
+ * DARN Dashboard - Notes
+ * Mirrors Excel "NOTES" sheet:
+ *   Columns: Data, Teksti (Notes), Barazu nga (Reconciled from)
+ *   Journal/log of business notes, reconciliations, and observations
+ */
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/layout.php';
+
+$db = getDB();
+
+// Sorting
+$sortCol = $_GET['sort'] ?? 'data';
+$sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
+$allowedSort = ['data', 'id'];
+if (!in_array($sortCol, $allowedSort)) $sortCol = 'data';
+
+// Date range filter
+$filterFrom = $_GET['date_from'] ?? '';
+$filterTo = $_GET['date_to'] ?? '';
+$whereArr = [];
+$params = [];
+if ($filterFrom) { $whereArr[] = 'data >= ?'; $params[] = $filterFrom; }
+if ($filterTo) { $whereArr[] = 'data <= ?'; $params[] = $filterTo; }
+
+// Text search
+$search = $_GET['search'] ?? '';
+if ($search) {
+    $whereArr[] = '(teksti LIKE ? OR barazu_nga LIKE ?)';
+    $params[] = '%' . $search . '%';
+    $params[] = '%' . $search . '%';
+}
+
+$where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
+
+// Pagination
+$perPage = (int)($_GET['per_page'] ?? 50);
+$page = max(1, (int)($_GET['page'] ?? 1));
+$countStmt = $db->prepare("SELECT COUNT(*) FROM notes {$where}");
+$countStmt->execute($params);
+$totalRows = $countStmt->fetchColumn();
+$totalPages = max(1, ceil($totalRows / $perPage));
+$offset = ($page - 1) * $perPage;
+
+// Query
+$stmt = $db->prepare("SELECT * FROM notes {$where} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$stmt->execute($params);
+$rows = $stmt->fetchAll();
+
+ob_start();
+?>
+
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="label">Total shënime</div>
+        <div class="value"><?= num($totalRows) ?></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3><i class="fas fa-sticky-note"></i> Notes</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <form method="GET" style="display:flex;gap:8px;align-items:center;">
+                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:180px;">
+                <label style="font-size:0.82rem;font-weight:600;">Nga:</label>
+                <input type="date" name="date_from" value="<?= e($filterFrom) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                <label style="font-size:0.82rem;font-weight:600;">Deri:</label>
+                <input type="date" name="date_to" value="<?= e($filterTo) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                <button type="submit" class="btn btn-primary btn-sm">Filtro</button>
+                <?php if ($search || $filterFrom || $filterTo): ?>
+                <a href="?page=notes" class="btn btn-outline btn-sm">Pastro</a>
+                <?php endif; ?>
+            </form>
+            <button class="btn btn-primary btn-sm" onclick="openModal('addNoteModal')"><i class="fas fa-plus"></i> Shto</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-wrapper">
+            <table class="data-table" data-table="notes">
+                <thead>
+                    <tr>
+                        <th style="width:110px;">
+                            <a href="?sort=data&dir=<?= $sortCol === 'data' && $sortDir === 'DESC' ? 'ASC' : 'DESC' ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $filterFrom ? '&date_from=' . urlencode($filterFrom) : '' ?><?= $filterTo ? '&date_to=' . urlencode($filterTo) : '' ?>" style="color:inherit;text-decoration:none;">
+                                Data <i class="fas fa-sort<?= $sortCol === 'data' ? ($sortDir === 'ASC' ? '-up' : '-down') : '' ?>"></i>
+                            </a>
+                        </th>
+                        <th>Shënim</th>
+                        <th style="width:300px;">Barazu nga</th>
+                        <th style="width:50px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($rows)): ?>
+                    <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">
+                        <i class="fas fa-info-circle"></i> Nuk ka shënime.
+                    </td></tr>
+                    <?php else: ?>
+                    <?php foreach ($rows as $r): ?>
+                    <tr data-id="<?= $r['id'] ?>">
+                        <td class="editable" data-field="data" data-type="date" style="white-space:nowrap;"><?= $r['data'] ?: '-' ?></td>
+                        <td class="editable wrap" data-field="teksti" style="min-width:300px;white-space:normal;word-break:break-word;"><?= e($r['teksti']) ?></td>
+                        <td class="editable wrap" data-field="barazu_nga" style="white-space:normal;word-break:break-word;"><?= e($r['barazu_nga']) ?></td>
+                        <td><button class="btn btn-danger btn-sm" onclick="deleteRow('notes',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+<?php if ($totalPages > 1): ?>
+<div class="pagination">
+    <?php if ($page > 1): ?>
+    <a href="?page=<?= $page - 1 ?>&sort=<?= $sortCol ?>&dir=<?= $sortDir ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $filterFrom ? '&date_from=' . urlencode($filterFrom) : '' ?><?= $filterTo ? '&date_to=' . urlencode($filterTo) : '' ?>" class="btn btn-outline btn-sm">&laquo; Para</a>
+    <?php endif; ?>
+    <span style="font-size:0.82rem;color:var(--text-muted);">Faqja <?= $page ?> / <?= $totalPages ?> (<?= $totalRows ?> rreshta)</span>
+    <?php if ($page < $totalPages): ?>
+    <a href="?page=<?= $page + 1 ?>&sort=<?= $sortCol ?>&dir=<?= $sortDir ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $filterFrom ? '&date_from=' . urlencode($filterFrom) : '' ?><?= $filterTo ? '&date_to=' . urlencode($filterTo) : '' ?>" class="btn btn-outline btn-sm">Tjetër &raquo;</a>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- Add Note Modal -->
+<div class="modal-overlay" id="addNoteModal">
+    <div class="modal">
+        <div class="modal-header"><h3>Shto shënim</h3><button class="btn btn-outline btn-sm" onclick="closeModal('addNoteModal')">&times;</button></div>
+        <form class="ajax-form" action="/api/insert.php" method="POST">
+            <input type="hidden" name="_table" value="notes">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Data</label>
+                        <input type="date" name="data" value="<?= date('Y-m-d') ?>">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="width:100%;">
+                        <label>Shënim *</label>
+                        <textarea name="teksti" required rows="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:0.85rem;resize:vertical;"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="width:100%;">
+                        <label>Barazu nga</label>
+                        <textarea name="barazu_nga" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:0.85rem;resize:vertical;"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('addNoteModal')">Anulo</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Ruaj</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<?php
+$content = ob_get_clean();
+renderLayout('Notes', 'notes', $content);

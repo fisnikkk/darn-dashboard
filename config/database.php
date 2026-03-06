@@ -75,6 +75,15 @@ function runMigrations($pdo) {
             $pdo->exec("CREATE INDEX idx_gb_klienti ON gjendja_bankare (klienti)");
         }
 
+        // Notes table (mirrors Excel NOTES sheet)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS notes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data DATE NULL,
+            teksti TEXT,
+            barazu_nga TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,13 +135,28 @@ function getFilterParam($name) {
 /**
  * Build WHERE IN clause for a multi-select filter.
  * Returns ['sql' => '...', 'params' => [...]] or null if no filter active.
+ * Handles blank/empty values: empty string in filter values matches NULL or empty in DB.
  */
 function buildFilterIn($filterValues, $column, $tableAlias = '') {
     if (empty($filterValues)) return null;
     $col = $tableAlias ? "{$tableAlias}.{$column}" : $column;
-    $placeholders = implode(',', array_fill(0, count($filterValues), '?'));
+
+    $hasBlank = in_array('', $filterValues, true);
+    $nonBlank = array_filter($filterValues, fn($v) => $v !== '');
+
+    $parts = [];
+    $params = [];
+    if ($nonBlank) {
+        $placeholders = implode(',', array_fill(0, count($nonBlank), '?'));
+        $parts[] = "{$col} IN ({$placeholders})";
+        $params = array_values($nonBlank);
+    }
+    if ($hasBlank) {
+        $parts[] = "({$col} IS NULL OR {$col} = '')";
+    }
+
     return [
-        'sql' => "{$col} IN ({$placeholders})",
-        'params' => array_values($filterValues)
+        'sql' => '(' . implode(' OR ', $parts) . ')',
+        'params' => $params
     ];
 }

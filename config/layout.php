@@ -21,6 +21,7 @@ function renderLayout($pageTitle, $currentPage, $content) {
         // Klientet tab removed per user request
         ['id' => 'stoku_zyrtar', 'icon' => 'fa-boxes', 'label' => 'Stoku Zyrtar'],
         ['id' => 'depo', 'icon' => 'fa-warehouse', 'label' => 'Depo'],
+        ['id' => 'notes', 'icon' => 'fa-sticky-note', 'label' => 'Notes'],
     ];
 ?>
 <!DOCTYPE html>

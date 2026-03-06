@@ -99,7 +99,7 @@ $litBleraMeFatVals = array_values(array_unique(array_map(fn($d) => eur($d['litra
 $litFaturuaraVals = array_values(array_unique(array_map(fn($d) => eur($d['litraFaturuara']), $data)));
 $litMbeturVals = array_values(array_unique(array_map(fn($d) => eur($d['litraMbeturMeFature']), $data)));
 $litBocaVals = array_values(array_unique(array_map(fn($d) => num($d['bocaShperndara']), $data)));
-$litShitjeVals = array_values(array_unique(array_map(fn($d) => eur($d['shitje']), $data)));
+$litShitjeVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['shitje']), $data)));
 $litKthimVals = array_values(array_unique(array_map(fn($d) => number_format($d['kthimPerBoce'], 2), $data)));
 sort($litMonths); sort($litBleraVals); sort($litShituraVals); sort($litBleraMeFatVals);
 sort($litFaturuaraVals); sort($litMbeturVals); sort($litBocaVals);

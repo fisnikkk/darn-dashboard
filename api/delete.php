@@ -8,7 +8,7 @@ $id = (int)($input['id'] ?? 0);
 
 $allowed = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve',
             'kontrata','gjendja_bankare','nxemese','klientet',
-            'stoku_zyrtar','depo'];
+            'stoku_zyrtar','depo','notes'];
 
 if (!in_array($table, $allowed) || !$id) {
     echo json_encode(['success' => false, 'error' => 'Invalid request']);

@@ -64,8 +64,8 @@ $borxhFBankeVals = array_values(array_unique(array_map(fn($d) => eur($d['fature_
 $borxhFCashVals = array_values(array_unique(array_map(fn($d) => eur($d['fature_cash']), $debts)));
 $borxhNoPagVals = array_values(array_unique(array_map(fn($d) => eur($d['no_payment']), $debts)));
 $borxhDhurateVals = array_values(array_unique(array_map(fn($d) => eur($d['dhurate']), $debts)));
-$borxhTotalVals = array_values(array_unique(array_map(fn($d) => eur($d['total']), $debts)));
-$borxhBorxhiVals = array_values(array_unique(array_map(fn($d) => eur($d['borxhi_bank_deri']), $debts)));
+$borxhTotalVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['total']), $debts)));
+$borxhBorxhiVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['borxhi_bank_deri']), $debts)));
 sort($borxhCashVals); sort($borxhBankVals); sort($borxhFBankeVals); sort($borxhFCashVals);
 sort($borxhNoPagVals); sort($borxhDhurateVals); sort($borxhTotalVals); sort($borxhBorxhiVals);
 

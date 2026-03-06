@@ -51,6 +51,26 @@ $investmentKeys = [
     'investime ne kombi 3'
 ];
 
+// Dynamic category discovery: find arsyetimi values not covered by hardcoded categories
+$coveredKeys = [];
+foreach ($expenseCategories as $cat) {
+    foreach ($cat['keys'] as $key) {
+        $coveredKeys[strtolower(trim($key))] = true;
+    }
+}
+$allArsyetimet = $db->query("SELECT DISTINCT arsyetimi FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'shpenzim' AND arsyetimi IS NOT NULL AND arsyetimi != '' ORDER BY arsyetimi")->fetchAll(PDO::FETCH_COLUMN);
+foreach ($allArsyetimet as $arsyetimi) {
+    $lower = strtolower(trim($arsyetimi));
+    if (!isset($coveredKeys[$lower])) {
+        $safeId = 'dyn_' . preg_replace('/[^a-z0-9_]/', '_', $lower);
+        $expenseCategories[$safeId] = [
+            'label' => $arsyetimi,
+            'keys' => [$lower],
+        ];
+        $coveredKeys[$lower] = true;
+    }
+}
+
 // Build the CASE WHEN SQL for all subcategories
 $caseClauses = [];
 foreach ($expenseCategories as $id => $cat) {

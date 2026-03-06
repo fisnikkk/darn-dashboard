@@ -82,7 +82,7 @@ $klientet = $db->query("SELECT DISTINCT klienti FROM nxemese ORDER BY klienti")-
 $llojet = $db->query("SELECT DISTINCT lloji_i_nxemjes FROM nxemese WHERE lloji_i_nxemjes IS NOT NULL ORDER BY lloji_i_nxemjes")->fetchAll(PDO::FETCH_COLUMN);
 $nxDhenaVals = $db->query("SELECT DISTINCT te_dhena FROM nxemese ORDER BY te_dhena")->fetchAll(PDO::FETCH_COLUMN);
 $nxMarraVals = $db->query("SELECT DISTINCT te_marra FROM nxemese ORDER BY te_marra")->fetchAll(PDO::FETCH_COLUMN);
-$nxKomentVals = $db->query("SELECT DISTINCT koment FROM nxemese WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$nxKomentVals = $db->query("SELECT DISTINCT koment FROM nxemese WHERE koment IS NOT NULL AND koment != '' ORDER BY koment")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>

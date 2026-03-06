@@ -88,10 +88,10 @@ $payTypes = $db->query("SELECT DISTINCT menyra_pageses FROM shitje_produkteve WH
 $payJSON = json_encode($payTypes);
 $spClients = $db->query("SELECT DISTINCT klienti FROM shitje_produkteve WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 $statusiVals = $db->query("SELECT DISTINCT statusi_i_pageses FROM shitje_produkteve WHERE statusi_i_pageses IS NOT NULL AND statusi_i_pageses != '' ORDER BY statusi_i_pageses")->fetchAll(PDO::FETCH_COLUMN);
-$spAdresaVals = $db->query("SELECT DISTINCT adresa FROM shitje_produkteve WHERE adresa IS NOT NULL AND adresa != '' ORDER BY adresa LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$spAdresaVals = $db->query("SELECT DISTINCT adresa FROM shitje_produkteve WHERE adresa IS NOT NULL AND adresa != '' ORDER BY adresa")->fetchAll(PDO::FETCH_COLUMN);
 $spQytetiVals = $db->query("SELECT DISTINCT qyteti FROM shitje_produkteve WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
 $spCmimiVals = $db->query("SELECT DISTINCT cmimi FROM shitje_produkteve WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN);
-$spKomentVals = $db->query("SELECT DISTINCT koment FROM shitje_produkteve WHERE koment IS NOT NULL AND koment != '' ORDER BY koment LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+$spKomentVals = $db->query("SELECT DISTINCT koment FROM shitje_produkteve WHERE koment IS NOT NULL AND koment != '' ORDER BY koment")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
