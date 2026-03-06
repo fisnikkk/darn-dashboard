@@ -33,7 +33,7 @@ if ($selectedClient !== '') {
     if ($dateFrom) { $dateWhere .= ' AND data >= ?'; $dateParams[] = $dateFrom; }
     if ($dateTo)   { $dateWhere .= ' AND data <= ?'; $dateParams[] = $dateTo; }
 
-    // 1. DEBI: all deliveries from distribuimi (except DHURATE)
+    // 1. DEBI: all deliveries from distribuimi (except DHURATE), skip zero-value rows
     $debiSQL = "
         SELECT d.data, 'debi' as lloji,
                CONCAT(d.sasia, ' boca × ', d.litra, 'L × ', d.cmimi, '€ — ', COALESCE(d.menyra_e_pageses,'')) as pershkrim,
@@ -41,10 +41,11 @@ if ($selectedClient !== '') {
         FROM distribuimi d
         WHERE LOWER(d.klienti) = LOWER(?)
           AND LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) != 'dhurate'
+          AND d.pagesa > 0
           {$dateWhere}
     ";
 
-    // 2. Auto KREDI for cash payments (CASH + PO CASH)
+    // 2. Auto KREDI for cash payments (CASH + PO CASH), skip zero-value
     $krediCashSQL = "
         SELECT d.data, 'kredi' as lloji,
                CONCAT('Pagesa cash — ', d.sasia, ' boca') as pershkrim,
@@ -52,6 +53,7 @@ if ($selectedClient !== '') {
         FROM distribuimi d
         WHERE LOWER(d.klienti) = LOWER(?)
           AND LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) IN ('cash', 'po (fature te rregullte) cash')
+          AND d.pagesa > 0
           {$dateWhere}
     ";
 
@@ -339,9 +341,9 @@ ob_start();
                 <tbody>
                     <?php foreach ($clientSummaries as $cs): ?>
                     <tr style="<?= $cs['gjendja'] > 0.01 ? 'background:#fef2f2;' : ($cs['gjendja'] < -0.01 ? 'background:#f0fdf4;' : '') ?>"
-                        onclick="window.location.href='?klient=<?= urlencode($cs['klienti']) ?>'"
+                        onclick="window.open('?klient=<?= urlencode($cs['klienti']) ?>', '_blank')"
                         class="clickable-row">
-                        <td><a href="?klient=<?= urlencode($cs['klienti']) ?>" style="color:inherit;text-decoration:none;font-weight:500;"><?= e($cs['klienti']) ?></a></td>
+                        <td><a href="?klient=<?= urlencode($cs['klienti']) ?>" target="_blank" style="color:inherit;text-decoration:none;font-weight:500;"><?= e($cs['klienti']) ?></a></td>
                         <td class="amount" style="color:var(--danger);"><?= eur($cs['total_debi']) ?></td>
                         <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_cash']) ?></td>
                         <td class="amount" style="color:var(--success);"><?= eur($cs['kredi_bank']) ?></td>

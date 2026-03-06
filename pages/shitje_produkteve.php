@@ -96,6 +96,10 @@ $spKomentVals = $db->query("SELECT DISTINCT koment FROM shitje_produkteve WHERE 
 ob_start();
 ?>
 
+<style>
+.sp-table th.num, .sp-table td.amount, .sp-table td.num { text-align: right; padding-right: 16px; }
+</style>
+
 <div class="summary-grid">
     <div class="summary-card">
         <div class="label">Total Shitje</div>
@@ -220,7 +224,7 @@ ob_start();
     </div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="shitje_produkteve" data-server-sort="true">
+            <table class="data-table sp-table" data-table="shitje_produkteve" data-server-sort="true">
                 <thead>
                     <tr>
                         <?= sortThSP('data', 'Data', $sortCol, $sortDir) ?>
