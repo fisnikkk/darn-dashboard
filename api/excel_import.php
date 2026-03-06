@@ -43,22 +43,21 @@ if ($action === 'import_rows') {
         $deleted = 0;
 
         // Ensure columns are wide enough for Excel data
-        $widenErrors = [];
-        foreach ([
-            "ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL",
-            "ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL",
-            "ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL",
-            "ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL",
-        ] as $alterSql) {
-            try { $db->exec($alterSql); } catch (PDOException $e) { $widenErrors[] = $alterSql . ' => ' . $e->getMessage(); }
-        }
-
-        // Debug: if action is 'debug_columns', return column info
-        if (($input['debug'] ?? false)) {
-            $colInfo = $db->query("SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gjendja_bankare' ORDER BY ORDINAL_POSITION")->fetchAll();
-            echo json_encode(['columns' => $colInfo, 'widen_errors' => $widenErrors]);
-            exit;
-        }
+        // Drop indexes first if they block TEXT conversion, then widen
+        try {
+            // Find and drop any index on gjendja_bankare.lloji
+            $indexes = $db->query("SHOW INDEX FROM gjendja_bankare WHERE Column_name = 'lloji'")->fetchAll();
+            foreach ($indexes as $idx) {
+                $keyName = $idx['Key_name'];
+                if ($keyName !== 'PRIMARY') {
+                    $db->exec("ALTER TABLE gjendja_bankare DROP INDEX `{$keyName}`");
+                }
+            }
+            $db->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL");
+        } catch (PDOException $e) { /* ignore */ }
+        try { $db->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL"); } catch (PDOException $e) {}
+        try { $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL"); } catch (PDOException $e) {}
+        try { $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL"); } catch (PDOException $e) {}
 
         // Replace mode: delete existing data first
         if ($mode === 'replace') {
