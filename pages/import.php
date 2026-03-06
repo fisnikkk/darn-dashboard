@@ -232,24 +232,34 @@ document.getElementById('excelFile').addEventListener('change', function() {
 
 // Excel date serial → YYYY-MM-DD
 function excelDateToYmd(v) {
-    if (v == null || v === '') return null;
+    if (v == null || v === '' || v === 0) return null;
     if (typeof v === 'string') {
-        // Already a date string
+        // Already YYYY-MM-DD
         if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.substring(0, 10);
+        // DD/MM/YYYY
         if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(v)) {
             const p = v.split('/');
             return p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0');
         }
-        return v;
+        // DD.MM.YYYY
+        if (/^\d{1,2}\.\d{1,2}\.\d{4}/.test(v)) {
+            const p = v.split('.');
+            return p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0');
+        }
+        // Unrecognized string → null (not a valid date)
+        return null;
     }
     if (typeof v === 'number' && v > 1) {
         // Excel serial date
         const d = new Date((v - 25569) * 86400000);
         if (!isNaN(d.getTime())) {
-            return d.toISOString().substring(0, 10);
+            const year = d.getUTCFullYear();
+            if (year >= 1900 && year <= 2100) {
+                return d.toISOString().substring(0, 10);
+            }
         }
     }
-    return String(v);
+    return null; // unrecognized → null
 }
 
 function cleanNum(v) {
@@ -448,7 +458,7 @@ async function startImport() {
         try {
             // Send rows in chunks of 2000 to avoid request size limits
             const CHUNK = 2000;
-            let totalImported = 0, totalDeleted = 0;
+            let totalImported = 0, totalDeleted = 0, totalErrors = [];
             const chunks = Math.ceil(sheetData.rows.length / CHUNK);
 
             for (let c = 0; c < chunks; c++) {
@@ -469,6 +479,7 @@ async function startImport() {
                 if (!data.success) throw new Error(data.error);
                 totalImported += data.imported;
                 if (data.deleted) totalDeleted += data.deleted;
+                if (data.errors) totalErrors = totalErrors.concat(data.errors);
 
                 if (chunks > 1) {
                     const pct = Math.round(((c + 1) / chunks) * 100);
@@ -477,6 +488,11 @@ async function startImport() {
             }
 
             addLog(`${item.table}: ${totalImported} rreshta u importuan${totalDeleted ? ' (' + totalDeleted + ' u fshinë)' : ''}`, 'success');
+            if (totalErrors.length > 0) {
+                addLog(`  ⚠ ${totalErrors.length} rreshta me gabime:`, 'error');
+                totalErrors.slice(0, 5).forEach(err => addLog(`    ${err}`, 'error'));
+                if (totalErrors.length > 5) addLog(`    ... dhe ${totalErrors.length - 5} gabime të tjera`, 'error');
+            }
             if (statusCell) statusCell.innerHTML = '<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ' + totalImported + ' rreshta</span>';
             successCount++;
         } catch (e) {

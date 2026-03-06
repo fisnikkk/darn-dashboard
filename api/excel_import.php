@@ -64,6 +64,23 @@ if ($action === 'import_rows') {
         $sql = "INSERT INTO {$tableName} (" . implode(',', $columns) . ") VALUES {$placeholders}";
         $stmt = $db->prepare($sql);
 
+        // Detect date columns from DB schema for value sanitization
+        $dateColumnsDB = [];
+        $numColumnsDB = [];
+        try {
+            $colInfo = $db->query("SHOW COLUMNS FROM {$tableName}")->fetchAll();
+            foreach ($colInfo as $ci) {
+                $type = strtolower($ci['Type']);
+                if (in_array($ci['Field'], $columns)) {
+                    if (strpos($type, 'date') !== false || strpos($type, 'time') !== false) {
+                        $dateColumnsDB[] = $ci['Field'];
+                    } elseif (preg_match('/^(int|decimal|float|double|bigint|smallint|tinyint|numeric)/', $type)) {
+                        $numColumnsDB[] = $ci['Field'];
+                    }
+                }
+            }
+        } catch (PDOException $e) { /* ignore */ }
+
         foreach ($rows as $idx => $row) {
             try {
                 $values = [];
@@ -72,14 +89,38 @@ if ($action === 'import_rows') {
                     if ($val === '' || $val === null) {
                         $values[] = null;
                     } else {
-                        $values[] = $val;
+                        // Sanitize date values: must be YYYY-MM-DD or NULL
+                        if (in_array($col, $dateColumnsDB)) {
+                            if (is_string($val) && preg_match('/^\d{4}-\d{2}-\d{2}/', $val)) {
+                                $values[] = substr($val, 0, 10);
+                            } elseif (is_numeric($val) && (float)$val > 1) {
+                                // Excel serial date
+                                $ts = ((float)$val - 25569) * 86400;
+                                $d = gmdate('Y-m-d', (int)$ts);
+                                $values[] = ($d && $d !== '1970-01-01') ? $d : null;
+                            } else {
+                                $values[] = null; // invalid date → NULL
+                            }
+                        } elseif (in_array($col, $numColumnsDB)) {
+                            // Sanitize numeric values
+                            if (is_numeric($val)) {
+                                $values[] = $val;
+                            } else {
+                                $cleaned = preg_replace('/[^\d.\-]/', '', (string)$val);
+                                $values[] = is_numeric($cleaned) ? $cleaned : null;
+                            }
+                        } else {
+                            $values[] = $val;
+                        }
                     }
                 }
                 $stmt->execute($values);
                 $imported++;
             } catch (PDOException $e) {
-                $errors[] = "Row " . ($idx + 1) . ": " . $e->getMessage();
-                if (count($errors) > 10) break;
+                if (count($errors) < 50) {
+                    $errors[] = "Row " . ($idx + 1) . ": " . $e->getMessage();
+                }
+                // Continue processing remaining rows (don't break!)
             }
         }
 
