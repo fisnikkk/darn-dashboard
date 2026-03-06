@@ -69,9 +69,14 @@ $borxhBorxhiVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d
 sort($borxhCashVals); sort($borxhBankVals); sort($borxhFBankeVals); sort($borxhFCashVals);
 sort($borxhNoPagVals); sort($borxhDhurateVals); sort($borxhTotalVals); sort($borxhBorxhiVals);
 
-$borxhBCNoteVals = array_values(array_unique(array_filter(array_map(fn($n) => $n['klient_bank_cash'] ?? '', $notes))));
-$borxhKushVals = array_values(array_unique(array_filter(array_map(fn($n) => $n['kush_merr_borxhin'] ?? '', $notes))));
-$borxhKomentVals = array_values(array_unique(array_filter(array_map(fn($n) => $n['koment'] ?? '', $notes))));
+// Note columns: include blank ("") so users can filter for empty cells
+$borxhBCNoteVals = array_values(array_unique(array_map(fn($n) => $n['klient_bank_cash'] ?? '', $notes)));
+$borxhKushVals = array_values(array_unique(array_map(fn($n) => $n['kush_merr_borxhin'] ?? '', $notes)));
+$borxhKomentVals = array_values(array_unique(array_map(fn($n) => $n['koment'] ?? '', $notes)));
+// Ensure blank is always an option (for clients with no borxhet_notes entry)
+if (!in_array('', $borxhBCNoteVals)) $borxhBCNoteVals[] = '';
+if (!in_array('', $borxhKushVals)) $borxhKushVals[] = '';
+if (!in_array('', $borxhKomentVals)) $borxhKomentVals[] = '';
 sort($borxhBCNoteVals); sort($borxhKushVals); sort($borxhKomentVals);
 
 ob_start();
@@ -100,9 +105,9 @@ ob_start();
                         <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_dhurate" data-filter-values="<?= e(json_encode($borxhDhurateVals)) ?>" data-filter-mode="client" data-filter-col="6">Dhuratë <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;font-weight:700;" data-filter="f_borxh_total" data-filter-values="<?= e(json_encode($borxhTotalVals)) ?>" data-filter-mode="client" data-filter-col="7">Total <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;color:var(--danger);font-weight:700;" data-filter="f_borxh_borxhi" data-filter-values="<?= e(json_encode($borxhBorxhiVals)) ?>" data-filter-mode="client" data-filter-col="8">Borxhi Bank deri <?= date('d/m/Y', strtotime($dateDeri)) ?> <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" <?php if ($borxhBCNoteVals): ?>data-filter="f_borxh_bcnote" data-filter-values="<?= e(json_encode($borxhBCNoteVals)) ?>" data-filter-mode="client" data-filter-col="9"<?php endif; ?>>Klient me bank apo cash <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 10)" style="cursor:pointer;user-select:none;" <?php if ($borxhKushVals): ?>data-filter="f_borxh_kush" data-filter-values="<?= e(json_encode($borxhKushVals)) ?>" data-filter-mode="client" data-filter-col="10"<?php endif; ?>>Kush e merr borxhin <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;" <?php if ($borxhKomentVals): ?>data-filter="f_borxh_koment" data-filter-values="<?= e(json_encode($borxhKomentVals)) ?>" data-filter-mode="client" data-filter-col="11"<?php endif; ?>>Komment <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bcnote" data-filter-values="<?= e(json_encode($borxhBCNoteVals)) ?>" data-filter-mode="client" data-filter-col="9">Klient me bank apo cash <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 10)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_kush" data-filter-values="<?= e(json_encode($borxhKushVals)) ?>" data-filter-mode="client" data-filter-col="10">Kush e merr borxhin <i class="fas fa-sort"></i></th>
+                        <th class="server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_koment" data-filter-values="<?= e(json_encode($borxhKomentVals)) ?>" data-filter-mode="client" data-filter-col="11">Komment <i class="fas fa-sort"></i></th>
                     </tr>
                 </thead>
                 <tbody>
