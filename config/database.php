@@ -84,6 +84,18 @@ function runMigrations($pdo) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+        // Widen columns that are too small for Excel data
+        // stoku_zyrtar.njesi, shitje_produkteve.statusi_i_pageses, gjendja_bankare.lloji
+        try {
+            $pdo->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses VARCHAR(255) NULL");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji VARCHAR(255) NULL");
+        } catch (PDOException $e) {}
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,
