@@ -66,6 +66,7 @@ $borxhNoPagVals = array_values(array_unique(array_map(fn($d) => eur($d['no_payme
 $borxhDhurateVals = array_values(array_unique(array_map(fn($d) => eur($d['dhurate']), $debts)));
 $borxhTotalVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['total']), $debts)));
 $borxhBorxhiVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['borxhi_bank_deri']), $debts)));
+if (!in_array('', $borxhBorxhiVals)) $borxhBorxhiVals[] = '';
 sort($borxhCashVals); sort($borxhBankVals); sort($borxhFBankeVals); sort($borxhFCashVals);
 sort($borxhNoPagVals); sort($borxhDhurateVals); sort($borxhTotalVals); sort($borxhBorxhiVals);
 

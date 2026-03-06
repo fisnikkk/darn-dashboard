@@ -10,8 +10,29 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
-// Babi Cash Total: total cash collected from distribuimi
-$babiCashTotal = (float)$db->query("SELECT COALESCE(SUM(pagesa), 0) FROM distribuimi WHERE LOWER(TRIM(COALESCE(menyra_e_pageses,''))) = 'cash'")->fetchColumn();
+// Babi Cash Total (mirrors Pasqyra / Excel Distribuimi N4 = L4 + M4)
+// L4: Cash + Faturë cash from distribuimi (nga 29.08.2022) - Shpenzime cash
+$babiPayments = $db->query("
+    SELECT
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'cash' THEN pagesa ELSE 0 END), 0) as cash,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'po (fature te rregullte) cash' THEN pagesa ELSE 0 END), 0) as fature_cash
+    FROM distribuimi
+    WHERE data >= '2022-08-29'
+")->fetch();
+$babiExpenses = (float)$db->query("
+    SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
+    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'
+    AND (data_e_pageses >= '2022-08-29' OR data_e_pageses IS NULL OR data_e_pageses = '0000-00-00')
+")->fetchColumn();
+$babiManual = 281.9; // Manual adjustments from Excel
+$babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
+// M4: Product sales cash (nga 07.09.2022)
+$babiProductCash = (float)$db->query("
+    SELECT COALESCE(SUM(totali), 0) FROM shitje_produkteve
+    WHERE LOWER(TRIM(menyra_pageses)) = 'cash' AND data >= '2022-09-07'
+")->fetchColumn();
+// N4: Total
+$babiCashTotal = $babiGasCash + $babiProductCash;
 
 // Sorting
 $sortCol = $_GET['sort'] ?? 'data';
