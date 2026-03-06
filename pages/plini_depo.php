@@ -159,11 +159,15 @@ ob_start();
                 </div>
                 <div class="form-group">
                     <label>kg *</label>
-                    <input type="number" name="kg" step="0.01" required>
+                    <input type="number" name="kg" step="0.01" required id="pd_kg">
+                </div>
+                <div class="form-group">
+                    <label>Litra <small style="color:var(--text-muted);">auto: kg × 1.95</small></label>
+                    <input type="number" name="sasia_ne_litra" step="0.01" id="pd_litra">
                 </div>
                 <div class="form-group">
                     <label>Çmimi</label>
-                    <input type="number" name="cmimi" step="0.01">
+                    <input type="number" name="cmimi" step="0.01" id="pd_cmimi">
                 </div>
             </div>
             <div class="form-row">
@@ -300,20 +304,25 @@ ob_start();
 </div>
 
 <script>
-// Auto-calculate faturat_e_pranuara = kg × cmimi for plini_depo add form
+// Auto-calculate litra = kg × 1.95 and faturat = kg × cmimi for plini_depo add form
 (function() {
-    const form = document.querySelector('.ajax-form[action="/api/insert.php"]');
-    if (!form) return;
-    const kg = form.querySelector('[name="kg"]');
-    const cmimi = form.querySelector('[name="cmimi"]');
+    const kg = document.getElementById('pd_kg');
+    const litra = document.getElementById('pd_litra');
+    const cmimi = document.getElementById('pd_cmimi');
     const faturat = document.getElementById('pd_faturat');
-    if (!kg || !cmimi || !faturat) return;
-    function recalcFaturat() {
+    if (!kg || !litra || !cmimi || !faturat) return;
+
+    let litraManual = false;
+    litra.addEventListener('input', function() { litraManual = this.value !== ''; });
+
+    function recalc() {
         const k = parseFloat(kg.value) || 0;
         const c = parseFloat(cmimi.value) || 0;
+        if (k && !litraManual) litra.value = (k * 1.95).toFixed(2);
         if (k && c) faturat.value = (k * c).toFixed(2);
     }
-    [kg, cmimi].forEach(el => el.addEventListener('input', recalcFaturat));
+    kg.addEventListener('input', function() { litraManual = false; recalc(); });
+    cmimi.addEventListener('input', recalc);
 })();
 </script>
 
