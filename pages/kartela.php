@@ -20,7 +20,7 @@ $dateFrom = $_GET['date_from'] ?? '';
 $dateTo = $_GET['date_to'] ?? '';
 
 // Get all distinct clients from distribuimi
-$allClients = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
+$allClients = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi WHERE klienti IS NOT NULL AND TRIM(klienti) != '' GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
 
 // ============================================================
 // DETAIL VIEW — specific client selected
@@ -104,6 +104,10 @@ if ($selectedClient !== '') {
         </a>
     </div>
 
+    <style>
+    .kartela-detail th.num, .kartela-detail td.amount { text-align: right; padding-right: 16px; }
+    </style>
+
     <!-- Summary cards -->
     <div class="summary-grid">
         <div class="summary-card"><div class="label">Klienti</div><div class="value" style="font-size:1rem;"><?= e($selectedClient) ?></div></div>
@@ -134,7 +138,7 @@ if ($selectedClient !== '') {
         </div>
         <div class="card-body">
             <div class="table-wrapper">
-                <table class="data-table">
+                <table class="data-table kartela-detail">
                     <thead>
                         <tr>
                             <th>Data</th>

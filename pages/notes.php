@@ -10,6 +10,9 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
+// Babi Cash Total: total cash collected from distribuimi
+$babiCashTotal = (float)$db->query("SELECT COALESCE(SUM(pagesa), 0) FROM distribuimi WHERE LOWER(TRIM(COALESCE(menyra_e_pageses,''))) = 'cash'")->fetchColumn();
+
 // Sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
@@ -55,6 +58,18 @@ ob_start();
     <div class="summary-card">
         <div class="label">Total shënime</div>
         <div class="value"><?= num($totalRows) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Babi Cash Total</div>
+        <div class="value" id="babiCashValue">&euro; <?= eur($babiCashTotal) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Sipas raportit</div>
+        <div class="value"><input type="number" id="babiRaporti" step="0.01" placeholder="Shëno vlerën..." style="width:140px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.95rem;text-align:right;"></div>
+    </div>
+    <div class="summary-card" id="babiDiffCard">
+        <div class="label">Diferenca</div>
+        <div class="value" id="babiDiff" style="font-size:1.1rem;">-</div>
     </div>
 </div>
 
@@ -158,6 +173,35 @@ ob_start();
         </form>
     </div>
 </div>
+
+<script>
+(function() {
+    const babiTotal = <?= $babiCashTotal ?>;
+    const input = document.getElementById('babiRaporti');
+    const diffEl = document.getElementById('babiDiff');
+    const diffCard = document.getElementById('babiDiffCard');
+
+    input.addEventListener('input', function() {
+        const val = parseFloat(this.value);
+        if (isNaN(val)) {
+            diffEl.textContent = '-';
+            diffCard.style.borderLeft = '';
+            return;
+        }
+        const diff = babiTotal - val;
+        const formatted = Math.abs(diff).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (Math.abs(diff) < 0.01) {
+            diffEl.innerHTML = '<span style="color:var(--success);"><i class="fas fa-check-circle"></i> &euro; 0.00</span>';
+            diffCard.style.borderLeft = '4px solid var(--success)';
+        } else {
+            const color = diff > 0 ? 'var(--danger)' : 'var(--success)';
+            const sign = diff > 0 ? '+' : '-';
+            diffEl.innerHTML = '<span style="color:' + color + ';">' + sign + ' &euro; ' + formatted + '</span>';
+            diffCard.style.borderLeft = '4px solid ' + color;
+        }
+    });
+})();
+</script>
 
 <?php
 $content = ob_get_clean();

@@ -22,7 +22,7 @@ if ($fBorxhKlienti) { $fin = buildFilterIn($fBorxhKlienti, 'klienti'); $borxhWhe
 $borxhWhereSQL = $borxhWhere ? 'WHERE ' . implode(' AND ', $borxhWhere) : '';
 
 // Distinct clients for filter
-$borxhKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
+$borxhKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi WHERE klienti IS NOT NULL AND TRIM(klienti) != '' GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
 
 // Core query: debt by client and payment type up to the filter date
 $stmt = $db->prepare("

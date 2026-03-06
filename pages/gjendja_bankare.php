@@ -79,7 +79,7 @@ $gbShpjegimVals = $db->query("SELECT DISTINCT shpjegim FROM gjendja_bankare WHER
 $gbDeftesaVals = $db->query("SELECT DISTINCT deftesa FROM gjendja_bankare WHERE deftesa IS NOT NULL AND deftesa != '' ORDER BY deftesa LIMIT 3000")->fetchAll(PDO::FETCH_COLUMN);
 $gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 // Client names from distribuimi for the klienti datalist/select
-$distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
+$distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi WHERE klienti IS NOT NULL AND TRIM(klienti) != '' GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
 $distKlientetJSON = json_encode($distKlientet, JSON_UNESCAPED_UNICODE);
 // Merge both sources for the column filter dropdown (useful before clients are assigned)
 $allKlientetFilter = array_values(array_unique(array_merge($gbKlientetVals, $distKlientet)));
