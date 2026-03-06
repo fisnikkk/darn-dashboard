@@ -42,13 +42,23 @@ if ($action === 'import_rows') {
         $db = getDB();
         $deleted = 0;
 
-        // Ensure TEXT columns are wide enough (one-time fix, safe to run repeatedly)
-        try {
-            $db->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL");
-            $db->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL");
-            $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL");
-            $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL");
-        } catch (PDOException $e) { /* ignore */ }
+        // Ensure columns are wide enough for Excel data
+        $widenErrors = [];
+        foreach ([
+            "ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL",
+            "ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL",
+            "ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL",
+            "ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL",
+        ] as $alterSql) {
+            try { $db->exec($alterSql); } catch (PDOException $e) { $widenErrors[] = $alterSql . ' => ' . $e->getMessage(); }
+        }
+
+        // Debug: if action is 'debug_columns', return column info
+        if (($input['debug'] ?? false)) {
+            $colInfo = $db->query("SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gjendja_bankare' ORDER BY ORDINAL_POSITION")->fetchAll();
+            echo json_encode(['columns' => $colInfo, 'widen_errors' => $widenErrors]);
+            exit;
+        }
 
         // Replace mode: delete existing data first
         if ($mode === 'replace') {
