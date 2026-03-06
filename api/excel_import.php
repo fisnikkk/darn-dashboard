@@ -386,19 +386,18 @@ if ($action === 'import') {
 
     try {
         $db = getDB();
-        $db->beginTransaction();
         $deleted = 0;
 
-        // If replace mode, delete existing data
+        // If replace mode, delete existing data (outside transaction since ALTER TABLE is DDL)
         if ($mode === 'replace') {
             $stmt = $db->query("SELECT COUNT(*) FROM {$tableName}");
             $deleted = (int)$stmt->fetchColumn();
             $db->exec("DELETE FROM {$tableName}");
-            // Reset auto-increment
             $db->exec("ALTER TABLE {$tableName} AUTO_INCREMENT = 1");
         }
 
-        // Insert rows
+        // Insert rows in a transaction
+        $db->beginTransaction();
         $imported = 0;
         $errors = [];
 
