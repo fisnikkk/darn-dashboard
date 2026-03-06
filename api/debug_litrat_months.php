@@ -6,8 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $db = new Database();
-    $pdo = $db->getConnection();
+    $pdo = getDB();
 
     $excel_blera = [
         '2021-11' => 0, '2021-12' => 12675,
