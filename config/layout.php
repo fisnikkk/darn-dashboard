@@ -22,6 +22,7 @@ function renderLayout($pageTitle, $currentPage, $content) {
         ['id' => 'stoku_zyrtar', 'icon' => 'fa-boxes', 'label' => 'Stoku Zyrtar'],
         ['id' => 'depo', 'icon' => 'fa-warehouse', 'label' => 'Depo'],
         ['id' => 'notes', 'icon' => 'fa-sticky-note', 'label' => 'Notes'],
+        ['id' => 'import', 'icon' => 'fa-file-upload', 'label' => 'Import Excel'],
     ];
 ?>
 <!DOCTYPE html>
