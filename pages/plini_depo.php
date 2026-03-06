@@ -271,7 +271,7 @@ ob_start();
                         <td class="editable" data-field="nr_i_fatures"><?= e($r['nr_i_fatures']) ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="num editable" data-field="kg" data-type="number"><?= eur($r['kg']) ?></td>
-                        <td class="num"><?= eur($litra) ?></td>
+                        <td class="num editable" data-field="sasia_ne_litra" data-type="number"><?= eur($litra) ?></td>
                         <td class="num editable" data-field="cmimi" data-type="number"><?= number_format((float)$r['cmimi'], 2) ?></td>
                         <td class="amount editable" data-field="faturat_e_pranuara" data-type="number"><?= eur($r['faturat_e_pranuara']) ?></td>
                         <td class="amount editable" data-field="dalje_pagesat_sipas_bankes" data-type="number"><?= eur($r['dalje_pagesat_sipas_bankes']) ?></td>
