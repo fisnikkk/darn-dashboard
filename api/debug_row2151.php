@@ -20,8 +20,12 @@ try {
     $result['december_2024_rows'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $result['december_2024_count'] = count($result['december_2024_rows']);
 
-    // 3. Check changelog for any changes to plini_depo row id=2151
-    $stmt = $pdo->prepare("SELECT * FROM changelog WHERE table_name = 'plini_depo' AND row_id = :id ORDER BY changed_at ASC");
+    // 3. Check changelog for any changes to plini_depo row id=2151 (discover schema first)
+    $stmt = $pdo->query("DESCRIBE changelog");
+    $changelogCols = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $result['changelog_columns'] = $changelogCols;
+
+    $stmt = $pdo->prepare("SELECT * FROM changelog WHERE table_name = 'plini_depo' AND row_id = :id");
     $stmt->execute([':id' => 2151]);
     $result['changelog_2151'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $result['changelog_2151_count'] = count($result['changelog_2151']);
@@ -67,5 +71,5 @@ try {
     echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
 } catch (Exception $e) {
-    echo json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT);
+    echo json_encode(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()], JSON_PRETTY_PRINT);
 }
