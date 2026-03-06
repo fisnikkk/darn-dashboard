@@ -2,6 +2,7 @@
 /**
  * DARN Dashboard - Excel Import
  * Upload an Excel (.xlsx / .xlsm) file and import data into the database.
+ * Uses SheetJS (client-side) for parsing — much more reliable than server-side PHP.
  * Supports Replace (clear + re-insert) and Append (add new rows only) modes.
  * Auto-creates a snapshot before any Replace operation for safety.
  */
@@ -9,21 +10,6 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
-
-// Sheet-to-table mapping (display reference — actual parsing is in api/excel_import.php)
-$sheetMappings = [
-    'Distribuimi' => ['table' => 'distribuimi'],
-    'Shpenzimet' => ['table' => 'shpenzimet'],
-    'Plini depo' => ['table' => 'plini_depo'],
-    'Shitje produkteve prej 9 mar' => ['table' => 'shitje_produkteve'],
-    'Kontrata' => ['table' => 'kontrata'],
-    'Gjendja bankare' => ['table' => 'gjendja_bankare'],
-    'NOTES' => ['table' => 'notes'],
-    'Klientet' => ['table' => 'klientet'],
-    'Nxemese1' => ['table' => 'nxemese'],
-    'Stoku zyrtar' => ['table' => 'stoku_zyrtar'],
-    'Depo' => ['table' => 'depo'],
-];
 
 // Table display names
 $tableLabels = [
@@ -81,11 +67,11 @@ ob_start();
                 <div style="background:var(--border);border-radius:4px;overflow:hidden;height:8px;margin-bottom:8px;">
                     <div id="progressBar" style="height:100%;background:var(--primary);width:0%;transition:width 0.3s;"></div>
                 </div>
-                <p id="progressText" style="font-size:0.85rem;color:var(--text-muted);text-align:center;">Duke ngarkuar...</p>
+                <p id="progressText" style="font-size:0.85rem;color:var(--text-muted);text-align:center;">Duke lexuar skedarin...</p>
             </div>
         </div>
 
-        <!-- Step 2: Preview (hidden until file parsed) -->
+        <!-- Step 2: Preview -->
         <div id="previewSection" style="display:none;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
                 <div>
@@ -94,8 +80,6 @@ ob_start();
                 </div>
                 <button class="btn btn-outline btn-sm" onclick="resetUpload()"><i class="fas fa-undo"></i> Ndrysho skedarin</button>
             </div>
-
-            <!-- Sheet-to-table mapping -->
             <div style="overflow-x:auto;">
                 <table class="data-table" id="mappingTable">
                     <thead>
@@ -109,11 +93,9 @@ ob_start();
                             <th>Statusi</th>
                         </tr>
                     </thead>
-                    <tbody id="mappingBody">
-                    </tbody>
+                    <tbody id="mappingBody"></tbody>
                 </table>
             </div>
-
             <div style="margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
                 <button class="btn btn-primary" id="importBtn" onclick="startImport()">
                     <i class="fas fa-download"></i> Importo tabelat e zgjedhura
@@ -128,8 +110,7 @@ ob_start();
         <!-- Step 3: Import Progress -->
         <div id="importSection" style="display:none;">
             <h4><i class="fas fa-cog fa-spin"></i> Duke importuar...</h4>
-            <div id="importLog" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:400px;overflow-y:auto;font-family:monospace;font-size:0.82rem;line-height:1.6;">
-            </div>
+            <div id="importLog" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:400px;overflow-y:auto;font-family:monospace;font-size:0.82rem;line-height:1.6;"></div>
         </div>
     </div>
 </div>
@@ -142,12 +123,7 @@ ob_start();
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Tabela</th>
-                        <th style="text-align:right;">Rreshta</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Tabela</th><th style="text-align:right;">Rreshta</th></tr></thead>
                 <tbody>
                     <?php foreach ($tableCounts as $t => $count): ?>
                     <tr>
@@ -161,12 +137,85 @@ ob_start();
     </div>
 </div>
 
+<!-- SheetJS library (CDN) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
 <script>
-const SHEET_MAPPINGS = <?= json_encode($sheetMappings, JSON_UNESCAPED_UNICODE) ?>;
 const TABLE_LABELS = <?= json_encode($tableLabels, JSON_UNESCAPED_UNICODE) ?>;
 const TABLE_COUNTS = <?= json_encode($tableCounts) ?>;
 
-let parsedSheets = null; // will hold { sheetName: { rows: N, table: '...', headerRow: N } }
+// Sheet→table mapping with column positions (0-based col indices → DB field names)
+// headerRow is 1-based (row number in Excel where headers are)
+const SHEET_CONFIG = {
+    'Distribuimi': {
+        table: 'distribuimi', headerRow: 5,
+        columns: { 2:'klienti', 3:'data', 4:'sasia', 5:'boca_te_kthyera', 8:'litra', 9:'cmimi', 10:'pagesa', 11:'menyra_e_pageses', 13:'data_e_fletepageses', 14:'koment' },
+        dateFields: ['data','data_e_fletepageses'],
+        numFields: ['sasia','boca_te_kthyera','litra','cmimi','pagesa']
+    },
+    'Shpenzimet': {
+        table: 'shpenzimet', headerRow: 2,
+        columns: { 2:'data_e_pageses', 3:'shuma', 4:'arsyetimi', 5:'lloji_i_pageses', 6:'lloji_i_transaksionit', 7:'pershkrim_i_detajuar', 8:'nafta_ne_litra', 9:'numri_i_fatures', 10:'data_e_fatures', 11:'shuma_fatures', 12:'lloji_fatures' },
+        dateFields: ['data_e_pageses','data_e_fatures'],
+        numFields: ['shuma','nafta_ne_litra','shuma_fatures']
+    },
+    'Plini depo': {
+        table: 'plini_depo', headerRow: 2,
+        columns: { 0:'nr_i_fatures', 1:'data', 2:'kg', 3:'sasia_ne_litra', 4:'cmimi', 5:'faturat_e_pranuara', 6:'dalje_pagesat_sipas_bankes', 7:'menyra_e_pageses', 8:'cash_banke', 9:'furnitori', 10:'koment' },
+        dateFields: ['data'],
+        numFields: ['kg','sasia_ne_litra','cmimi','faturat_e_pranuara','dalje_pagesat_sipas_bankes']
+    },
+    'Shitje produkteve prej 9 mar': {
+        table: 'shitje_produkteve', headerRow: 1,
+        columns: { 0:'data', 1:'cilindra_sasia', 2:'produkti', 3:'klienti', 4:'adresa', 5:'qyteti', 6:'cmimi', 7:'totali', 8:'koment', 9:'statusi_i_pageses' },
+        dateFields: ['data'],
+        numFields: ['cilindra_sasia','cmimi','totali']
+    },
+    'Kontrata': {
+        table: 'kontrata', headerRow: 1,
+        columns: { 0:'nr_i_kontrates', 1:'data', 2:'biznesi', 3:'name_from_database', 4:'numri_ne_stok_sipas_kontrates', 7:'sipas_skenimit_pda', 8:'bashkepunim', 9:'qyteti', 10:'rruga', 11:'numri_unik', 12:'perfaqesuesi', 13:'nr_telefonit', 14:'koment', 15:'email', 16:'ne_grup_njoftues', 17:'kontrate_e_vjeter', 18:'lloji_i_bocave', 20:'bocat_e_paguara', 22:'data_rregullatoret' },
+        dateFields: ['data','data_rregullatoret'],
+        numFields: ['nr_i_kontrates','numri_ne_stok_sipas_kontrates']
+    },
+    'Gjendja bankare': {
+        table: 'gjendja_bankare', headerRow: 12,
+        columns: { 0:'data', 1:'data_valutes', 2:'ora', 3:'shpjegim', 4:'valuta', 5:'debia', 6:'kredi', 7:'bilanci', 8:'deftesa', 9:'lloji' },
+        dateFields: ['data','data_valutes'],
+        numFields: ['debia','kredi','bilanci']
+    },
+    'NOTES': {
+        table: 'notes', headerRow: 1,
+        columns: { 0:'data', 1:'teksti', 2:'barazu_nga' },
+        dateFields: ['data'],
+        numFields: []
+    },
+    'Klientet': {
+        table: 'klientet', headerRow: 1,
+        columns: { 0:'emri', 1:'bashkepunim', 2:'data_e_kontrates', 3:'stoku', 4:'koment', 5:'kontakti', 7:'numri_unik_identifikues', 8:'adresa', 9:'telefoni', 10:'telefoni_2' },
+        dateFields: ['data_e_kontrates'],
+        numFields: ['stoku']
+    },
+    'Nxemese1': {
+        table: 'nxemese', headerRow: 5,
+        columns: { 0:'klienti', 1:'data', 2:'te_dhena', 3:'te_marra', 6:'lloji_i_nxemjes', 7:'koment' },
+        dateFields: ['data'],
+        numFields: ['te_dhena','te_marra']
+    },
+    'Stoku zyrtar': {
+        table: 'stoku_zyrtar', headerRow: 3,
+        columns: { 0:'kodi', 1:'kodi_2', 2:'pershkrimi', 3:'njesi', 4:'sasia', 5:'cmimi', 6:'vlera' },
+        dateFields: [],
+        numFields: ['sasia','cmimi','vlera']
+    },
+    'Depo': {
+        table: 'depo', headerRow: 1,
+        columns: { 1:'data', 2:'produkti', 3:'sasia', 4:'cmimi' },
+        dateFields: ['data'],
+        numFields: ['sasia','cmimi']
+    }
+};
+
+let parsedData = {}; // sheetName → { table, rows: [{field:val,...},...] }
 
 // Drag & drop
 const dropZone = document.getElementById('dropZone');
@@ -175,82 +224,137 @@ dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var
 dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.style.borderColor = 'var(--border)';
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
-
 document.getElementById('excelFile').addEventListener('change', function() {
     if (this.files[0]) handleFile(this.files[0]);
 });
 
+// Excel date serial → YYYY-MM-DD
+function excelDateToYmd(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'string') {
+        // Already a date string
+        if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.substring(0, 10);
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(v)) {
+            const p = v.split('/');
+            return p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0');
+        }
+        return v;
+    }
+    if (typeof v === 'number' && v > 1) {
+        // Excel serial date
+        const d = new Date((v - 25569) * 86400000);
+        if (!isNaN(d.getTime())) {
+            return d.toISOString().substring(0, 10);
+        }
+    }
+    return String(v);
+}
+
+function cleanNum(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return v;
+    const n = parseFloat(String(v).replace(/[^\d.\-]/g, ''));
+    return isNaN(n) ? null : n;
+}
+
+function cleanStr(v) {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s === '' ? null : s;
+}
+
 function handleFile(file) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext !== 'xlsx' && ext !== 'xlsm') {
-        showToast('Vetëm skedarë .xlsx ose .xlsm pranohen', 'error');
-        return;
-    }
-    if (file.size > 50 * 1024 * 1024) {
-        showToast('Skedari është shumë i madh (max 50 MB)', 'error');
+        showToast('Vetëm .xlsx ose .xlsm', 'error');
         return;
     }
 
     document.getElementById('uploadProgress').style.display = 'block';
-    document.getElementById('progressBar').style.width = '30%';
-    document.getElementById('progressText').textContent = 'Duke ngarkuar skedarin...';
+    document.getElementById('progressBar').style.width = '20%';
+    document.getElementById('progressText').textContent = 'Duke lexuar skedarin në browser...';
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('action', 'parse');
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('progressBar').style.width = '50%';
+        document.getElementById('progressText').textContent = 'Duke analizuar sheet-at...';
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/excel_import.php');
+        setTimeout(() => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array', cellDates: false, cellText: false });
 
-    xhr.upload.addEventListener('progress', e => {
-        if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 60) + 10;
-            document.getElementById('progressBar').style.width = pct + '%';
-        }
-    });
+                // Build trimmed name lookup
+                const sheetLookup = {};
+                wb.SheetNames.forEach(name => {
+                    const trimmed = name.trim();
+                    if (SHEET_CONFIG[trimmed]) sheetLookup[trimmed] = name;
+                    else if (SHEET_CONFIG[name]) sheetLookup[name] = name;
+                });
 
-    xhr.onload = function() {
-        document.getElementById('progressBar').style.width = '100%';
-        try {
-            const resp = JSON.parse(xhr.responseText);
-            if (resp.success) {
+                parsedData = {};
+                let totalRows = 0;
+
+                for (const [configKey, realName] of Object.entries(sheetLookup)) {
+                    const config = SHEET_CONFIG[configKey];
+                    const ws = wb.Sheets[realName];
+                    const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+
+                    const dataRows = [];
+                    for (let i = config.headerRow; i < allRows.length; i++) {
+                        const excelRow = allRows[i];
+                        if (!excelRow) continue;
+
+                        const record = {};
+                        let hasData = false;
+
+                        for (const [colIdx, field] of Object.entries(config.columns)) {
+                            let val = excelRow[parseInt(colIdx)];
+
+                            if (config.dateFields.includes(field)) {
+                                val = excelDateToYmd(val);
+                            } else if (config.numFields.includes(field)) {
+                                val = cleanNum(val);
+                            } else {
+                                val = cleanStr(val);
+                            }
+
+                            record[field] = val;
+                            if (val !== null && val !== '') hasData = true;
+                        }
+
+                        if (hasData) dataRows.push(record);
+                    }
+
+                    parsedData[configKey] = { table: config.table, rows: dataRows };
+                    totalRows += dataRows.length;
+                }
+
+                document.getElementById('progressBar').style.width = '100%';
                 document.getElementById('progressText').textContent = 'U analizua me sukses!';
-                setTimeout(() => showPreview(file, resp), 500);
-            } else {
-                document.getElementById('progressText').textContent = 'Gabim: ' + resp.error;
-                showToast(resp.error, 'error');
+                setTimeout(() => showPreview(file, totalRows), 300);
+            } catch (err) {
+                document.getElementById('progressText').textContent = 'Gabim: ' + err.message;
+                showToast('Gabim duke lexuar Excel: ' + err.message, 'error');
             }
-        } catch (e) {
-            document.getElementById('progressText').textContent = 'Gabim në përgjigje';
-            showToast('Gabim: ' + xhr.responseText.substring(0, 200), 'error');
-        }
+        }, 50);
     };
-
-    xhr.onerror = function() {
-        document.getElementById('progressText').textContent = 'Gabim në lidhje';
-        showToast('Gabim në lidhje me serverin', 'error');
-    };
-
-    xhr.send(formData);
+    reader.readAsArrayBuffer(file);
 }
 
-function showPreview(file, resp) {
-    parsedSheets = resp.sheets;
+function showPreview(file, totalRows) {
     document.getElementById('uploadSection').style.display = 'none';
     document.getElementById('previewSection').style.display = 'block';
     document.getElementById('fileName').textContent = file.name;
-
-    const totalRows = Object.values(resp.sheets).reduce((s, sh) => s + sh.rows, 0);
     document.getElementById('fileInfo').textContent =
-        Object.keys(resp.sheets).length + ' sheet-a të njohura, ' + totalRows.toLocaleString() + ' rreshta gjithsej';
+        Object.keys(parsedData).length + ' sheet-a të njohura, ' + totalRows.toLocaleString() + ' rreshta gjithsej';
 
     const tbody = document.getElementById('mappingBody');
     tbody.innerHTML = '';
 
-    for (const [sheetName, info] of Object.entries(resp.sheets)) {
+    for (const [sheetName, info] of Object.entries(parsedData)) {
         const table = info.table;
         const dbCount = TABLE_COUNTS[table] || 0;
         const tr = document.createElement('tr');
@@ -258,7 +362,7 @@ function showPreview(file, resp) {
             <td><input type="checkbox" class="sheet-check" data-sheet="${sheetName}" data-table="${table}" checked></td>
             <td><i class="fas fa-file-excel" style="color:#217346;margin-right:6px;"></i>${sheetName}</td>
             <td><code>${table}</code></td>
-            <td style="text-align:right;font-weight:600;">${info.rows.toLocaleString()}</td>
+            <td style="text-align:right;font-weight:600;">${info.rows.length.toLocaleString()}</td>
             <td style="text-align:right;">${dbCount.toLocaleString()}</td>
             <td>
                 <select class="import-mode" data-table="${table}" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
@@ -266,15 +370,14 @@ function showPreview(file, resp) {
                     <option value="append">Shto (Append)</option>
                 </select>
             </td>
-            <td><span class="status-pending" style="color:var(--text-muted);font-size:0.82rem;"><i class="fas fa-clock"></i> Gati</span></td>
+            <td><span style="color:var(--text-muted);font-size:0.82rem;"><i class="fas fa-clock"></i> Gati</span></td>
         `;
         tbody.appendChild(tr);
     }
 
-    // Select All toggle
-    document.getElementById('selectAll').addEventListener('change', function() {
+    document.getElementById('selectAll').onclick = function() {
         document.querySelectorAll('.sheet-check').forEach(cb => cb.checked = this.checked);
-    });
+    };
 }
 
 function resetUpload() {
@@ -284,7 +387,7 @@ function resetUpload() {
     document.getElementById('uploadProgress').style.display = 'none';
     document.getElementById('progressBar').style.width = '0%';
     document.getElementById('excelFile').value = '';
-    parsedSheets = null;
+    parsedData = {};
 }
 
 function addLog(msg, type) {
@@ -298,16 +401,13 @@ function addLog(msg, type) {
 async function startImport() {
     const selected = [];
     document.querySelectorAll('.sheet-check:checked').forEach(cb => {
-        const sheet = cb.dataset.sheet;
-        const table = cb.dataset.table;
-        const mode = document.querySelector(`.import-mode[data-table="${table}"]`).value;
-        selected.push({ sheet, table, mode });
+        selected.push({
+            sheet: cb.dataset.sheet,
+            table: cb.dataset.table,
+            mode: document.querySelector(`.import-mode[data-table="${cb.dataset.table}"]`).value
+        });
     });
-
-    if (selected.length === 0) {
-        showToast('Zgjidhni të paktën një tabelë', 'error');
-        return;
-    }
+    if (!selected.length) { showToast('Zgjidhni të paktën një tabelë', 'error'); return; }
 
     document.getElementById('previewSection').style.display = 'none';
     document.getElementById('importSection').style.display = 'block';
@@ -316,79 +416,83 @@ async function startImport() {
     const doSnapshot = document.getElementById('autoSnapshot').checked;
     const hasReplace = selected.some(s => s.mode === 'replace');
 
-    // Step 1: Auto-snapshot if needed
+    // Auto-snapshot
     if (doSnapshot && hasReplace) {
         addLog('Duke krijuar snapshot automatik para importit...', 'info');
         try {
-            const snapResp = await fetch('/api/snapshot.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+            const r = await fetch('/api/snapshot.php', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ action: 'create', name: 'para-import-' + new Date().toISOString().slice(0,19).replace(/[T:]/g, '-') })
             });
-            const snapData = await snapResp.json();
-            if (snapData.success) {
-                addLog('Snapshot u krijua: ' + snapData.message, 'success');
-            } else {
-                addLog('Snapshot dështoi: ' + snapData.error, 'error');
-                if (!confirm('Snapshot dështoi. Dëshironi të vazhdoni pa snapshot?')) {
-                    resetUpload();
-                    return;
-                }
-            }
-        } catch (e) {
-            addLog('Gabim snapshot: ' + e.message, 'error');
-        }
+            const d = await r.json();
+            addLog(d.success ? 'Snapshot u krijua: ' + d.message : 'Snapshot dështoi: ' + d.error, d.success ? 'success' : 'error');
+            if (!d.success && !confirm('Snapshot dështoi. Vazhdoni pa snapshot?')) { resetUpload(); return; }
+        } catch (e) { addLog('Gabim snapshot: ' + e.message, 'error'); }
     }
 
-    // Step 2: Import each selected table
-    let successCount = 0;
-    let errorCount = 0;
+    let successCount = 0, errorCount = 0;
 
     for (const item of selected) {
-        addLog(`Duke importuar ${item.sheet} → ${item.table} (${item.mode})...`, 'info');
+        const sheetData = parsedData[item.sheet];
+        if (!sheetData || !sheetData.rows.length) {
+            addLog(`${item.table}: Asnjë rresht`, 'error');
+            errorCount++;
+            continue;
+        }
 
-        // Update status in mapping table
+        addLog(`Duke importuar ${item.sheet} → ${item.table} (${item.mode}), ${sheetData.rows.length} rreshta...`, 'info');
+
         const statusCell = document.querySelector(`tr:has(.sheet-check[data-table="${item.table}"]) td:last-child`);
         if (statusCell) statusCell.innerHTML = '<span style="color:var(--primary);"><i class="fas fa-spinner fa-spin"></i> Duke importuar...</span>';
 
         try {
-            const resp = await fetch('/api/excel_import.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    action: 'import',
-                    sheet: item.sheet,
-                    table: item.table,
-                    mode: item.mode
-                })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                addLog(`${item.table}: ${data.imported} rreshta u importuan${data.deleted ? ' (' + data.deleted + ' u fshinë)' : ''}`, 'success');
-                if (statusCell) statusCell.innerHTML = '<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ' + data.imported + ' rreshta</span>';
-                successCount++;
-            } else {
-                addLog(`${item.table}: Gabim - ${data.error}`, 'error');
-                if (statusCell) statusCell.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> Gabim</span>';
-                errorCount++;
+            // Send rows in chunks of 2000 to avoid request size limits
+            const CHUNK = 2000;
+            let totalImported = 0, totalDeleted = 0;
+            const chunks = Math.ceil(sheetData.rows.length / CHUNK);
+
+            for (let c = 0; c < chunks; c++) {
+                const chunkRows = sheetData.rows.slice(c * CHUNK, (c + 1) * CHUNK);
+                const isFirst = c === 0;
+
+                const resp = await fetch('/api/excel_import.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        action: 'import_rows',
+                        table: item.table,
+                        mode: isFirst ? item.mode : 'append', // only first chunk does replace
+                        rows: chunkRows
+                    })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error);
+                totalImported += data.imported;
+                if (data.deleted) totalDeleted += data.deleted;
+
+                if (chunks > 1) {
+                    const pct = Math.round(((c + 1) / chunks) * 100);
+                    if (statusCell) statusCell.innerHTML = `<span style="color:var(--primary);"><i class="fas fa-spinner fa-spin"></i> ${pct}%</span>`;
+                }
             }
+
+            addLog(`${item.table}: ${totalImported} rreshta u importuan${totalDeleted ? ' (' + totalDeleted + ' u fshinë)' : ''}`, 'success');
+            if (statusCell) statusCell.innerHTML = '<span style="color:var(--success);"><i class="fas fa-check-circle"></i> ' + totalImported + ' rreshta</span>';
+            successCount++;
         } catch (e) {
             addLog(`${item.table}: Gabim - ${e.message}`, 'error');
+            if (statusCell) statusCell.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> Gabim</span>';
             errorCount++;
         }
     }
 
-    // Final summary
     addLog('', 'info');
-    if (errorCount === 0) {
-        addLog(`Import u përfundua me sukses! ${successCount} tabela u importuan.`, 'success');
-    } else {
-        addLog(`Import përfundoi: ${successCount} sukses, ${errorCount} gabime.`, 'error');
-    }
+    addLog(errorCount === 0
+        ? `Import u përfundua me sukses! ${successCount} tabela u importuan.`
+        : `Import përfundoi: ${successCount} sukses, ${errorCount} gabime.`,
+        errorCount === 0 ? 'success' : 'error');
 
-    // Show "done" button
-    const log = document.getElementById('importLog');
-    log.innerHTML += `<div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="fas fa-redo"></i> Rifresko faqen</button></div>`;
+    document.getElementById('importLog').innerHTML += `<div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="fas fa-redo"></i> Rifresko faqen</button></div>`;
 }
 </script>
 
