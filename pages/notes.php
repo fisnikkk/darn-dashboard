@@ -201,9 +201,10 @@ ob_start();
     const input = document.getElementById('babiRaporti');
     const diffEl = document.getElementById('babiDiff');
     const diffCard = document.getElementById('babiDiffCard');
+    const STORAGE_KEY = 'notes_babi_raporti';
 
-    input.addEventListener('input', function() {
-        const val = parseFloat(this.value);
+    function calcDiff() {
+        const val = parseFloat(input.value);
         if (isNaN(val)) {
             diffEl.textContent = '-';
             diffCard.style.borderLeft = '';
@@ -220,6 +221,22 @@ ob_start();
             diffEl.innerHTML = '<span style="color:' + color + ';">' + sign + ' &euro; ' + formatted + '</span>';
             diffCard.style.borderLeft = '4px solid ' + color;
         }
+    }
+
+    // Restore saved value on page load
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved !== null && saved !== '') {
+        input.value = saved;
+        calcDiff();
+    }
+
+    input.addEventListener('input', function() {
+        if (this.value === '') {
+            localStorage.removeItem(STORAGE_KEY);
+        } else {
+            localStorage.setItem(STORAGE_KEY, this.value);
+        }
+        calcDiff();
     });
 })();
 </script>
