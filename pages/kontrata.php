@@ -121,7 +121,7 @@ usort($diteFilterVals, function($a, $b) { return (int)$a - (int)$b; });
 $avgFilterVals = array_keys($avgValues);
 usort($avgFilterVals, function($a, $b) { return (float)$a - (float)$b; });
 
-// Distinct values for column filters
+// Distinct values for column filters (all include blank option for "(Bosh)" filter)
 $bashkValues = $db->query("SELECT DISTINCT bashkepunim FROM kontrata WHERE bashkepunim IS NOT NULL AND bashkepunim != '' ORDER BY bashkepunim")->fetchAll(PDO::FETCH_COLUMN);
 $qytetValues = $db->query("SELECT DISTINCT qyteti FROM kontrata WHERE qyteti IS NOT NULL AND qyteti != '' ORDER BY qyteti")->fetchAll(PDO::FETCH_COLUMN);
 $nameDbVals = $db->query("SELECT DISTINCT name_from_database FROM kontrata WHERE name_from_database IS NOT NULL AND name_from_database != '' ORDER BY name_from_database")->fetchAll(PDO::FETCH_COLUMN);
@@ -133,8 +133,12 @@ $stokVals = $db->query("SELECT DISTINCT CAST(numri_ne_stok_sipas_kontrates AS CH
 $pdaVals = $db->query("SELECT DISTINCT sipas_skenimit_pda FROM kontrata WHERE sipas_skenimit_pda IS NOT NULL AND sipas_skenimit_pda != '' ORDER BY sipas_skenimit_pda")->fetchAll(PDO::FETCH_COLUMN);
 $kontrateVjeterVals = $db->query("SELECT DISTINCT kontrate_e_vjeter FROM kontrata WHERE kontrate_e_vjeter IS NOT NULL AND kontrate_e_vjeter != '' ORDER BY kontrate_e_vjeter")->fetchAll(PDO::FETCH_COLUMN);
 $bocatPagVals = $db->query("SELECT DISTINCT bocat_e_paguara FROM kontrata WHERE bocat_e_paguara IS NOT NULL AND bocat_e_paguara != '' ORDER BY bocat_e_paguara")->fetchAll(PDO::FETCH_COLUMN);
-array_unshift($bocatPagVals, ''); // Allow filtering for blank/empty values
 $komentVals = $db->query("SELECT DISTINCT koment FROM kontrata WHERE koment IS NOT NULL AND koment != '' ORDER BY koment")->fetchAll(PDO::FETCH_COLUMN);
+// Add blank option to all filter arrays
+foreach ([&$bashkValues, &$qytetValues, &$nameDbVals, &$rrugaVals, &$perfaqVals, &$llojiBocaVals,
+          &$grupNjoftVals, &$stokVals, &$pdaVals, &$kontrateVjeterVals, &$bocatPagVals, &$komentVals] as &$arr) {
+    if (!in_array('', $arr)) array_unshift($arr, '');
+}
 
 // Helper: add client-side filter attributes to a server-sorted th element
 function withClientFilter($thHtml, $filterName, $filterValues, $colIdx) {
