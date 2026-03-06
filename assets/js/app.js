@@ -118,12 +118,21 @@ function startRowEdit(row) {
                 emptyOpt.value = '';
                 emptyOpt.textContent = '-- Zgjidh --';
                 input.appendChild(emptyOpt);
+                let currentFound = !rawText; // empty text is covered by "-- Zgjidh --"
                 options.forEach(opt => {
                     const o = document.createElement('option');
                     o.value = opt; o.textContent = opt;
-                    if (opt === rawText) o.selected = true;
+                    if (opt === rawText) { o.selected = true; currentFound = true; }
                     input.appendChild(o);
                 });
+                // Preserve current value even if not in predefined options
+                if (!currentFound && rawText) {
+                    const currentOpt = document.createElement('option');
+                    currentOpt.value = rawText;
+                    currentOpt.textContent = rawText;
+                    currentOpt.selected = true;
+                    input.insertBefore(currentOpt, input.children[1]);
+                }
             }
         } else {
             input = document.createElement('input');
