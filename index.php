@@ -25,8 +25,8 @@ $fitimibruto = $totalShitje - $totalBlerje;
 // Row D3: Blerje me fature
 $blerjeFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'me fature'")->fetchColumn();
 
-// Row E3: Blerje pa fature
-$blerjePaFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'pa fature'")->fetchColumn();
+// Row E3: Blerje pa fature (uses dalje_pagesat_sipas_bankes, NOT faturat_e_pranuara — matches Excel)
+$blerjePaFature = $db->query("SELECT COALESCE(SUM(dalje_pagesat_sipas_bankes), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'pa fature'")->fetchColumn();
 
 // Payment breakdown from Distribuimi (G3, H3, I3, J3, K3 — explicit SUMIF categories)
 $payments = $db->query("
@@ -39,11 +39,12 @@ $payments = $db->query("
     FROM distribuimi
 ")->fetch();
 
-// Excel O3: Dhurate = RESIDUAL (total sales minus all categorized payment types)
-// Excel formula: =B3-G3-H3-I3-J3-K3  (NOT a SUMIF on "dhurate" rows!)
-// This captures the gap between total sales and explicitly categorized payments
-$dhurateResidual = $totalShitje - $payments['cash'] - $payments['fature_cash']
-    - $payments['fature_banke'] - $payments['bank'] - $payments['no_payment'];
+// Dhurate = explicit SUMIF on "dhurate" rows (not residual)
+$dhurate = $db->query("SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'dhurate' THEN pagesa ELSE 0 END), 0) FROM distribuimi")->fetchColumn();
+
+// Te papaguara = residual (total minus all other categories including dhurate)
+$tePapaguara = $totalShitje - $payments['cash'] - $payments['fature_cash']
+    - $payments['fature_banke'] - $payments['bank'] - $payments['no_payment'] - $dhurate;
 
 // Expenses breakdown
 $shpenzimPlin = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'pagesa per plin'")->fetchColumn();
@@ -86,8 +87,8 @@ $totalPareCash = $pareCashPlin + $produkteCash;
 $totalPareCashBanke = $totalPareCash + $bankBalance;
 
 // Excel R3: Fitimi Neto = C3 - T3 - O3
-// C3=Fitimi Bruto, T3=Shpenzime tjera, O3=Dhurate (residual)
-$fitimiNeto = $fitimibruto - $shpenzimTjera - $dhurateResidual;
+// C3=Fitimi Bruto, T3=Shpenzime tjera, O3=Dhurate
+$fitimiNeto = $fitimibruto - $shpenzimTjera - $dhurate;
 
 // Excel F3: Sasia gazit me fature (EUR) = D3 - SUM(H3:J3)
 // Invoiced purchases minus invoiced/bank sales = remaining invoice capacity
@@ -114,8 +115,9 @@ $deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHER
 // Sasia e blere me fature ne kg (from Plini Depo)
 $blereMeFatureKg = $db->query("SELECT COALESCE(SUM(kg), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'me fature'")->fetchColumn();
 
-// Shpenzimet me fature = SUMIF(fatura_e_rregullte = "Fature e rregullte", shuma)
-$shpenzimetMeFature = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(fatura_e_rregullte)) = 'fature e rregullte'")->fetchColumn();
+// Shpenzimet me fature = entries with lloji_i_pageses = 'fature e rregullte me cash'
+// (fatura_e_rregullte column is empty after Excel import, use lloji_i_pageses instead)
+$shpenzimetMeFature = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses)) = 'fature e rregullte me cash'")->fetchColumn();
 
 // Pagesat me fature cash per boca dhe gaz = produkteCash + fature_cash + 281.9
 $pagesatMeFatureCash = $produkteCash + $payments['fature_cash'] + 281.9;
@@ -202,8 +204,8 @@ ob_start();
                     <td class="amount" data-label="Fature te rregullte cash">&euro; <?= eur($payments['fature_cash']) ?></td>
                     <td class="amount" data-label="Fature te rregullte banke">&euro; <?= eur($payments['fature_banke']) ?></td>
                     <td class="amount" data-label="Bank (ende e papaguar)">&euro; <?= eur($payments['bank']) ?></td>
-                    <td class="amount" data-label="Te papaguara">&euro; <?= eur($payments['no_payment']) ?></td>
-                    <td class="amount" data-label="Dhurate (residual)">&euro; <?= eur($dhurateResidual) ?></td>
+                    <td class="amount" data-label="Te papaguara">&euro; <?= eur($tePapaguara) ?></td>
+                    <td class="amount" data-label="Dhurate">&euro; <?= eur($dhurate) ?></td>
                 </tr>
             </tbody>
         </table>
@@ -326,7 +328,7 @@ ob_start();
     <div class="summary-card">
         <div class="label">Fitimi Neto</div>
         <div class="value <?= $fitimiNeto >= 0 ? 'positive' : 'negative' ?>">&euro; <?= eur($fitimiNeto) ?></div>
-        <small style="color:var(--text-muted);">Fitimi bruto - Shpenzime tjera - Dhurate</small>
+        <small style="color:var(--text-muted);">Fitimi bruto - Shpenzime tjera - Dhurata</small>
     </div>
 </div>
 
