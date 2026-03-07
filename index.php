@@ -39,12 +39,12 @@ $payments = $db->query("
     FROM distribuimi
 ")->fetch();
 
-// Dhurate = explicit SUMIF on "dhurate" rows (not residual)
-$dhurate = $db->query("SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'dhurate' THEN pagesa ELSE 0 END), 0) FROM distribuimi")->fetchColumn();
+// Te papaguara (K3) = SUMIF("No payment") — direct from DB, matches Excel K3
+$tePapaguara = $payments['no_payment'];
 
-// Te papaguara = residual (total minus all other categories including dhurate)
-$tePapaguara = $totalShitje - $payments['cash'] - $payments['fature_cash']
-    - $payments['fature_banke'] - $payments['bank'] - $payments['no_payment'] - $dhurate;
+// Dhurate (O3) = B3-G3-H3-I3-J3-K3 = residual (total minus all named categories)
+$dhurate = $totalShitje - $payments['cash'] - $payments['fature_cash']
+    - $payments['fature_banke'] - $payments['bank'] - $tePapaguara;
 
 // Expenses breakdown
 $shpenzimPlin = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'pagesa per plin'")->fetchColumn();
@@ -115,9 +115,8 @@ $deponime = $db->query("SELECT COALESCE(SUM(kredi), 0) FROM gjendja_bankare WHER
 // Sasia e blere me fature ne kg (from Plini Depo)
 $blereMeFatureKg = $db->query("SELECT COALESCE(SUM(kg), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'me fature'")->fetchColumn();
 
-// Shpenzimet me fature = entries with lloji_i_pageses = 'fature e rregullte me cash'
-// (fatura_e_rregullte column is empty after Excel import, use lloji_i_pageses instead)
-$shpenzimetMeFature = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses)) = 'fature e rregullte me cash'")->fetchColumn();
+// Shpenzimet me fature = Excel SUMIF(M, "Fature e rregullte", D) where M=lloji_fatures, D=shuma
+$shpenzimetMeFature = $db->query("SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet WHERE LOWER(TRIM(lloji_fatures)) = 'fature e rregullte'")->fetchColumn();
 
 // Pagesat me fature cash per boca dhe gaz = produkteCash + fature_cash + 281.9
 $pagesatMeFatureCash = $produkteCash + $payments['fature_cash'] + 281.9;

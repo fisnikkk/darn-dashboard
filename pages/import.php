@@ -167,7 +167,7 @@ const SHEET_CONFIG = {
     },
     'Shitje produkteve prej 9 mar': {
         table: 'shitje_produkteve', headerRow: 1,
-        columns: { 0:'data', 1:'cilindra_sasia', 2:'produkti', 3:'klienti', 4:'adresa', 5:'qyteti', 6:'cmimi', 7:'totali', 8:'koment', 9:'statusi_i_pageses' },
+        columns: { 0:'data', 1:'cilindra_sasia', 2:'produkti', 3:'klienti', 4:'adresa', 5:'qyteti', 6:'cmimi', 7:'totali', 8:'menyra_pageses', 9:'koment', 10:'statusi_i_pageses' },
         dateFields: ['data'],
         numFields: ['cilindra_sasia','cmimi','totali']
     },
