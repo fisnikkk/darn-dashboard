@@ -81,6 +81,13 @@ if ($selectedClient !== '') {
     $stmt->execute($params);
     $transactions = $stmt->fetchAll();
 
+    // Fetch client business info from kontrata
+    $clientInfoStmt = $db->prepare("SELECT nr_i_kontrates, biznesi, numri_unik, perfaqesuesi,
+        nr_telefonit, email, qyteti, rruga, lloji_i_bocave
+        FROM kontrata WHERE LOWER(TRIM(biznesi)) = LOWER(?) OR LOWER(TRIM(name_from_database)) = LOWER(?) LIMIT 1");
+    $clientInfoStmt->execute([$selectedClient, $selectedClient]);
+    $clientInfo = $clientInfoStmt->fetch();
+
     // Calculate running balance
     $totalDebi = 0;
     $totalKredi = 0;
@@ -100,7 +107,7 @@ if ($selectedClient !== '') {
     ob_start();
     ?>
 
-    <div style="margin-bottom:16px;">
+    <div style="margin-bottom:16px;" class="print-hide">
         <a href="?<?= http_build_query(array_diff_key($_GET, ['klient'=>''])) ?>" class="btn btn-outline btn-sm">
             <i class="fas fa-arrow-left"></i> Te gjithe klientet
         </a>
@@ -120,6 +127,75 @@ if ($selectedClient !== '') {
             <div class="value" style="color:<?= $gjendja > 0.01 ? 'var(--danger)' : ($gjendja < -0.01 ? 'var(--success)' : 'inherit') ?>;">&euro; <?= eur(abs($gjendja)) ?></div>
         </div>
     </div>
+
+    <!-- Print-only professional header (hidden on screen, visible in PDF) -->
+    <?php if ($clientInfo): ?>
+    <div class="print-only kartela-print-header">
+        <div class="print-header-top">
+            <h2 style="margin:0;font-size:1.3rem;">KARTELA E KLIENTIT</h2>
+            <div style="font-size:0.78rem;color:#666;">
+                <?php if ($dateFrom || $dateTo): ?>
+                    Periudha: <?= $dateFrom ? date('d/m/Y', strtotime($dateFrom)) : '—' ?> deri <?= $dateTo ? date('d/m/Y', strtotime($dateTo)) : 'sot' ?>
+                <?php else: ?>
+                    Të gjitha transaksionet
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="print-info-grid">
+            <div class="print-info-item">
+                <span class="print-info-label">Biznesi</span>
+                <span class="print-info-value"><?= e($clientInfo['biznesi'] ?: $selectedClient) ?></span>
+            </div>
+            <?php if ($clientInfo['numri_unik']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Numri Unik (NIPT)</span>
+                <span class="print-info-value"><?= e($clientInfo['numri_unik']) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($clientInfo['nr_i_kontrates']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Nr. Kontratës</span>
+                <span class="print-info-value"><?= e($clientInfo['nr_i_kontrates']) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($clientInfo['perfaqesuesi']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Përfaqësuesi</span>
+                <span class="print-info-value"><?= e($clientInfo['perfaqesuesi']) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($clientInfo['nr_telefonit']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Nr. Telefonit</span>
+                <span class="print-info-value"><?= e($clientInfo['nr_telefonit']) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($clientInfo['email']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Email</span>
+                <span class="print-info-value"><?= e($clientInfo['email']) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($clientInfo['qyteti'] || $clientInfo['rruga']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Adresa</span>
+                <span class="print-info-value"><?= e(trim(($clientInfo['rruga'] ?: '') . ', ' . ($clientInfo['qyteti'] ?: ''), ', ')) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($clientInfo['lloji_i_bocave']): ?>
+            <div class="print-info-item">
+                <span class="print-info-label">Lloji i Bocave</span>
+                <span class="print-info-value"><?= e($clientInfo['lloji_i_bocave']) ?></span>
+            </div>
+            <?php endif; ?>
+        </div>
+        <div class="print-summary-bar">
+            <div><strong>Total Debi:</strong> &euro; <?= eur($totalDebi) ?></div>
+            <div><strong>Total Kredi:</strong> &euro; <?= eur($totalKredi) ?></div>
+            <div><strong><?= $gjendja > 0.01 ? 'Borxhi' : ($gjendja < -0.01 ? 'Avanca' : 'Gjendja') ?>:</strong> &euro; <?= eur(abs($gjendja)) ?></div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Date filter -->
     <div class="card" style="margin-bottom:16px;">
@@ -186,7 +262,7 @@ if ($selectedClient !== '') {
                     <tfoot>
                         <tr style="font-weight:700;background:#f8fafc;">
                             <td>TOTALI</td>
-                            <td style="font-weight:400;"><?= count($transactions) ?> transaksione</td>
+                            <td class="print-hide" style="font-weight:400;"><?= count($transactions) ?> transaksione</td>
                             <td class="amount" style="color:var(--danger);">&euro; <?= eur($totalDebi) ?></td>
                             <td class="amount" style="color:var(--success);">&euro; <?= eur($totalKredi) ?></td>
                             <td class="amount" style="color:<?= $gjendja > 0.01 ? 'var(--danger)' : ($gjendja < -0.01 ? 'var(--success)' : 'inherit') ?>;">
@@ -201,7 +277,7 @@ if ($selectedClient !== '') {
         </div>
     </div>
 
-    <p style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
+    <p class="print-hide" style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
         <i class="fas fa-info-circle"></i> <strong>Debi</strong> = dërgesa nga Distribuimi.
         <strong>Kredi</strong> = pagesa cash (automatike) ose bankare (nga Gjendja Bankare).
         <br>Pagesat DHURATE janë përjashtuar. Statusi NO PAYMENT paraqitet si borxh.

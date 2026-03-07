@@ -820,11 +820,60 @@ th.sort-desc .sort-icon { opacity: 1; }
 /* Utilities */
 .hidden { display: none !important; }
 
+/* Print-only elements (hidden on screen) */
+.print-only { display: none; }
+
+/* Kartela print header */
+.kartela-print-header {
+    border: 1px solid #ddd;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+.kartela-print-header .print-header-top {
+    text-align: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #333;
+}
+.kartela-print-header .print-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+    margin-bottom: 16px;
+}
+.kartela-print-header .print-info-item {
+    display: flex;
+    gap: 8px;
+    font-size: 0.88rem;
+    padding: 4px 0;
+    border-bottom: 1px dotted #ccc;
+}
+.kartela-print-header .print-info-label {
+    font-weight: 600;
+    min-width: 130px;
+    color: #555;
+}
+.kartela-print-header .print-info-value {
+    font-weight: 500;
+}
+.kartela-print-header .print-summary-bar {
+    display: flex;
+    justify-content: space-around;
+    padding: 10px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
 /* Print styles for PDF export */
 @media print {
     .sidebar, .sidebar-backdrop, .top-bar, .pagination, .btn,
     .print-hide, footer, .filters, .col-filter-btn {
         display: none !important;
+    }
+    .print-only {
+        display: block !important;
     }
     .main-content {
         margin-left: 0 !important;
@@ -835,7 +884,7 @@ th.sort-desc .sort-icon { opacity: 1; }
         border: 1px solid #ddd !important;
     }
     .summary-grid {
-        grid-template-columns: repeat(4, 1fr);
+        display: none !important;
     }
     table.data-table {
         font-size: 10pt;
@@ -845,5 +894,10 @@ th.sort-desc .sort-icon { opacity: 1; }
     }
     body {
         background: white;
+    }
+    .kartela-print-header .print-summary-bar {
+        background: #f0f0f0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 }
