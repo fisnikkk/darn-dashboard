@@ -456,8 +456,8 @@ async function startImport() {
         if (statusCell) statusCell.innerHTML = '<span style="color:var(--primary);"><i class="fas fa-spinner fa-spin"></i> Duke importuar...</span>';
 
         try {
-            // Send rows in chunks of 2000 to avoid request size limits
-            const CHUNK = 2000;
+            // Send rows in chunks — smaller for large tables to avoid timeouts
+            const CHUNK = sheetData.rows.length > 10000 ? 500 : 2000;
             let totalImported = 0, totalDeleted = 0, totalErrors = [];
             const chunks = Math.ceil(sheetData.rows.length / CHUNK);
 
@@ -465,16 +465,31 @@ async function startImport() {
                 const chunkRows = sheetData.rows.slice(c * CHUNK, (c + 1) * CHUNK);
                 const isFirst = c === 0;
 
-                const resp = await fetch('/api/excel_import.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        action: 'import_rows',
-                        table: item.table,
-                        mode: isFirst ? item.mode : 'append', // only first chunk does replace
-                        rows: chunkRows
-                    })
-                });
+                let resp;
+                let retries = 2;
+                while (retries >= 0) {
+                    try {
+                        resp = await fetch('/api/excel_import.php', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                action: 'import_rows',
+                                table: item.table,
+                                mode: isFirst ? item.mode : 'append',
+                                rows: chunkRows
+                            })
+                        });
+                        break; // success
+                    } catch (fetchErr) {
+                        if (retries > 0) {
+                            addLog(`    Chunk ${c+1}/${chunks} dështoi, duke provuar përsëri...`, 'error');
+                            await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+                            retries--;
+                        } else {
+                            throw fetchErr;
+                        }
+                    }
+                }
                 const data = await resp.json();
                 if (!data.success) throw new Error(data.error);
                 totalImported += data.imported;
