@@ -75,6 +75,37 @@ if ($action === 'diagnose') {
     exit;
 }
 
+if ($action === 'diagnose2') {
+    $db = getDB();
+    $r = [];
+    // Cross-tab: shpenzimet by lloji_i_pageses AND lloji_i_transaksionit (CASH only)
+    $r['shpenzimet_cash_by_trans'] = $db->query("
+        SELECT LOWER(TRIM(lloji_i_transaksionit)) as trans, COUNT(*) as cnt, ROUND(SUM(shuma),2) as total
+        FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'
+        GROUP BY LOWER(TRIM(lloji_i_transaksionit)) ORDER BY total DESC
+    ")->fetchAll();
+    // statusi_i_pageses distinct values in shitje_produkteve
+    $r['shitje_statusi'] = $db->query("
+        SELECT LOWER(TRIM(statusi_i_pageses)) as status, COUNT(*) as cnt, ROUND(SUM(totali),2) as total
+        FROM shitje_produkteve GROUP BY LOWER(TRIM(statusi_i_pageses)) ORDER BY total DESC
+    ")->fetchAll();
+    // Total shitje_produkteve cash if we look at statusi = 'cash' or 'paguar'
+    $r['shitje_total'] = $db->query("SELECT ROUND(SUM(totali),2) FROM shitje_produkteve")->fetchColumn();
+    // Blerje pa fature - check with dalje_pagesat column too
+    $r['plini_depo_dalje_by_menyra'] = $db->query("
+        SELECT LOWER(TRIM(menyra_e_pageses)) as menyra, ROUND(SUM(dalje_pagesat_sipas_bankes),2) as total_dalje,
+               ROUND(SUM(faturat_e_pranuara),2) as total_faturat
+        FROM plini_depo GROUP BY LOWER(TRIM(menyra_e_pageses))
+    ")->fetchAll();
+    // fatura_e_rregullte in shpenzimet
+    $r['shpenzimet_by_fatura'] = $db->query("
+        SELECT LOWER(TRIM(fatura_e_rregullte)) as fatura, COUNT(*) as cnt, ROUND(SUM(shuma),2) as total
+        FROM shpenzimet GROUP BY LOWER(TRIM(fatura_e_rregullte)) ORDER BY total DESC
+    ")->fetchAll();
+    echo json_encode($r, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
 if ($action === 'import_rows') {
     $tableName = $input['table'] ?? '';
     $mode = $input['mode'] ?? 'replace';
