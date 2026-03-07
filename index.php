@@ -25,8 +25,8 @@ $fitimibruto = $totalShitje - $totalBlerje;
 // Row D3: Blerje me fature
 $blerjeFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'me fature'")->fetchColumn();
 
-// Row E3: Blerje pa fature (uses dalje_pagesat_sipas_bankes, NOT faturat_e_pranuara — matches Excel)
-$blerjePaFature = $db->query("SELECT COALESCE(SUM(dalje_pagesat_sipas_bankes), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'pa fature'")->fetchColumn();
+// Row E3: Blerje pa fature = SUMIF('Plini depo'!H, "Pa fature", 'Plini depo'!F) — uses faturat_e_pranuara (col F)
+$blerjePaFature = $db->query("SELECT COALESCE(SUM(faturat_e_pranuara), 0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses)) = 'pa fature'")->fetchColumn();
 
 // Payment breakdown from Distribuimi (G3, H3, I3, J3, K3 — explicit SUMIF categories)
 $payments = $db->query("
