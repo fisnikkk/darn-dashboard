@@ -99,7 +99,7 @@ $totalBlerje = $stmt->fetchColumn();
 $stmt = $db->prepare("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='me fature' {$sumDateWhere}");
 $stmt->execute($sumDateParams);
 $blerjeFature = $stmt->fetchColumn();
-$stmt = $db->prepare("SELECT COALESCE(SUM(faturat_e_pranuara),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='pa fature' {$sumDateWhere}");
+$stmt = $db->prepare("SELECT COALESCE(SUM(dalje_pagesat_sipas_bankes),0) FROM plini_depo WHERE LOWER(TRIM(menyra_e_pageses))='pa fature' {$sumDateWhere}");
 $stmt->execute($sumDateParams);
 $blerjePaFature = $stmt->fetchColumn();
 $stmt = $db->prepare("SELECT COALESCE(SUM(kg),0) FROM plini_depo WHERE 1=1 {$sumDateWhere}");
