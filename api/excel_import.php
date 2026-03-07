@@ -23,6 +23,58 @@ $allowedTables = [
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $action = $input['action'] ?? '';
 
+// Temporary diagnostic action
+if ($action === 'diagnose') {
+    $db = getDB();
+    $results = [];
+
+    // 1. Distinct menyra_e_pageses values in plini_depo with sums
+    $results['plini_depo_by_menyra'] = $db->query("
+        SELECT LOWER(TRIM(menyra_e_pageses)) as menyra, COUNT(*) as cnt,
+               ROUND(SUM(faturat_e_pranuara),2) as total_faturat
+        FROM plini_depo GROUP BY LOWER(TRIM(menyra_e_pageses)) ORDER BY total_faturat DESC
+    ")->fetchAll();
+
+    // 2. Distinct menyra_e_pageses in distribuimi with sums
+    $results['distribuimi_by_menyra'] = $db->query("
+        SELECT LOWER(TRIM(menyra_e_pageses)) as menyra, COUNT(*) as cnt,
+               ROUND(SUM(pagesa),2) as total_pagesa
+        FROM distribuimi GROUP BY LOWER(TRIM(menyra_e_pageses)) ORDER BY total_pagesa DESC
+    ")->fetchAll();
+
+    // 3. Distinct lloji_i_pageses in shpenzimet with sums
+    $results['shpenzimet_by_lloji_pageses'] = $db->query("
+        SELECT LOWER(TRIM(lloji_i_pageses)) as lloji, COUNT(*) as cnt,
+               ROUND(SUM(shuma),2) as total_shuma
+        FROM shpenzimet GROUP BY LOWER(TRIM(lloji_i_pageses)) ORDER BY total_shuma DESC
+    ")->fetchAll();
+
+    // 4. Distinct menyra_pageses in shitje_produkteve with sums
+    $results['shitje_produkteve_by_menyra'] = $db->query("
+        SELECT LOWER(TRIM(menyra_pageses)) as menyra, COUNT(*) as cnt,
+               ROUND(SUM(totali),2) as total
+        FROM shitje_produkteve GROUP BY LOWER(TRIM(menyra_pageses)) ORDER BY total DESC
+    ")->fetchAll();
+
+    // 5. Key computed values
+    $results['shpenzimCashAll'] = $db->query("SELECT ROUND(SUM(shuma),2) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'")->fetchColumn();
+    $results['shpenzimPlin'] = $db->query("SELECT ROUND(SUM(shuma),2) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'pagesa per plin'")->fetchColumn();
+    $results['shpenzimTjera'] = $db->query("SELECT ROUND(SUM(shuma),2) FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'shpenzim'")->fetchColumn();
+
+    // 6. Distinct lloji_i_transaksionit in shpenzimet
+    $results['shpenzimet_by_lloji_trans'] = $db->query("
+        SELECT LOWER(TRIM(lloji_i_transaksionit)) as lloji, COUNT(*) as cnt,
+               ROUND(SUM(shuma),2) as total_shuma
+        FROM shpenzimet GROUP BY LOWER(TRIM(lloji_i_transaksionit)) ORDER BY total_shuma DESC
+    ")->fetchAll();
+
+    // 7. Check menyra_pageses column existence in shitje_produkteve
+    $results['shitje_produkteve_cols'] = $db->query("SHOW COLUMNS FROM shitje_produkteve")->fetchAll(PDO::FETCH_COLUMN, 0);
+
+    echo json_encode($results, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
 if ($action === 'import_rows') {
     $tableName = $input['table'] ?? '';
     $mode = $input['mode'] ?? 'replace';
