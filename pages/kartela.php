@@ -129,13 +129,17 @@ if ($selectedClient !== '') {
     </div>
 
     <!-- Print-only professional header (hidden on screen, visible in PDF) -->
-    <?php if ($clientInfo): ?>
     <div class="print-only kartela-print-header">
         <div class="print-header-top">
             <h2 style="margin:0;font-size:1.3rem;">KARTELA E KLIENTIT</h2>
-            <div style="font-size:0.78rem;color:#666;">
-                <?php if ($dateFrom || $dateTo): ?>
-                    Periudha: <?= $dateFrom ? date('d/m/Y', strtotime($dateFrom)) : '—' ?> deri <?= $dateTo ? date('d/m/Y', strtotime($dateTo)) : 'sot' ?>
+            <?php
+                // Determine actual date range from transactions
+                $firstDate = !empty($transactions) ? $transactions[0]['data'] : null;
+                $lastDate = !empty($transactions) ? $transactions[count($transactions) - 1]['data'] : null;
+            ?>
+            <div style="font-size:0.82rem;color:#555;margin-top:4px;">
+                <?php if ($firstDate && $lastDate): ?>
+                    Periudha: <?= date('d/m/Y', strtotime($firstDate)) ?> — <?= date('d/m/Y', strtotime($lastDate)) ?>
                 <?php else: ?>
                     Të gjitha transaksionet
                 <?php endif; ?>
@@ -144,45 +148,45 @@ if ($selectedClient !== '') {
         <div class="print-info-grid">
             <div class="print-info-item">
                 <span class="print-info-label">Biznesi</span>
-                <span class="print-info-value"><?= e($clientInfo['biznesi'] ?: $selectedClient) ?></span>
+                <span class="print-info-value"><?= e($clientInfo ? ($clientInfo['biznesi'] ?: $selectedClient) : $selectedClient) ?></span>
             </div>
-            <?php if ($clientInfo['numri_unik']): ?>
+            <?php if (!empty($clientInfo['numri_unik'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Numri Unik (NIPT)</span>
                 <span class="print-info-value"><?= e($clientInfo['numri_unik']) ?></span>
             </div>
             <?php endif; ?>
-            <?php if ($clientInfo['nr_i_kontrates']): ?>
+            <?php if (!empty($clientInfo['nr_i_kontrates'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Nr. Kontratës</span>
                 <span class="print-info-value"><?= e($clientInfo['nr_i_kontrates']) ?></span>
             </div>
             <?php endif; ?>
-            <?php if ($clientInfo['perfaqesuesi']): ?>
+            <?php if (!empty($clientInfo['perfaqesuesi'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Përfaqësuesi</span>
                 <span class="print-info-value"><?= e($clientInfo['perfaqesuesi']) ?></span>
             </div>
             <?php endif; ?>
-            <?php if ($clientInfo['nr_telefonit']): ?>
+            <?php if (!empty($clientInfo['nr_telefonit'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Nr. Telefonit</span>
                 <span class="print-info-value"><?= e($clientInfo['nr_telefonit']) ?></span>
             </div>
             <?php endif; ?>
-            <?php if ($clientInfo['email']): ?>
+            <?php if (!empty($clientInfo['email'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Email</span>
                 <span class="print-info-value"><?= e($clientInfo['email']) ?></span>
             </div>
             <?php endif; ?>
-            <?php if ($clientInfo['qyteti'] || $clientInfo['rruga']): ?>
+            <?php if (!empty($clientInfo['qyteti']) || !empty($clientInfo['rruga'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Adresa</span>
                 <span class="print-info-value"><?= e(trim(($clientInfo['rruga'] ?: '') . ', ' . ($clientInfo['qyteti'] ?: ''), ', ')) ?></span>
             </div>
             <?php endif; ?>
-            <?php if ($clientInfo['lloji_i_bocave']): ?>
+            <?php if (!empty($clientInfo['lloji_i_bocave'])): ?>
             <div class="print-info-item">
                 <span class="print-info-label">Lloji i Bocave</span>
                 <span class="print-info-value"><?= e($clientInfo['lloji_i_bocave']) ?></span>
@@ -195,7 +199,6 @@ if ($selectedClient !== '') {
             <div><strong><?= $gjendja > 0.01 ? 'Borxhi' : ($gjendja < -0.01 ? 'Avanca' : 'Gjendja') ?>:</strong> &euro; <?= eur(abs($gjendja)) ?></div>
         </div>
     </div>
-    <?php endif; ?>
 
     <!-- Date filter -->
     <div class="card" style="margin-bottom:16px;">
