@@ -149,7 +149,7 @@ const TABLE_COUNTS = <?= json_encode($tableCounts) ?>;
 const SHEET_CONFIG = {
     'Distribuimi': {
         table: 'distribuimi', headerRow: 5,
-        columns: { 2:'klienti', 3:'data', 4:'sasia', 5:'boca_te_kthyera', 8:'litra', 9:'cmimi', 10:'pagesa', 11:'menyra_e_pageses', 13:'data_e_fletepageses', 14:'koment' },
+        columns: { 2:'klienti', 3:'data', 4:'sasia', 5:'boca_te_kthyera', 8:'litra', 9:'cmimi', 10:'pagesa', 11:'menyra_e_pageses', 12:'fatura_e_derguar', 13:'data_e_fletepageses', 14:'koment' },
         dateFields: ['data','data_e_fletepageses'],
         numFields: ['sasia','boca_te_kthyera','litra','cmimi','pagesa']
     },
