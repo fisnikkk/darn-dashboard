@@ -79,9 +79,9 @@ $borxhKomentSet = [];
 foreach ($debts as $d) {
     $noteKey = strtolower($d['klienti']);
     $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
-    $borxhBCNoteSet[] = $note['klient_bank_cash'] ?? '';
-    $borxhKushSet[] = $note['kush_merr_borxhin'] ?? '';
-    $borxhKomentSet[] = $note['koment'] ?? '';
+    $borxhBCNoteSet[] = trim($note['klient_bank_cash'] ?? '');
+    $borxhKushSet[] = trim($note['kush_merr_borxhin'] ?? '');
+    $borxhKomentSet[] = trim($note['koment'] ?? '');
 }
 $borxhBCNoteVals = array_values(array_unique($borxhBCNoteSet));
 $borxhKushVals = array_values(array_unique($borxhKushSet));
@@ -147,9 +147,9 @@ ob_start();
                         <td class="amount"><?= eur($d['dhurate']) ?></td>
                         <td class="amount" style="font-weight:700;">&euro; <?= eur($d['total']) ?></td>
                         <td class="amount" style="font-weight:700;color:var(--danger);">&euro; <?= eur($d['borxhi_bank_deri']) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e($note['klient_bank_cash']) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e($note['kush_merr_borxhin']) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e($note['koment']) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(trim($note['klient_bank_cash'])) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e(trim($note['kush_merr_borxhin'])) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e(trim($note['koment'])) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

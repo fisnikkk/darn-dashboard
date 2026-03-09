@@ -96,6 +96,17 @@ function runMigrations($pdo) {
             $pdo->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL");
         } catch (PDOException $e) {}
 
+        // Trim whitespace in borxhet_notes (one-time cleanup)
+        try {
+            $pdo->exec("UPDATE borxhet_notes SET
+                klient_bank_cash = TRIM(klient_bank_cash),
+                kush_merr_borxhin = TRIM(kush_merr_borxhin),
+                koment = TRIM(koment)
+                WHERE klient_bank_cash != TRIM(klient_bank_cash)
+                   OR kush_merr_borxhin != TRIM(kush_merr_borxhin)
+                   OR koment != TRIM(koment)");
+        } catch (PDOException $e) {}
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,

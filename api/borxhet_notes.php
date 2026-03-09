@@ -14,7 +14,7 @@ if (!$input || !isset($input['klienti'], $input['field'], $input['value'])) {
 
 $klienti = strtolower(trim($input['klienti']));
 $field = $input['field'];
-$value = $input['value'];
+$value = trim($input['value']);
 
 $allowedFields = ['klient_bank_cash', 'kush_merr_borxhin', 'koment'];
 if (!in_array($field, $allowedFields)) {
