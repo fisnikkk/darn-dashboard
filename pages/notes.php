@@ -71,11 +71,21 @@ $totalRows = $countStmt->fetchColumn();
 $totalPages = max(1, ceil($totalRows / $perPage));
 $offset = ($page - 1) * $perPage;
 
+// Count notes with missing dates (for parse button)
+$missingDates = (int)$db->query("SELECT COUNT(*) FROM notes WHERE data IS NULL OR data = '' OR data = '0000-00-00'")->fetchColumn();
+
 // Query
 $orderSecondary = $sortCol === 'id' ? '' : ', id DESC';
 $stmt = $db->prepare("SELECT * FROM notes {$where} ORDER BY {$sortCol} {$sortDir}{$orderSecondary} LIMIT {$perPage} OFFSET {$offset}");
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
+
+// Sort link helper
+$nextDir = ($sortDir === 'DESC') ? 'ASC' : 'DESC';
+$sortParams = '&per_page=' . $perPage
+    . ($search ? '&search=' . urlencode($search) : '')
+    . ($filterFrom ? '&date_from=' . urlencode($filterFrom) : '')
+    . ($filterTo ? '&date_to=' . urlencode($filterTo) : '');
 
 ob_start();
 ?>
@@ -104,7 +114,9 @@ ob_start();
         <h3><i class="fas fa-sticky-note"></i> Notes</h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:180px;">
+                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:140px;">
+                <input type="date" name="date_from" value="<?= e($filterFrom) ?>" title="Nga data" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:130px;">
+                <input type="date" name="date_to" value="<?= e($filterTo) ?>" title="Deri në datë" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:130px;">
                 <select name="per_page" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
                     <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
                     <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
@@ -112,10 +124,13 @@ ob_start();
                     <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
                 </select>
                 <button type="submit" class="btn btn-primary btn-sm">Filtro</button>
-                <?php if ($search): ?>
+                <?php if ($search || $filterFrom || $filterTo): ?>
                 <a href="?" class="btn btn-outline btn-sm">Pastro</a>
                 <?php endif; ?>
             </form>
+            <?php if ($missingDates > 0): ?>
+            <button class="btn btn-outline btn-sm" id="parseDatesBtn" title="Nxirr datat nga teksti i shënimeve"><i class="fas fa-magic"></i> Nxirr datat (<?= $missingDates ?>)</button>
+            <?php endif; ?>
             <button class="btn btn-primary btn-sm" onclick="openModal('addNoteModal')"><i class="fas fa-plus"></i> Shto</button>
         </div>
     </div>
@@ -124,6 +139,11 @@ ob_start();
             <table class="data-table" data-table="notes" style="table-layout:fixed;width:100%;">
                 <thead>
                     <tr>
+                        <th style="width:110px;">
+                            <a href="?sort=data&dir=<?= $sortCol === 'data' ? $nextDir : 'DESC' ?><?= $sortParams ?>" style="color:inherit;text-decoration:none;">
+                                Data <?php if ($sortCol === 'data'): ?><i class="fas fa-sort-<?= $sortDir === 'ASC' ? 'up' : 'down' ?>"></i><?php endif; ?>
+                            </a>
+                        </th>
                         <th>Shënim</th>
                         <th style="width:250px;" data-filter="f_barazu" data-filter-values="<?= e(json_encode($barazuVals, JSON_UNESCAPED_UNICODE)) ?>">Barazu nga</th>
                         <th style="width:45px;"></th>
@@ -131,12 +151,13 @@ ob_start();
                 </thead>
                 <tbody>
                     <?php if (empty($rows)): ?>
-                    <tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-muted);">
+                    <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">
                         <i class="fas fa-info-circle"></i> Nuk ka shënime.
                     </td></tr>
                     <?php else: ?>
                     <?php foreach ($rows as $r): ?>
                     <tr data-id="<?= $r['id'] ?>">
+                        <td class="editable" data-field="data" data-type="date"><?= ($r['data'] && $r['data'] !== '0000-00-00') ? e($r['data']) : '-' ?></td>
                         <td class="editable wrap" data-field="teksti" style="white-space:normal;word-break:break-word;"><?= e($r['teksti']) ?></td>
                         <td class="editable wrap" data-field="barazu_nga" style="white-space:normal;word-break:break-word;"><?= e($r['barazu_nga']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('notes',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
@@ -175,6 +196,12 @@ ob_start();
         <form class="ajax-form" action="/api/insert.php" method="POST">
             <input type="hidden" name="_table" value="notes">
             <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Data</label>
+                        <input type="date" name="data" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:0.85rem;">
+                    </div>
+                </div>
                 <div class="form-row">
                     <div class="form-group" style="width:100%;">
                         <label>Shënim *</label>
@@ -239,6 +266,37 @@ ob_start();
         }
         calcDiff();
     });
+
+    // Parse dates button
+    const parseBtn = document.getElementById('parseDatesBtn');
+    if (parseBtn) {
+        parseBtn.addEventListener('click', function() {
+            parseBtn.disabled = true;
+            parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke nxjerrë...';
+            fetch('/api/parse-note-dates.php')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message || ('U përditësuan ' + data.updated + ' shënime'));
+                        if (data.updated > 0) {
+                            setTimeout(() => location.reload(), 800);
+                        } else {
+                            parseBtn.innerHTML = '<i class="fas fa-check"></i> Asnjë datë e re';
+                            setTimeout(() => { parseBtn.disabled = false; parseBtn.innerHTML = '<i class="fas fa-magic"></i> Nxirr datat'; }, 2000);
+                        }
+                    } else {
+                        showToast(data.error || 'Gabim', 'error');
+                        parseBtn.disabled = false;
+                        parseBtn.innerHTML = '<i class="fas fa-magic"></i> Nxirr datat';
+                    }
+                })
+                .catch(() => {
+                    showToast('Gabim gjatë përpunimit', 'error');
+                    parseBtn.disabled = false;
+                    parseBtn.innerHTML = '<i class="fas fa-magic"></i> Nxirr datat';
+                });
+        });
+    }
 })();
 </script>
 
