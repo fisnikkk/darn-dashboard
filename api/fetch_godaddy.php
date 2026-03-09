@@ -6,10 +6,15 @@
  *   action=preview  → Show what would be imported (dry run)
  *   action=import   → Actually insert into distribuimi
  *   action=status   → Check GoDaddy connection
+ *   action=history  → List past GoDaddy imports (batches)
+ *   action=undo     → Undo an entire import batch
  *
  * Required params for preview/import:
  *   date_from  (YYYY-MM-DD)
  *   date_to    (YYYY-MM-DD)
+ *
+ * Required params for undo:
+ *   batch_id
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/godaddy.php';
@@ -30,6 +35,12 @@ try {
             break;
         case 'import':
             handleImport($db, $input);
+            break;
+        case 'history':
+            handleHistory($db);
+            break;
+        case 'undo':
+            handleUndo($db, $input);
             break;
         default:
             echo json_encode(['success' => false, 'error' => 'Unknown action']);
@@ -133,6 +144,9 @@ function handleImport($db, $input) {
         return;
     }
 
+    // Generate batch ID: gd_YYYYMMDD_HHMMSS
+    $batchId = 'gd_' . date('Ymd_His');
+
     $db->beginTransaction();
     $inserted = 0;
     $skipped = 0;
@@ -166,9 +180,9 @@ function handleImport($db, $input) {
         ]);
         $newId = $db->lastInsertId();
 
-        // Log to changelog
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?)")
-            ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE)]);
+        // Log to changelog with batch_id
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?, ?)")
+            ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE), $batchId]);
 
         $inserted++;
     }
@@ -180,6 +194,99 @@ function handleImport($db, $input) {
         'message' => "U importuan {$inserted} rreshta te reja" . ($skipped ? " ({$skipped} ekzistonin tashme)" : ''),
         'inserted' => $inserted,
         'skipped' => $skipped,
+        'batch_id' => $batchId,
+    ]);
+}
+
+/**
+ * History: list past GoDaddy import batches
+ */
+function handleHistory($db) {
+    $stmt = $db->query("
+        SELECT batch_id,
+               COUNT(*) as row_count,
+               MIN(created_at) as imported_at,
+               MIN(JSON_UNQUOTE(JSON_EXTRACT(new_value, '$.data'))) as date_from,
+               MAX(JSON_UNQUOTE(JSON_EXTRACT(new_value, '$.data'))) as date_to
+        FROM changelog
+        WHERE field_name = 'godaddy_import'
+          AND batch_id IS NOT NULL
+          AND reverted = 0
+        GROUP BY batch_id
+        ORDER BY MIN(created_at) DESC
+        LIMIT 20
+    ");
+    $batches = $stmt->fetchAll();
+
+    // Also find imports without batch_id (the first 33 rows)
+    $orphan = $db->query("
+        SELECT COUNT(*) as row_count,
+               MIN(created_at) as imported_at,
+               MIN(JSON_UNQUOTE(JSON_EXTRACT(new_value, '$.data'))) as date_from,
+               MAX(JSON_UNQUOTE(JSON_EXTRACT(new_value, '$.data'))) as date_to
+        FROM changelog
+        WHERE field_name = 'godaddy_import'
+          AND batch_id IS NULL
+          AND reverted = 0
+    ")->fetch();
+
+    if ($orphan && (int)$orphan['row_count'] > 0) {
+        $batches[] = [
+            'batch_id' => '_orphan',
+            'row_count' => $orphan['row_count'],
+            'imported_at' => $orphan['imported_at'],
+            'date_from' => $orphan['date_from'],
+            'date_to' => $orphan['date_to'],
+        ];
+    }
+
+    echo json_encode(['success' => true, 'batches' => $batches]);
+}
+
+/**
+ * Undo: delete all distribuimi rows from a specific import batch
+ */
+function handleUndo($db, $input) {
+    $batchId = $input['batch_id'] ?? '';
+    if (!$batchId) {
+        echo json_encode(['success' => false, 'error' => 'batch_id mungon.']);
+        return;
+    }
+
+    // Find all row IDs from this batch
+    if ($batchId === '_orphan') {
+        $stmt = $db->query("SELECT row_id FROM changelog WHERE field_name = 'godaddy_import' AND batch_id IS NULL AND reverted = 0");
+    } else {
+        $stmt = $db->prepare("SELECT row_id FROM changelog WHERE field_name = 'godaddy_import' AND batch_id = ? AND reverted = 0");
+        $stmt->execute([$batchId]);
+    }
+    $rowIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    if (empty($rowIds)) {
+        echo json_encode(['success' => false, 'error' => 'Ky import nuk u gjet ose eshte kthyer tashme.']);
+        return;
+    }
+
+    $db->beginTransaction();
+
+    // Delete rows from distribuimi
+    $placeholders = implode(',', array_fill(0, count($rowIds), '?'));
+    $db->prepare("DELETE FROM distribuimi WHERE id IN ($placeholders)")->execute($rowIds);
+
+    // Mark changelog entries as reverted
+    if ($batchId === '_orphan') {
+        $db->exec("UPDATE changelog SET reverted = 1 WHERE field_name = 'godaddy_import' AND batch_id IS NULL AND reverted = 0");
+    } else {
+        $db->prepare("UPDATE changelog SET reverted = 1 WHERE field_name = 'godaddy_import' AND batch_id = ? AND reverted = 0")
+            ->execute([$batchId]);
+    }
+
+    $db->commit();
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'U hoqen ' . count($rowIds) . ' rreshta nga distribuimi.',
+        'removed' => count($rowIds),
     ]);
 }
 

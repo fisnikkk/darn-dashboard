@@ -167,7 +167,7 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3>Distribuimi - Të dhënat</h3>
-        <button class="btn btn-sm" onclick="openModal('gdModal'); setTimeout(gdCheckStatus, 100);" style="margin-right:6px;background:#059669;color:#fff;border:none;"><i class="fas fa-database"></i> Merr nga GoDaddy</button>
+        <button class="btn btn-sm" onclick="openModal('gdModal'); setTimeout(function(){ gdCheckStatus(); gdLoadHistory(); }, 100);" style="margin-right:6px;background:#059669;color:#fff;border:none;"><i class="fas fa-database"></i> Merr nga GoDaddy</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('pasteDist')" style="margin-right:6px;"><i class="fas fa-paste"></i> Ngjit nga Excel</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">
             <i class="fas fa-plus"></i> Shto rresht
@@ -681,6 +681,16 @@ function applyBulkPayment() {
 
             <!-- Results -->
             <div id="gdResults" style="display:none;padding:14px;border-radius:8px;margin-top:12px;"></div>
+
+            <!-- Import History -->
+            <div id="gdHistory" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+                <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">
+                    <i class="fas fa-history"></i> Importet e fundit
+                </div>
+                <div id="gdHistoryList" style="font-size:0.8rem;">
+                    <span style="color:var(--text-muted);">Duke ngarkuar...</span>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button type="button" class="btn btn-outline" onclick="closeModal('gdModal')">Mbyll</button>
@@ -831,6 +841,7 @@ function gdImport() {
             results.innerHTML = '<div style="color:#059669;font-weight:600;"><i class="fas fa-check-circle"></i> ' + data.message + '</div>';
             if (data.inserted > 0) {
                 results.innerHTML += '<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="fas fa-redo"></i> Rifresko faqen</button></div>';
+                gdLoadHistory();
             }
         } else {
             results.style.background = '#fef2f2';
@@ -844,6 +855,68 @@ function gdImport() {
         results.style.background = '#fef2f2';
         results.style.border = '1px solid #fecaca';
         results.innerHTML = '<div style="color:#dc2626;"><i class="fas fa-times-circle"></i> ' + err.message + '</div>';
+    });
+}
+
+function gdLoadHistory() {
+    const list = document.getElementById('gdHistoryList');
+    fetch('/api/fetch_godaddy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'history' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success || !data.batches || !data.batches.length) {
+            list.innerHTML = '<span style="color:var(--text-muted);">Asnje import ende.</span>';
+            return;
+        }
+        list.innerHTML = data.batches.map(b => {
+            const date = new Date(b.imported_at).toLocaleDateString('sq-AL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+            const range = (b.date_from || '?') + ' — ' + (b.date_to || '?');
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:5px;margin-bottom:4px;">
+                <div>
+                    <strong>${b.row_count}</strong> rreshta
+                    <span style="color:var(--text-muted);margin:0 6px;">|</span>
+                    <span style="color:var(--text-muted);">${range}</span>
+                    <span style="color:var(--text-muted);margin:0 6px;">|</span>
+                    <span style="color:var(--text-muted);font-size:0.75rem;">${date}</span>
+                </div>
+                <button class="btn btn-sm" onclick="gdUndo('${b.batch_id}', ${b.row_count})" style="background:#dc2626;color:#fff;border:none;padding:3px 10px;font-size:0.75rem;">
+                    <i class="fas fa-undo"></i> Kthe
+                </button>
+            </div>`;
+        }).join('');
+    })
+    .catch(() => {
+        list.innerHTML = '<span style="color:#dc2626;">Gabim ne ngarkim.</span>';
+    });
+}
+
+function gdUndo(batchId, count) {
+    if (!confirm('Je i sigurt? Do te fshihen ' + count + ' rreshta qe u importuan nga GoDaddy.\n\nKy veprim nuk mund te kthehet.')) return;
+
+    const list = document.getElementById('gdHistoryList');
+    list.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke fshire...';
+
+    fetch('/api/fetch_godaddy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'undo', batch_id: batchId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            gdLoadHistory();
+        } else {
+            showToast(data.error || 'Gabim', 'error');
+            gdLoadHistory();
+        }
+    })
+    .catch(() => {
+        showToast('Gabim ne fshirje', 'error');
+        gdLoadHistory();
     });
 }
 </script>

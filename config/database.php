@@ -107,6 +107,13 @@ function runMigrations($pdo) {
                    OR koment != TRIM(koment)");
         } catch (PDOException $e) {}
 
+        // Add batch_id column to changelog for grouping GoDaddy imports
+        $cols = $pdo->query("SHOW COLUMNS FROM changelog LIKE 'batch_id'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE changelog ADD COLUMN batch_id VARCHAR(50) NULL");
+            $pdo->exec("CREATE INDEX idx_changelog_batch ON changelog (batch_id)");
+        }
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,
