@@ -711,9 +711,14 @@ function gdCheckStatus() {
     document.getElementById('gdResults').style.display = 'none';
     document.getElementById('gdImportBtn').style.display = 'none';
 
-    fetch('/api/fetch_godaddy.php?action=status&_=' + Date.now())
-        .then(r => r.json())
-        .then(data => {
+    console.log('[GD] Starting status check...');
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/fetch_godaddy.php?action=status&_=' + Date.now(), true);
+    xhr.timeout = 15000;
+    xhr.onload = function() {
+        console.log('[GD] Response:', xhr.status, xhr.responseText.substring(0, 200));
+        try {
+            var data = JSON.parse(xhr.responseText);
             if (data.connected) {
                 el.innerHTML = '<i class="fas fa-check-circle" style="color:#059669;"></i> <strong>Lidhja aktive</strong> — ' + (data.total_rows || 0).toLocaleString() + ' rreshta ne GoDaddy';
                 el.style.background = '#f0fdf4';
@@ -722,11 +727,23 @@ function gdCheckStatus() {
                 el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> ' + (data.reason || 'Nuk mund te lidhem');
                 el.style.background = '#fef2f2';
             }
-        })
-        .catch(() => {
-            el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> Gabim ne lidhje me serverin';
+        } catch(e) {
+            console.error('[GD] JSON parse error:', e);
+            el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> Gabim: pergjigje jo valide';
             el.style.background = '#fef2f2';
-        });
+        }
+    };
+    xhr.onerror = function() {
+        console.error('[GD] Network error');
+        el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> Gabim ne lidhje me serverin';
+        el.style.background = '#fef2f2';
+    };
+    xhr.ontimeout = function() {
+        console.error('[GD] Timeout after 15s');
+        el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> Timeout — serveri nuk pergjigjet';
+        el.style.background = '#fef2f2';
+    };
+    xhr.send();
 }
 
 function gdPreview() {
