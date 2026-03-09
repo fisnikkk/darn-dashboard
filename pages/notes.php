@@ -58,6 +58,9 @@ if ($search) {
 
 $where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
 
+// Distinct barazu_nga values for column filter
+$barazuVals = $db->query("SELECT DISTINCT barazu_nga FROM notes WHERE barazu_nga IS NOT NULL AND barazu_nga != '' ORDER BY barazu_nga")->fetchAll(PDO::FETCH_COLUMN);
+
 // Pagination
 $perPage = (int)($_GET['per_page'] ?? 100);
 if (!in_array($perPage, [100, 500, 1000, 5000])) $perPage = 100;
@@ -122,7 +125,7 @@ ob_start();
                 <thead>
                     <tr>
                         <th>Shënim</th>
-                        <th style="width:250px;">Barazu nga</th>
+                        <th style="width:250px;" data-filter="f_barazu" data-filter-values="<?= e(json_encode($barazuVals, JSON_UNESCAPED_UNICODE)) ?>">Barazu nga</th>
                         <th style="width:45px;"></th>
                     </tr>
                 </thead>
