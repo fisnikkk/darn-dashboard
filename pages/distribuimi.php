@@ -711,7 +711,7 @@ function gdCheckStatus() {
     document.getElementById('gdResults').style.display = 'none';
     document.getElementById('gdImportBtn').style.display = 'none';
 
-    fetch('/api/fetch_godaddy.php?action=status')
+    fetch('/api/fetch_godaddy.php?action=status&_=' + Date.now())
         .then(r => r.json())
         .then(data => {
             if (data.connected) {
