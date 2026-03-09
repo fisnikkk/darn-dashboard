@@ -167,6 +167,7 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3>Distribuimi - Të dhënat</h3>
+        <button class="btn btn-sm" onclick="openModal('gdModal')" style="margin-right:6px;background:#059669;color:#fff;border:none;"><i class="fas fa-database"></i> Merr nga GoDaddy</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('pasteDist')" style="margin-right:6px;"><i class="fas fa-paste"></i> Ngjit nga Excel</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">
             <i class="fas fa-plus"></i> Shto rresht
@@ -621,6 +622,220 @@ function applyBulkPayment() {
         showToast(ok + '/' + ids.length + ' u ndryshuan me sukses');
         setTimeout(() => location.reload(), 500);
     }).catch(() => showToast('Gabim ne server', 'error'));
+}
+</script>
+
+<!-- GoDaddy Import Modal -->
+<div class="modal-overlay" id="gdModal">
+    <div class="modal" style="max-width:850px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-database" style="color:#059669;"></i> Merr te dhena nga GoDaddy</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeModal('gdModal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;">
+            <!-- Connection status -->
+            <div id="gdStatus" style="padding:10px 14px;border-radius:6px;background:#f8fafc;border:1px solid var(--border);margin-bottom:14px;font-size:0.85rem;">
+                <i class="fas fa-spinner fa-spin"></i> Duke kontrolluar lidhjen me GoDaddy...
+            </div>
+
+            <!-- Date range picker -->
+            <div id="gdDatePicker" style="display:none;">
+                <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Data nga</label>
+                        <input type="date" id="gdDateFrom" style="padding:6px 10px;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Data deri</label>
+                        <input type="date" id="gdDateTo" style="padding:6px 10px;">
+                    </div>
+                    <button class="btn btn-sm" onclick="gdPreview()" style="background:#0284c7;color:#fff;border:none;height:36px;">
+                        <i class="fas fa-search"></i> Kërko
+                    </button>
+                </div>
+            </div>
+
+            <!-- Preview table -->
+            <div id="gdPreviewWrap" style="display:none;">
+                <div id="gdPreviewInfo" style="font-size:0.85rem;margin-bottom:8px;"></div>
+                <div style="max-height:400px;overflow:auto;border:1px solid var(--border);border-radius:6px;">
+                    <table class="data-table" style="font-size:0.78rem;margin:0;">
+                        <thead>
+                            <tr>
+                                <th style="width:30px;"></th>
+                                <th>Klienti</th>
+                                <th>Data</th>
+                                <th>Sasia</th>
+                                <th>Boca kth.</th>
+                                <th>Litra</th>
+                                <th>Çmimi</th>
+                                <th>Pagesa</th>
+                                <th>Mënyra</th>
+                                <th>Koment</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gdPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="gdResults" style="display:none;padding:14px;border-radius:8px;margin-top:12px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal('gdModal')">Mbyll</button>
+            <button type="button" class="btn btn-sm" id="gdImportBtn" onclick="gdImport()" style="background:#059669;color:#fff;border:none;display:none;">
+                <i class="fas fa-download"></i> Importo
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── GoDaddy Import ──
+(function() {
+    const origOpen = window.openModal;
+    window.openModal = function(id) {
+        origOpen(id);
+        if (id === 'gdModal') gdCheckStatus();
+    };
+})();
+
+function gdCheckStatus() {
+    const el = document.getElementById('gdStatus');
+    const picker = document.getElementById('gdDatePicker');
+    el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke kontrolluar lidhjen me GoDaddy...';
+    el.style.background = '#f8fafc';
+    picker.style.display = 'none';
+    document.getElementById('gdPreviewWrap').style.display = 'none';
+    document.getElementById('gdResults').style.display = 'none';
+    document.getElementById('gdImportBtn').style.display = 'none';
+
+    fetch('/api/fetch_godaddy.php?action=status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.connected) {
+                el.innerHTML = '<i class="fas fa-check-circle" style="color:#059669;"></i> <strong>Lidhja aktive</strong> — ' + (data.total_rows || 0).toLocaleString() + ' rreshta ne GoDaddy';
+                el.style.background = '#f0fdf4';
+                picker.style.display = 'block';
+            } else {
+                el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> ' + (data.reason || 'Nuk mund te lidhem');
+                el.style.background = '#fef2f2';
+            }
+        })
+        .catch(() => {
+            el.innerHTML = '<i class="fas fa-times-circle" style="color:#dc2626;"></i> Gabim ne lidhje me serverin';
+            el.style.background = '#fef2f2';
+        });
+}
+
+function gdPreview() {
+    const dateFrom = document.getElementById('gdDateFrom').value;
+    const dateTo = document.getElementById('gdDateTo').value;
+    if (!dateFrom || !dateTo) { showToast('Zgjidh te dyja datat', 'error'); return; }
+    if (dateFrom > dateTo) { showToast('Data "nga" duhet te jete para dates "deri"', 'error'); return; }
+
+    const wrap = document.getElementById('gdPreviewWrap');
+    const body = document.getElementById('gdPreviewBody');
+    const info = document.getElementById('gdPreviewInfo');
+    const importBtn = document.getElementById('gdImportBtn');
+    wrap.style.display = 'block';
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Duke kerkuar...</td></tr>';
+    info.innerHTML = '';
+    importBtn.style.display = 'none';
+
+    fetch('/api/fetch_godaddy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'preview', date_from: dateFrom, date_to: dateTo })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            body.innerHTML = '<tr><td colspan="10" style="color:#dc2626;padding:12px;">' + (data.error || 'Gabim') + '</td></tr>';
+            return;
+        }
+
+        if (!data.rows || !data.rows.length) {
+            body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">Asgje nuk u gjet per kete periudhe</td></tr>';
+            return;
+        }
+
+        info.innerHTML = '<strong>' + data.total_found + '</strong> rreshta u gjeten — <strong style="color:#059669;">' + data.new_rows + '</strong> te reja, <strong style="color:#f59e0b;">' + data.duplicates + '</strong> ekzistojne tashme';
+
+        body.innerHTML = data.rows.map(r => {
+            const isDup = r._duplicate;
+            const style = isDup ? 'opacity:0.4;text-decoration:line-through;' : '';
+            const icon = isDup ? '<i class="fas fa-check" style="color:#f59e0b;" title="Ekziston tashme"></i>' : '<i class="fas fa-plus" style="color:#059669;" title="E re"></i>';
+            return `<tr style="${style}">
+                <td>${icon}</td>
+                <td>${r.klienti || '-'}</td>
+                <td>${r.data || '-'}</td>
+                <td class="num">${r.sasia}</td>
+                <td class="num">${r.boca_te_kthyera}</td>
+                <td class="num">${r.litra}</td>
+                <td class="num">${r.cmimi}</td>
+                <td class="num" style="font-weight:600;">&euro; ${parseFloat(r.pagesa).toFixed(2)}</td>
+                <td><span class="badge ${r.menyra_e_pageses === 'CASH' ? 'badge-cash' : r.menyra_e_pageses === 'BANK' ? 'badge-bank' : 'badge-fature'}">${r.menyra_e_pageses}</span></td>
+                <td>${r.fatura_e_derguar || '-'}</td>
+            </tr>`;
+        }).join('');
+
+        if (data.new_rows > 0) {
+            importBtn.style.display = 'inline-flex';
+        }
+    })
+    .catch(() => {
+        body.innerHTML = '<tr><td colspan="10" style="color:#dc2626;padding:12px;">Gabim ne kerkimin e te dhenave</td></tr>';
+    });
+}
+
+function gdImport() {
+    const dateFrom = document.getElementById('gdDateFrom').value;
+    const dateTo = document.getElementById('gdDateTo').value;
+    if (!dateFrom || !dateTo) return;
+
+    if (!confirm('Importo te dhenat e reja nga GoDaddy per periudhen ' + dateFrom + ' deri ' + dateTo + '?\n\nVetem rreshtat e reja do te shtohen (duplikatet anashkalohen).')) return;
+
+    const btn = document.getElementById('gdImportBtn');
+    const results = document.getElementById('gdResults');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke importuar...';
+    results.style.display = 'block';
+    results.style.background = '#f0fdf4';
+    results.style.border = '1px solid #bbf7d0';
+    results.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke importuar... Mos e mbyll dritaren.';
+
+    fetch('/api/fetch_godaddy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'import', date_from: dateFrom, date_to: dateTo })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Importo';
+
+        if (data.success) {
+            results.style.background = '#f0fdf4';
+            results.style.border = '1px solid #bbf7d0';
+            results.innerHTML = '<div style="color:#059669;font-weight:600;"><i class="fas fa-check-circle"></i> ' + data.message + '</div>';
+            if (data.inserted > 0) {
+                results.innerHTML += '<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="fas fa-redo"></i> Rifresko faqen</button></div>';
+            }
+        } else {
+            results.style.background = '#fef2f2';
+            results.style.border = '1px solid #fecaca';
+            results.innerHTML = '<div style="color:#dc2626;"><i class="fas fa-times-circle"></i> ' + (data.error || 'Gabim') + '</div>';
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Importo';
+        results.style.background = '#fef2f2';
+        results.style.border = '1px solid #fecaca';
+        results.innerHTML = '<div style="color:#dc2626;"><i class="fas fa-times-circle"></i> ' + err.message + '</div>';
+    });
 }
 </script>
 
