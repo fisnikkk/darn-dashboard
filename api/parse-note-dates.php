@@ -60,11 +60,11 @@ foreach ($rows as $row) {
             }
         }
 
-        // Validate the date
-        if ($day > 28) {
-            // For months with fewer days, clamp
-            $maxDay = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-            if ($day > $maxDay) $day = $maxDay;
+        // Validate the date — clamp day if needed
+        if (!checkdate($month, $day, $year)) {
+            // Try clamping to last day of month
+            $maxDay = (int)(new DateTime("$year-$month-01"))->format('t');
+            $day = min($day, $maxDay);
         }
 
         if (checkdate($month, $day, $year)) {
