@@ -5,6 +5,56 @@ header('Content-Type: application/json');
 $table = $_POST['_table'] ?? '';
 if (!$table) { echo json_encode(['success' => false, 'error' => 'No table']); exit; }
 
+/**
+ * Parse an Albanian date from note text. Returns YYYY-MM-DD or null.
+ * Handles: "3 mars", "30 prill 2025", "02.09.2022", "11/09/2022"
+ */
+function parseAlbanianDate($text) {
+    $months = [
+        'janar' => 1, 'shkurt' => 2, 'mars' => 3, 'prill' => 4,
+        'maj' => 5, 'qershor' => 6, 'korrik' => 7, 'gusht' => 8,
+        'shtator' => 9, 'tetor' => 10, 'nëntor' => 11, 'nentor' => 11,
+        'dhjetor' => 12
+    ];
+    $monthPattern = implode('|', array_keys($months));
+    $today = new DateTime();
+
+    // Pattern 1: <day> <albanian_month> [optional_year]
+    if (preg_match('/\b(\d{1,2})\s+(' . $monthPattern . ')(?:\s+(20[2-9]\d))?\b/iu', $text, $m)) {
+        $day = (int)$m[1];
+        $monthName = mb_strtolower($m[2]);
+        $month = $months[$monthName] ?? null;
+        if ($month && $day >= 1 && $day <= 31) {
+            $year = !empty($m[3]) ? (int)$m[3] : (int)date('Y');
+            if (empty($m[3])) {
+                $candidate = sprintf('%04d-%02d-%02d', $year, $month, min($day, 28));
+                if (new DateTime($candidate) > $today) $year--;
+            }
+            if (!checkdate($month, $day, $year)) {
+                $day = min($day, (int)(new DateTime("$year-$month-01"))->format('t'));
+            }
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+    }
+
+    // Pattern 2: DD.MM.YYYY or DD/MM/YYYY
+    if (preg_match('/\b(\d{1,2})[.\/]\s*(\d{1,2})[.\/]\s*(\d{4})\b/', $text, $m)) {
+        $day = (int)$m[1]; $month = (int)$m[2]; $year = (int)$m[3];
+        if ($month >= 1 && $month <= 12 && $day >= 1 && $day <= 31 && $year >= 2020 && $year <= 2030) {
+            if (!checkdate($month, $day, $year)) {
+                $day = min($day, (int)(new DateTime("$year-$month-01"))->format('t'));
+            }
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+    }
+
+    return null;
+}
+
 // Define insert fields per table
 $schemas = [
     'distribuimi' => ['klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa',
@@ -144,6 +194,19 @@ try {
             $fields[] = 'vlera';
             $values[] = round($s * $c, 2);
             $placeholders[] = '?';
+        }
+    }
+
+    // Auto-parse date from note text if no date was provided
+    if ($table === 'notes' && !in_array('data', $fields)) {
+        $tekstiIdx = array_search('teksti', $fields);
+        if ($tekstiIdx !== false) {
+            $parsedDate = parseAlbanianDate($values[$tekstiIdx]);
+            if ($parsedDate) {
+                $fields[] = 'data';
+                $values[] = $parsedDate;
+                $placeholders[] = '?';
+            }
         }
     }
 
