@@ -14,6 +14,7 @@
  *   2. created_at year, adjusted to avoid future dates
  */
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 header('Content-Type: application/json');
 
 $db = getDB();

@@ -3,6 +3,8 @@
  * DARN Dashboard - Main Layout
  * Mirrors the Excel workbook tabs as sidebar navigation
  */
+require_once __DIR__ . '/auth.php';
+
 function renderLayout($pageTitle, $currentPage, $content) {
     $pages = [
         ['id' => 'distribuimi', 'icon' => 'fa-truck', 'label' => 'Distribuimi'],
@@ -52,6 +54,9 @@ function renderLayout($pageTitle, $currentPage, $content) {
             </a>
             <?php endforeach; ?>
         </nav>
+        <div class="sidebar-footer">
+            <a href="?logout=1" class="nav-item" style="color:#f87171;"><i class="fas fa-sign-out-alt"></i> <span>Dil</span></a>
+        </div>
     </aside>
 
     <!-- Sidebar backdrop for mobile -->

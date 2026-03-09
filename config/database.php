@@ -114,6 +114,14 @@ function runMigrations($pdo) {
             $pdo->exec("CREATE INDEX idx_changelog_batch ON changelog (batch_id)");
         }
 
+        // Login attempts table for rate limiting
+        $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ip_address VARCHAR(45) NOT NULL,
+            attempted_at DATETIME NOT NULL,
+            INDEX idx_ip_time (ip_address, attempted_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
         // Snapshots table (auto-created by snapshot.php, but ensure it exists)
         $pdo->exec("CREATE TABLE IF NOT EXISTS snapshots (
             id INT AUTO_INCREMENT PRIMARY KEY,

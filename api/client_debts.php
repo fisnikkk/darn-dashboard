@@ -5,6 +5,7 @@
  * GET ?klienti=clientname&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
  */
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 header('Content-Type: application/json');
 
 $klienti = $_GET['klienti'] ?? '';

@@ -5,6 +5,7 @@
  * Safe to run multiple times (uses INSERT ON DUPLICATE KEY UPDATE).
  */
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 header('Content-Type: application/json');
 
 $jsonPath = __DIR__ . '/../temp_excel_gjendja_e_borxheve.json';

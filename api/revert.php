@@ -5,6 +5,7 @@
  * Marks reverted entries so clicking again goes back another step (multi-level undo).
  */
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 header('Content-Type: application/json');
 
 $input = json_decode(file_get_contents('php://input'), true);

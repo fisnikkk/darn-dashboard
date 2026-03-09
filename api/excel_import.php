@@ -11,6 +11,7 @@ ini_set('max_execution_time', 300);
 set_time_limit(300);
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 
 header('Content-Type: application/json');
 
