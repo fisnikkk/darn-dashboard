@@ -71,9 +71,6 @@ $totalRows = $countStmt->fetchColumn();
 $totalPages = max(1, ceil($totalRows / $perPage));
 $offset = ($page - 1) * $perPage;
 
-// Count notes with missing dates (for parse button)
-$missingDates = (int)$db->query("SELECT COUNT(*) FROM notes WHERE data IS NULL OR CAST(data AS CHAR) = '' OR CAST(data AS CHAR) = '0000-00-00'")->fetchColumn();
-
 // Query
 $orderSecondary = $sortCol === 'id' ? '' : ', id DESC';
 $stmt = $db->prepare("SELECT * FROM notes {$where} ORDER BY {$sortCol} {$sortDir}{$orderSecondary} LIMIT {$perPage} OFFSET {$offset}");
@@ -128,9 +125,6 @@ ob_start();
                 <a href="?" class="btn btn-outline btn-sm">Pastro</a>
                 <?php endif; ?>
             </form>
-            <?php if ($missingDates > 0): ?>
-            <button class="btn btn-outline btn-sm" id="parseDatesBtn" title="Nxirr datat nga teksti i shënimeve"><i class="fas fa-magic"></i> Nxirr datat (<?= $missingDates ?>)</button>
-            <?php endif; ?>
             <button class="btn btn-primary btn-sm" onclick="openModal('addNoteModal')"><i class="fas fa-plus"></i> Shto</button>
         </div>
     </div>
@@ -267,36 +261,6 @@ ob_start();
         calcDiff();
     });
 
-    // Parse dates button
-    const parseBtn = document.getElementById('parseDatesBtn');
-    if (parseBtn) {
-        parseBtn.addEventListener('click', function() {
-            parseBtn.disabled = true;
-            parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke nxjerrë...';
-            fetch('/api/parse-note-dates.php')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(data.message || ('U përditësuan ' + data.updated + ' shënime'));
-                        if (data.updated > 0) {
-                            setTimeout(() => location.reload(), 800);
-                        } else {
-                            parseBtn.innerHTML = '<i class="fas fa-check"></i> Asnjë datë e re';
-                            setTimeout(() => { parseBtn.disabled = false; parseBtn.innerHTML = '<i class="fas fa-magic"></i> Nxirr datat'; }, 2000);
-                        }
-                    } else {
-                        showToast(data.error || 'Gabim', 'error');
-                        parseBtn.disabled = false;
-                        parseBtn.innerHTML = '<i class="fas fa-magic"></i> Nxirr datat';
-                    }
-                })
-                .catch(() => {
-                    showToast('Gabim gjatë përpunimit', 'error');
-                    parseBtn.disabled = false;
-                    parseBtn.innerHTML = '<i class="fas fa-magic"></i> Nxirr datat';
-                });
-        });
-    }
 })();
 </script>
 
