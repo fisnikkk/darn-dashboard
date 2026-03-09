@@ -34,11 +34,11 @@ $babiProductCash = (float)$db->query("
 // N4: Total
 $babiCashTotal = $babiGasCash + $babiProductCash;
 
-// Sorting
-$sortCol = $_GET['sort'] ?? 'data';
+// Sorting — default by insertion order (id DESC)
+$sortCol = $_GET['sort'] ?? 'id';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
 $allowedSort = ['data', 'id'];
-if (!in_array($sortCol, $allowedSort)) $sortCol = 'data';
+if (!in_array($sortCol, $allowedSort)) $sortCol = 'id';
 
 // Date range filter
 $filterFrom = $_GET['date_from'] ?? '';
@@ -59,7 +59,8 @@ if ($search) {
 $where = $whereArr ? 'WHERE ' . implode(' AND ', $whereArr) : '';
 
 // Pagination
-$perPage = (int)($_GET['per_page'] ?? 50);
+$perPage = (int)($_GET['per_page'] ?? 100);
+if (!in_array($perPage, [100, 500, 1000, 5000])) $perPage = 100;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $countStmt = $db->prepare("SELECT COUNT(*) FROM notes {$where}");
 $countStmt->execute($params);
@@ -68,7 +69,8 @@ $totalPages = max(1, ceil($totalRows / $perPage));
 $offset = ($page - 1) * $perPage;
 
 // Query
-$stmt = $db->prepare("SELECT * FROM notes {$where} ORDER BY {$sortCol} {$sortDir}, id DESC LIMIT {$perPage} OFFSET {$offset}");
+$orderSecondary = $sortCol === 'id' ? '' : ', id DESC';
+$stmt = $db->prepare("SELECT * FROM notes {$where} ORDER BY {$sortCol} {$sortDir}{$orderSecondary} LIMIT {$perPage} OFFSET {$offset}");
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
@@ -97,16 +99,22 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3><i class="fas fa-sticky-note"></i> Notes</h3>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <form method="GET" style="display:flex;gap:8px;align-items:center;">
-                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:180px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:150px;">
                 <label style="font-size:0.82rem;font-weight:600;">Nga:</label>
                 <input type="date" name="date_from" value="<?= e($filterFrom) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
                 <label style="font-size:0.82rem;font-weight:600;">Deri:</label>
                 <input type="date" name="date_to" value="<?= e($filterTo) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                <select name="per_page" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                    <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
+                    <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
+                    <option value="1000" <?= $perPage==1000?'selected':'' ?>>1000</option>
+                    <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
+                </select>
                 <button type="submit" class="btn btn-primary btn-sm">Filtro</button>
                 <?php if ($search || $filterFrom || $filterTo): ?>
-                <a href="?page=notes" class="btn btn-outline btn-sm">Pastro</a>
+                <a href="?" class="btn btn-outline btn-sm">Pastro</a>
                 <?php endif; ?>
             </form>
             <button class="btn btn-primary btn-sm" onclick="openModal('addNoteModal')"><i class="fas fa-plus"></i> Shto</button>
@@ -114,17 +122,20 @@ ob_start();
     </div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table" data-table="notes">
+            <table class="data-table" data-table="notes" style="table-layout:fixed;width:100%;">
                 <thead>
                     <tr>
-                        <th style="width:110px;">
-                            <a href="?sort=data&dir=<?= $sortCol === 'data' && $sortDir === 'DESC' ? 'ASC' : 'DESC' ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $filterFrom ? '&date_from=' . urlencode($filterFrom) : '' ?><?= $filterTo ? '&date_to=' . urlencode($filterTo) : '' ?>" style="color:inherit;text-decoration:none;">
+                        <?php
+                            $sortParams = ($search ? '&search=' . urlencode($search) : '') . ($filterFrom ? '&date_from=' . urlencode($filterFrom) : '') . ($filterTo ? '&date_to=' . urlencode($filterTo) : '') . '&per_page=' . $perPage;
+                        ?>
+                        <th style="width:100px;">
+                            <a href="?sort=data&dir=<?= $sortCol === 'data' && $sortDir === 'DESC' ? 'ASC' : 'DESC' ?><?= $sortParams ?>" style="color:inherit;text-decoration:none;">
                                 Data <i class="fas fa-sort<?= $sortCol === 'data' ? ($sortDir === 'ASC' ? '-up' : '-down') : '' ?>"></i>
                             </a>
                         </th>
                         <th>Shënim</th>
-                        <th style="width:300px;">Barazu nga</th>
-                        <th style="width:50px;"></th>
+                        <th style="width:250px;">Barazu nga</th>
+                        <th style="width:45px;"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -136,7 +147,7 @@ ob_start();
                     <?php foreach ($rows as $r): ?>
                     <tr data-id="<?= $r['id'] ?>">
                         <td class="editable" data-field="data" data-type="date" style="white-space:nowrap;"><?= $r['data'] ?: '-' ?></td>
-                        <td class="editable wrap" data-field="teksti" style="min-width:300px;white-space:normal;word-break:break-word;"><?= e($r['teksti']) ?></td>
+                        <td class="editable wrap" data-field="teksti" style="max-width:600px;white-space:normal;word-break:break-word;"><?= e($r['teksti']) ?></td>
                         <td class="editable wrap" data-field="barazu_nga" style="white-space:normal;word-break:break-word;"><?= e($r['barazu_nga']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('notes',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
@@ -150,13 +161,19 @@ ob_start();
 
 <!-- Pagination -->
 <?php if ($totalPages > 1): ?>
+<?php
+    $pagParams = '&sort=' . $sortCol . '&dir=' . $sortDir . '&per_page=' . $perPage
+        . ($search ? '&search=' . urlencode($search) : '')
+        . ($filterFrom ? '&date_from=' . urlencode($filterFrom) : '')
+        . ($filterTo ? '&date_to=' . urlencode($filterTo) : '');
+?>
 <div class="pagination">
     <?php if ($page > 1): ?>
-    <a href="?page=<?= $page - 1 ?>&sort=<?= $sortCol ?>&dir=<?= $sortDir ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $filterFrom ? '&date_from=' . urlencode($filterFrom) : '' ?><?= $filterTo ? '&date_to=' . urlencode($filterTo) : '' ?>" class="btn btn-outline btn-sm">&laquo; Para</a>
+    <a href="?page=<?= $page - 1 ?><?= $pagParams ?>" class="btn btn-outline btn-sm">&laquo; Para</a>
     <?php endif; ?>
-    <span style="font-size:0.82rem;color:var(--text-muted);">Faqja <?= $page ?> / <?= $totalPages ?> (<?= $totalRows ?> rreshta)</span>
+    <span style="font-size:0.82rem;color:var(--text-muted);">Faqja <?= $page ?> / <?= $totalPages ?> (<?= num($totalRows) ?> rreshta)</span>
     <?php if ($page < $totalPages): ?>
-    <a href="?page=<?= $page + 1 ?>&sort=<?= $sortCol ?>&dir=<?= $sortDir ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $filterFrom ? '&date_from=' . urlencode($filterFrom) : '' ?><?= $filterTo ? '&date_to=' . urlencode($filterTo) : '' ?>" class="btn btn-outline btn-sm">Tjetër &raquo;</a>
+    <a href="?page=<?= $page + 1 ?><?= $pagParams ?>" class="btn btn-outline btn-sm">Tjetër &raquo;</a>
     <?php endif; ?>
 </div>
 <?php endif; ?>
