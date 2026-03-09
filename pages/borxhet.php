@@ -147,9 +147,9 @@ ob_start();
                         <td class="amount"><?= eur($d['dhurate']) ?></td>
                         <td class="amount" style="font-weight:700;">&euro; <?= eur($d['total']) ?></td>
                         <td class="amount" style="font-weight:700;color:var(--danger);">&euro; <?= eur($d['borxhi_bank_deri']) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(trim($note['klient_bank_cash'])) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e(trim($note['kush_merr_borxhin'])) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e(trim($note['koment'])) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(trim($note['klient_bank_cash'] ?? '')) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e(trim($note['kush_merr_borxhin'] ?? '')) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e(trim($note['koment'] ?? '')) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
