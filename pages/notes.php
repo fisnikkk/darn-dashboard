@@ -101,11 +101,7 @@ ob_start();
         <h3><i class="fas fa-sticky-note"></i> Notes</h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:150px;">
-                <label style="font-size:0.82rem;font-weight:600;">Nga:</label>
-                <input type="date" name="date_from" value="<?= e($filterFrom) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
-                <label style="font-size:0.82rem;font-weight:600;">Deri:</label>
-                <input type="date" name="date_to" value="<?= e($filterTo) ?>" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
+                <input type="text" name="search" value="<?= e($search) ?>" placeholder="Kërko..." style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:180px;">
                 <select name="per_page" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;">
                     <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
                     <option value="500" <?= $perPage==500?'selected':'' ?>>500</option>
@@ -113,7 +109,7 @@ ob_start();
                     <option value="5000" <?= $perPage==5000?'selected':'' ?>>5000</option>
                 </select>
                 <button type="submit" class="btn btn-primary btn-sm">Filtro</button>
-                <?php if ($search || $filterFrom || $filterTo): ?>
+                <?php if ($search): ?>
                 <a href="?" class="btn btn-outline btn-sm">Pastro</a>
                 <?php endif; ?>
             </form>
@@ -125,14 +121,6 @@ ob_start();
             <table class="data-table" data-table="notes" style="table-layout:fixed;width:100%;">
                 <thead>
                     <tr>
-                        <?php
-                            $sortParams = ($search ? '&search=' . urlencode($search) : '') . ($filterFrom ? '&date_from=' . urlencode($filterFrom) : '') . ($filterTo ? '&date_to=' . urlencode($filterTo) : '') . '&per_page=' . $perPage;
-                        ?>
-                        <th style="width:100px;">
-                            <a href="?sort=data&dir=<?= $sortCol === 'data' && $sortDir === 'DESC' ? 'ASC' : 'DESC' ?><?= $sortParams ?>" style="color:inherit;text-decoration:none;">
-                                Data <i class="fas fa-sort<?= $sortCol === 'data' ? ($sortDir === 'ASC' ? '-up' : '-down') : '' ?>"></i>
-                            </a>
-                        </th>
                         <th>Shënim</th>
                         <th style="width:250px;">Barazu nga</th>
                         <th style="width:45px;"></th>
@@ -140,14 +128,13 @@ ob_start();
                 </thead>
                 <tbody>
                     <?php if (empty($rows)): ?>
-                    <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">
+                    <tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-muted);">
                         <i class="fas fa-info-circle"></i> Nuk ka shënime.
                     </td></tr>
                     <?php else: ?>
                     <?php foreach ($rows as $r): ?>
                     <tr data-id="<?= $r['id'] ?>">
-                        <td class="editable" data-field="data" data-type="date" style="white-space:nowrap;"><?= $r['data'] ?: '-' ?></td>
-                        <td class="editable wrap" data-field="teksti" style="max-width:600px;white-space:normal;word-break:break-word;"><?= e($r['teksti']) ?></td>
+                        <td class="editable wrap" data-field="teksti" style="white-space:normal;word-break:break-word;"><?= e($r['teksti']) ?></td>
                         <td class="editable wrap" data-field="barazu_nga" style="white-space:normal;word-break:break-word;"><?= e($r['barazu_nga']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('notes',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
@@ -185,12 +172,6 @@ ob_start();
         <form class="ajax-form" action="/api/insert.php" method="POST">
             <input type="hidden" name="_table" value="notes">
             <div class="modal-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Data</label>
-                        <input type="date" name="data" value="<?= date('Y-m-d') ?>">
-                    </div>
-                </div>
                 <div class="form-row">
                     <div class="form-group" style="width:100%;">
                         <label>Shënim *</label>
