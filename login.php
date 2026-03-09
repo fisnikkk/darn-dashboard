@@ -16,9 +16,11 @@ if (!empty($_SESSION['logged_in'])) {
 
 // Handle login POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF check
-    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
-        $error = 'Sesioni ka skaduar. Provo perseri.';
+    // CSRF check (skip if session had no token — e.g. first visit after deploy)
+    $sessionToken = $_SESSION['csrf_token'] ?? '';
+    $postToken = $_POST['csrf_token'] ?? '';
+    if ($sessionToken === '' || $postToken === '' || !hash_equals($sessionToken, $postToken)) {
+        $error = ($sessionToken === '') ? '' : 'Sesioni ka skaduar. Provo perseri.';
     } else {
         $db = getDB();
         $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
