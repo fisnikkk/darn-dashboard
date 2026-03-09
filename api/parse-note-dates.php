@@ -29,7 +29,7 @@ $pattern = '/\b(\d{1,2})\s+(' . $monthPattern . ')\b/iu';
 $rows = $db->query("
     SELECT id, teksti, created_at
     FROM notes
-    WHERE data IS NULL OR data = '' OR data = '0000-00-00'
+    WHERE data IS NULL OR CAST(data AS CHAR) = '' OR CAST(data AS CHAR) = '0000-00-00'
 ")->fetchAll();
 
 $updated = 0;

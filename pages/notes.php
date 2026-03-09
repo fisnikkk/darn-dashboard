@@ -72,7 +72,7 @@ $totalPages = max(1, ceil($totalRows / $perPage));
 $offset = ($page - 1) * $perPage;
 
 // Count notes with missing dates (for parse button)
-$missingDates = (int)$db->query("SELECT COUNT(*) FROM notes WHERE data IS NULL OR data = '' OR data = '0000-00-00'")->fetchColumn();
+$missingDates = (int)$db->query("SELECT COUNT(*) FROM notes WHERE data IS NULL OR CAST(data AS CHAR) = '' OR CAST(data AS CHAR) = '0000-00-00'")->fetchColumn();
 
 // Query
 $orderSecondary = $sortCol === 'id' ? '' : ', id DESC';
