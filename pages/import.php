@@ -197,7 +197,7 @@ const SHEET_CONFIG = {
     },
     'Nxemese1': {
         table: 'nxemese', headerRow: 5,
-        columns: { 0:'klienti', 1:'data', 2:'te_dhena', 3:'te_marra', 6:'lloji_i_nxemjes', 7:'koment' },
+        columns: { 2:'klienti', 3:'data', 4:'te_dhena', 5:'te_marra', 8:'lloji_i_nxemjes', 9:'koment' },
         dateFields: ['data'],
         numFields: ['te_dhena','te_marra']
     },
