@@ -167,6 +167,7 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3>Distribuimi - Të dhënat</h3>
+        <button class="btn btn-sm" onclick="openModal('syncModal')" style="margin-right:6px;background:#059669;color:#fff;border:none;"><i class="fas fa-sync-alt"></i> Sinkronizo GoDaddy</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('pasteDist')" style="margin-right:6px;"><i class="fas fa-paste"></i> Ngjit nga Excel</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">
             <i class="fas fa-plus"></i> Shto rresht
@@ -621,6 +622,294 @@ function applyBulkPayment() {
         showToast(ok + '/' + ids.length + ' u ndryshuan me sukses');
         setTimeout(() => location.reload(), 500);
     }).catch(() => showToast('Gabim ne server', 'error'));
+}
+</script>
+
+<!-- GoDaddy Sync Modal -->
+<div class="modal-overlay" id="syncModal">
+    <div class="modal" style="max-width:800px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-sync-alt" style="color:#059669;"></i> Sinkronizo nga GoDaddy</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeModal('syncModal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;">
+            <!-- Connection Status -->
+            <div id="syncStatus" style="padding:14px;border-radius:8px;background:#f8fafc;border:1px solid var(--border);margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <i class="fas fa-spinner fa-spin" id="syncStatusIcon"></i>
+                    <strong id="syncStatusText">Duke kontrolluar lidhjen...</strong>
+                </div>
+                <div id="syncStatusDetails" style="font-size:0.82rem;color:var(--text-muted);"></div>
+            </div>
+
+            <!-- Preview Table -->
+            <div id="syncPreviewWrap" style="display:none;">
+                <h4 style="font-size:0.9rem;margin-bottom:8px;">
+                    <i class="fas fa-eye"></i> Parashtrim i te dhenave te reja
+                    <span id="syncPendingBadge" style="background:#059669;color:#fff;padding:2px 8px;border-radius:10px;font-size:0.78rem;margin-left:6px;"></span>
+                </h4>
+                <div style="max-height:350px;overflow:auto;border:1px solid var(--border);border-radius:6px;">
+                    <table class="data-table" style="font-size:0.78rem;margin:0;">
+                        <thead>
+                            <tr>
+                                <th>GD ID</th>
+                                <th>Klienti</th>
+                                <th>Data</th>
+                                <th>Sasia</th>
+                                <th>Boca kth.</th>
+                                <th>Litra</th>
+                                <th>Çmimi</th>
+                                <th>Pagesa</th>
+                                <th>Mënyra</th>
+                                <th>Koment</th>
+                            </tr>
+                        </thead>
+                        <tbody id="syncPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Sync Results -->
+            <div id="syncResults" style="display:none;padding:14px;border-radius:8px;margin-top:12px;"></div>
+
+            <!-- Sync History -->
+            <div id="syncHistoryWrap" style="display:none;margin-top:16px;">
+                <h4 style="font-size:0.9rem;margin-bottom:8px;cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+                    <i class="fas fa-history"></i> Historia e sinkronizimeve <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
+                </h4>
+                <div id="syncHistoryBody" style="display:none;font-size:0.8rem;max-height:200px;overflow:auto;"></div>
+            </div>
+        </div>
+        <div class="modal-footer" style="gap:8px;">
+            <button type="button" class="btn btn-outline" onclick="closeModal('syncModal')">Mbyll</button>
+            <button type="button" class="btn btn-sm" id="syncPreviewBtn" onclick="gdPreview()" style="background:#0284c7;color:#fff;border:none;display:none;">
+                <i class="fas fa-eye"></i> Parapamje
+            </button>
+            <button type="button" class="btn btn-sm" id="syncRunBtn" onclick="gdSync()" style="background:#059669;color:#fff;border:none;display:none;">
+                <i class="fas fa-sync-alt"></i> Sinkronizo tani
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── GoDaddy Sync Logic ──
+(function() {
+    // Auto-check status when modal opens
+    const origOpen = window.openModal;
+    window.openModal = function(id) {
+        origOpen(id);
+        if (id === 'syncModal') gdCheckStatus();
+    };
+})();
+
+function gdCheckStatus() {
+    const icon = document.getElementById('syncStatusIcon');
+    const text = document.getElementById('syncStatusText');
+    const details = document.getElementById('syncStatusDetails');
+    const previewBtn = document.getElementById('syncPreviewBtn');
+    const syncBtn = document.getElementById('syncRunBtn');
+
+    icon.className = 'fas fa-spinner fa-spin';
+    text.textContent = 'Duke kontrolluar lidhjen...';
+    details.innerHTML = '';
+    previewBtn.style.display = 'none';
+    syncBtn.style.display = 'none';
+
+    fetch('/api/sync_godaddy.php?action=status')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                icon.className = 'fas fa-exclamation-triangle';
+                icon.style.color = '#dc2626';
+                text.textContent = 'Gabim: ' + (data.error || 'Unknown');
+                return;
+            }
+
+            if (!data.godaddy_configured) {
+                icon.className = 'fas fa-exclamation-circle';
+                icon.style.color = '#f59e0b';
+                text.textContent = 'Kredencialet e GoDaddy nuk jane konfiguruar';
+                details.innerHTML = 'Vendos <code>GODADDY_DB_PASS</code> ne Railway Environment Variables.';
+                return;
+            }
+
+            if (!data.godaddy_connected) {
+                icon.className = 'fas fa-times-circle';
+                icon.style.color = '#dc2626';
+                text.textContent = 'Nuk mund te lidhem me GoDaddy';
+                details.innerHTML = 'Kontrollo kredencialet ose firewall-in e GoDaddy.' +
+                    (data.godaddy_error ? '<br><small>' + data.godaddy_error + '</small>' : '');
+                return;
+            }
+
+            // Connected!
+            icon.className = 'fas fa-check-circle';
+            icon.style.color = '#059669';
+            text.textContent = 'Lidhja aktive me GoDaddy';
+
+            let info = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px;">';
+            info += '<span>Railway rreshta:</span><strong>' + (data.railway_total || 0).toLocaleString() + '</strong>';
+            info += '<span>GoDaddy rreshta:</span><strong>' + (data.godaddy_total || 0).toLocaleString() + '</strong>';
+            info += '<span>Tashme te sinkronizuara:</span><strong>' + (data.railway_synced || 0).toLocaleString() + '</strong>';
+            info += '<span>Te reja per sinkronizim:</span><strong style="color:#059669;">' + (data.godaddy_pending || 0).toLocaleString() + '</strong>';
+            info += '</div>';
+
+            if (data.last_sync) {
+                info += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">';
+                info += '<small>Sinkronizimi i fundit: ' + data.last_sync.synced_at + ' — ' + data.last_sync.rows_inserted + ' te shtuara</small>';
+                info += '</div>';
+            }
+
+            details.innerHTML = info;
+
+            if ((data.godaddy_pending || 0) > 0) {
+                previewBtn.style.display = 'inline-flex';
+                syncBtn.style.display = 'inline-flex';
+            } else {
+                previewBtn.style.display = 'inline-flex'; // can still preview to verify
+            }
+
+            // Load history
+            gdLoadHistory();
+        })
+        .catch(err => {
+            icon.className = 'fas fa-times-circle';
+            icon.style.color = '#dc2626';
+            text.textContent = 'Gabim ne lidhje';
+            details.innerHTML = err.message;
+        });
+}
+
+function gdPreview() {
+    const wrap = document.getElementById('syncPreviewWrap');
+    const body = document.getElementById('syncPreviewBody');
+    const badge = document.getElementById('syncPendingBadge');
+    wrap.style.display = 'block';
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</td></tr>';
+
+    fetch('/api/sync_godaddy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'preview', limit: 50 })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            body.innerHTML = '<tr><td colspan="10" style="color:#dc2626;">' + (data.error || 'Gabim') + '</td></tr>';
+            return;
+        }
+        badge.textContent = data.total_pending + ' te reja total';
+
+        if (!data.rows.length) {
+            body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;">Asgje per te sinkronizuar</td></tr>';
+            return;
+        }
+
+        body.innerHTML = data.rows.map(r => `
+            <tr>
+                <td>${r.godaddy_id}</td>
+                <td>${r.klienti || '-'}</td>
+                <td>${r.data || '-'}</td>
+                <td class="num">${r.sasia}</td>
+                <td class="num">${r.boca_te_kthyera}</td>
+                <td class="num">${r.litra}</td>
+                <td class="num">${r.cmimi}</td>
+                <td class="num" style="font-weight:600;">€ ${parseFloat(r.pagesa).toFixed(2)}</td>
+                <td><span class="badge ${r.menyra_e_pageses === 'CASH' ? 'badge-cash' : r.menyra_e_pageses === 'BANK' ? 'badge-bank' : 'badge-fature'}">${r.menyra_e_pageses}</span></td>
+                <td>${r.fatura_e_derguar || '-'}</td>
+            </tr>
+        `).join('');
+    })
+    .catch(() => {
+        body.innerHTML = '<tr><td colspan="10" style="color:#dc2626;">Gabim ne ngarkimin e te dhenave</td></tr>';
+    });
+}
+
+function gdSync() {
+    if (!confirm('Je i sigurt qe do te sinkronizosh te dhenat e reja nga GoDaddy?\n\nKjo do te shtoje rreshta te reja ne Distribuimi.')) return;
+
+    const btn = document.getElementById('syncRunBtn');
+    const results = document.getElementById('syncResults');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke sinkronizuar...';
+    results.style.display = 'block';
+    results.style.background = '#f0fdf4';
+    results.style.border = '1px solid #bbf7d0';
+    results.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke sinkronizuar... Mos e mbyll dritaren.';
+
+    fetch('/api/sync_godaddy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync', batch_size: 500 })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Sinkronizo tani';
+
+        if (data.success) {
+            results.style.background = '#f0fdf4';
+            results.style.border = '1px solid #bbf7d0';
+            let html = '<div style="font-weight:600;color:#059669;margin-bottom:6px;"><i class="fas fa-check-circle"></i> ' + data.message + '</div>';
+            html += '<div style="font-size:0.82rem;">';
+            html += 'Te shtuara: <strong>' + data.inserted + '</strong>';
+            html += ' | Te anashkaluara: <strong>' + data.skipped + '</strong>';
+            if (data.remaining > 0) {
+                html += ' | Te mbetura: <strong>' + data.remaining + '</strong> (kliko perseri per te vazhduar)';
+            }
+            html += '</div>';
+            if (data.errors && data.errors.length) {
+                html += '<div style="margin-top:6px;font-size:0.78rem;color:#dc2626;">';
+                data.errors.forEach(e => html += '<div>' + e + '</div>');
+                html += '</div>';
+            }
+            results.innerHTML = html;
+
+            // Refresh status
+            gdCheckStatus();
+
+            // If rows were inserted, offer to reload page
+            if (data.inserted > 0) {
+                results.innerHTML += '<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="fas fa-redo"></i> Rifresko faqen per te pare te dhenat e reja</button></div>';
+            }
+        } else {
+            results.style.background = '#fef2f2';
+            results.style.border = '1px solid #fecaca';
+            results.innerHTML = '<div style="color:#dc2626;"><i class="fas fa-times-circle"></i> Gabim: ' + (data.error || 'Unknown') + '</div>';
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Sinkronizo tani';
+        results.style.background = '#fef2f2';
+        results.style.border = '1px solid #fecaca';
+        results.innerHTML = '<div style="color:#dc2626;"><i class="fas fa-times-circle"></i> Gabim: ' + err.message + '</div>';
+    });
+}
+
+function gdLoadHistory() {
+    fetch('/api/sync_godaddy.php?action=history')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.history.length) return;
+            const wrap = document.getElementById('syncHistoryWrap');
+            const body = document.getElementById('syncHistoryBody');
+            wrap.style.display = 'block';
+            body.innerHTML = '<table style="width:100%;font-size:0.78rem;border-collapse:collapse;">' +
+                '<tr style="background:#f8fafc;"><th style="padding:4px 8px;text-align:left;">Data</th><th>Marrura</th><th>Shtuara</th><th>Anashkaluara</th><th>Statusi</th></tr>' +
+                data.history.map(h => `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:4px 8px;">${h.synced_at}</td>
+                        <td style="text-align:center;">${h.rows_fetched}</td>
+                        <td style="text-align:center;color:#059669;font-weight:600;">${h.rows_inserted}</td>
+                        <td style="text-align:center;">${h.rows_skipped}</td>
+                        <td style="text-align:center;"><span style="padding:1px 6px;border-radius:4px;font-size:0.72rem;background:${h.status === 'success' ? '#dcfce7' : h.status === 'no_new_rows' ? '#f1f5f9' : '#fef3c7'};color:${h.status === 'success' ? '#166534' : '#78716c'};">${h.status}</span></td>
+                    </tr>
+                `).join('') +
+                '</table>';
+        })
+        .catch(() => {});
 }
 </script>
 

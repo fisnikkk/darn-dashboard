@@ -116,6 +116,24 @@ function runMigrations($pdo) {
             size_bytes INT NOT NULL DEFAULT 0
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+        // Add godaddy_id column to distribuimi for GoDaddy sync tracking
+        $cols = $pdo->query("SHOW COLUMNS FROM distribuimi LIKE 'godaddy_id'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE distribuimi ADD COLUMN godaddy_id INT NULL");
+            $pdo->exec("CREATE UNIQUE INDEX idx_dist_godaddy_id ON distribuimi (godaddy_id)");
+        }
+
+        // Sync log table for GoDaddy sync history
+        $pdo->exec("CREATE TABLE IF NOT EXISTS godaddy_sync_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            synced_at DATETIME NOT NULL,
+            rows_fetched INT NOT NULL DEFAULT 0,
+            rows_inserted INT NOT NULL DEFAULT 0,
+            rows_skipped INT NOT NULL DEFAULT 0,
+            status VARCHAR(50) NOT NULL DEFAULT 'success',
+            error_message TEXT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }
