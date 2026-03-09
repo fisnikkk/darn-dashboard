@@ -226,7 +226,15 @@ ob_start();
                 <i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...
             </div>
             <div id="clientDebtContent" style="display:none;">
-                <table class="data-table" style="width:100%;font-size:0.85rem;">
+                <table class="data-table" id="clientDebtTable" style="width:100%;font-size:0.85rem;table-layout:fixed;">
+                    <colgroup>
+                        <col style="width:18%;">
+                        <col style="width:12%;">
+                        <col style="width:14%;">
+                        <col style="width:14%;">
+                        <col style="width:16%;">
+                        <col style="width:26%;">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Data</th>
@@ -239,12 +247,12 @@ ob_start();
                     </thead>
                     <tbody id="clientDebtBody"></tbody>
                     <tfoot>
-                        <tr style="font-weight:700;">
+                        <tr style="font-weight:700;border-top:2px solid var(--border);">
                             <td id="clientDebtCount"></td>
                             <td class="amount" id="clientDebtSasia"></td>
                             <td class="amount" id="clientDebtLitra"></td>
                             <td></td>
-                            <td class="amount" id="clientDebtPagesa"></td>
+                            <td class="amount" id="clientDebtPagesa" style="color:var(--danger);"></td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -272,7 +280,14 @@ document.querySelectorAll('.borxh-client-link').forEach(link => {
         tbody.innerHTML = '';
         openModal('clientDebtModal');
 
-        fetch('/api/client_debts.php?klienti=' + encodeURIComponent(klienti))
+        // Pass date filters so popup totals match the borxhi column
+        const dateFrom = <?= json_encode($dateNga) ?>;
+        const dateTo = <?= json_encode($dateDeri) ?>;
+        let url = '/api/client_debts.php?klienti=' + encodeURIComponent(klienti);
+        if (dateFrom) url += '&date_from=' + encodeURIComponent(dateFrom);
+        if (dateTo) url += '&date_to=' + encodeURIComponent(dateTo);
+
+        fetch(url)
             .then(r => r.json())
             .then(data => {
                 loading.style.display = 'none';
@@ -286,27 +301,29 @@ document.querySelectorAll('.borxh-client-link').forEach(link => {
                     return;
                 }
                 let totalSasia = 0, totalLitra = 0, totalPagesa = 0;
+                const fmtNum = (n, dec) => n.toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec});
                 data.rows.forEach(r => {
                     const s = parseFloat(r.sasia) || 0;
                     const l = parseFloat(r.litra) || 0;
                     const p = parseFloat(r.pagesa) || 0;
+                    const c = parseFloat(r.cmimi) || 0;
                     totalSasia += s;
                     totalLitra += l;
                     totalPagesa += p;
                     const tr = document.createElement('tr');
                     tr.innerHTML =
                         '<td>' + (r.data || '-') + '</td>' +
-                        '<td class="amount">' + s.toFixed(0) + '</td>' +
-                        '<td class="amount">' + l.toFixed(2) + '</td>' +
-                        '<td class="amount">' + (parseFloat(r.cmimi) || 0).toFixed(2) + '</td>' +
-                        '<td class="amount">&euro; ' + p.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</td>' +
-                        '<td style="max-width:200px;white-space:normal;word-break:break-word;">' + (r.koment || '') + '</td>';
+                        '<td class="amount">' + fmtNum(s, 0) + '</td>' +
+                        '<td class="amount">' + fmtNum(l, 2) + '</td>' +
+                        '<td class="amount">' + fmtNum(c, 2) + '</td>' +
+                        '<td class="amount">&euro; ' + fmtNum(p, 2) + '</td>' +
+                        '<td style="white-space:normal;word-break:break-word;overflow:hidden;text-overflow:ellipsis;">' + (r.koment || '') + '</td>';
                     tbody.appendChild(tr);
                 });
                 document.getElementById('clientDebtCount').textContent = data.rows.length + ' rreshta';
-                document.getElementById('clientDebtSasia').textContent = totalSasia.toFixed(0);
-                document.getElementById('clientDebtLitra').textContent = totalLitra.toFixed(2);
-                document.getElementById('clientDebtPagesa').innerHTML = '&euro; ' + totalPagesa.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
+                document.getElementById('clientDebtSasia').textContent = fmtNum(totalSasia, 0);
+                document.getElementById('clientDebtLitra').textContent = fmtNum(totalLitra, 2);
+                document.getElementById('clientDebtPagesa').innerHTML = '&euro; ' + fmtNum(totalPagesa, 2);
                 content.style.display = '';
             })
             .catch(() => {

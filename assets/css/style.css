@@ -821,6 +821,19 @@ th.sort-desc .sort-icon { opacity: 1; }
 .hidden { display: none !important; }
 
 /* Print-only elements (hidden on screen) */
+/* Client debt modal table */
+#clientDebtTable td,
+#clientDebtTable th {
+    padding: 8px 10px;
+    vertical-align: middle;
+}
+#clientDebtTable td:first-child {
+    white-space: nowrap;
+}
+#clientDebtTable tfoot td {
+    border-top: 2px solid var(--border);
+}
+
 .print-only { display: none; }
 
 /* Kartela print header */
