@@ -224,6 +224,54 @@ if ($action === 'import_rows') {
             }
         }
 
+        // Auto-parse dates from note text after notes import
+        if ($tableName === 'notes') {
+            $months = [
+                'janar' => 1, 'shkurt' => 2, 'mars' => 3, 'prill' => 4,
+                'maj' => 5, 'qershor' => 6, 'korrik' => 7, 'gusht' => 8,
+                'shtator' => 9, 'tetor' => 10, 'nëntor' => 11, 'nentor' => 11,
+                'dhjetor' => 12
+            ];
+            $monthPat = implode('|', array_keys($months));
+            $patAlb = '/\b(\d{1,2})\s+(' . $monthPat . ')(?:\s+(20[2-9]\d))?\b/iu';
+            $patNum = '/\b(\d{1,2})[.\/]\s*(\d{1,2})[.\/]\s*(\d{4})\b/';
+            $today = new DateTime();
+
+            $notesRows = $db->query("SELECT id, teksti, created_at FROM notes WHERE data IS NULL")->fetchAll();
+            $updateStmt = $db->prepare("UPDATE notes SET data = ? WHERE id = ?");
+
+            foreach ($notesRows as $nr) {
+                $txt = $nr['teksti'] ?? '';
+                if (!$txt) continue;
+                $parsedDate = null;
+
+                // Albanian month pattern
+                if (preg_match($patAlb, $txt, $pm)) {
+                    $d = (int)$pm[1];
+                    $mo = $months[mb_strtolower($pm[2])] ?? null;
+                    if ($mo && $d >= 1 && $d <= 31) {
+                        $yr = !empty($pm[3]) ? (int)$pm[3] : (int)date('Y');
+                        if (empty($pm[3])) {
+                            $cand = sprintf('%04d-%02d-%02d', $yr, $mo, min($d, 28));
+                            if (new DateTime($cand) > $today) $yr--;
+                        }
+                        if (!checkdate($mo, $d, $yr)) $d = min($d, (int)(new DateTime("$yr-$mo-01"))->format('t'));
+                        if (checkdate($mo, $d, $yr)) $parsedDate = sprintf('%04d-%02d-%02d', $yr, $mo, $d);
+                    }
+                }
+                // Numeric DD.MM.YYYY or DD/MM/YYYY
+                if (!$parsedDate && preg_match($patNum, $txt, $pm)) {
+                    $d = (int)$pm[1]; $mo = (int)$pm[2]; $yr = (int)$pm[3];
+                    if ($mo >= 1 && $mo <= 12 && $d >= 1 && $d <= 31 && $yr >= 2020 && $yr <= 2030) {
+                        if (!checkdate($mo, $d, $yr)) $d = min($d, (int)(new DateTime("$yr-$mo-01"))->format('t'));
+                        if (checkdate($mo, $d, $yr)) $parsedDate = sprintf('%04d-%02d-%02d', $yr, $mo, $d);
+                    }
+                }
+
+                if ($parsedDate) $updateStmt->execute([$parsedDate, $nr['id']]);
+            }
+        }
+
         // Recalculate bilanci for gjendja_bankare
         if ($tableName === 'gjendja_bankare') {
             $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
