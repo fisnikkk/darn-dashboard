@@ -673,6 +673,7 @@ ob_start();
                 $actionLabel = $actionLabels[$type] ?? $type;
                 $canUndoUpdate = ($type === 'update' && !$isReverted);
                 $canUndoDelete = ($type === 'delete' && !$isReverted);
+                $canUndoInsert = ($type === 'insert' && !$isReverted && in_array($r['field_name'] ?? '', ['bulk_paste', 'import_excel', 'import_script', null, '']));
                 $exactTime = date('d/m/Y H:i:s', strtotime($r['created_at']));
                 $relTime = relativeTime($r['created_at']);
 
@@ -842,7 +843,7 @@ ob_start();
                 </div>
 
                 <!-- Footer: undo/restore buttons -->
-                <?php if ($canUndoUpdate || $canUndoDelete): ?>
+                <?php if ($canUndoUpdate || $canUndoDelete || $canUndoInsert): ?>
                 <div class="log-footer">
                     <?php if ($canUndoUpdate): ?>
                     <button class="log-undo" onclick="revertChange('<?= e($r['table_name']) ?>', <?= (int)$r['row_id'] ?>, this)" title="Kthe ndryshimin">
@@ -851,6 +852,10 @@ ob_start();
                     <?php elseif ($canUndoDelete): ?>
                     <button class="log-undo log-undo-delete" onclick="restoreDelete('<?= e($r['table_name']) ?>', <?= (int)$r['row_id'] ?>, <?= (int)$r['id'] ?>, this)" title="Rikthe rreshtin e fshire">
                         <i class="fas fa-trash-restore"></i> Rikthe
+                    </button>
+                    <?php elseif ($canUndoInsert): ?>
+                    <button class="log-undo" style="color:#dc2626;" onclick="revertInsert('<?= e($r['table_name']) ?>', <?= (int)$r['row_id'] ?>, <?= (int)$r['id'] ?>, this)" title="Fshi rreshtin e shtuar">
+                        <i class="fas fa-undo"></i> Kthe (fshi)
                     </button>
                     <?php endif; ?>
                 </div>
@@ -954,6 +959,34 @@ function restoreDelete(table, rowId, changelogId, btn) {
         showToast('Gabim rrjeti', 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash-restore"></i> Rikthe';
+    });
+}
+
+function revertInsert(table, rowId, changelogId, btn) {
+    if (!confirm('Fshi rreshtin #' + rowId + ' qe u shtua? Kjo veprim do te fshije rreshtin nga tabela ' + table + '.')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    fetch('/api/revert.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: table, id: rowId, action: 'revert_insert', changelog_id: changelogId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            btn.closest('.log-entry').classList.add('reverted');
+            btn.outerHTML = '<span class="log-reverted-tag"><i class="fas fa-check"></i> u fshi</span>';
+            showToast(data.message || 'Shtimi u kthye me sukses', 'success');
+        } else {
+            showToast(data.error || 'Gabim', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-undo"></i> Kthe (fshi)';
+        }
+    })
+    .catch(() => {
+        showToast('Gabim rrjeti', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-undo"></i> Kthe (fshi)';
     });
 }
 </script>

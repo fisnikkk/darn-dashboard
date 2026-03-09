@@ -27,6 +27,69 @@ if (!in_array($table, $allowedTables)) {
 try {
     $db = getDB();
 
+    // ---- Revert an insert (delete the inserted row) ----
+    if ($action === 'revert_insert') {
+        $changelogId = (int)($input['changelog_id'] ?? 0);
+        if (!$changelogId) {
+            echo json_encode(['success' => false, 'error' => 'Missing changelog_id']);
+            exit;
+        }
+
+        // Get the insert changelog entry
+        $entry = $db->prepare("SELECT * FROM changelog WHERE id = ? AND action_type = 'insert' AND reverted = 0");
+        $entry->execute([$changelogId]);
+        $logEntry = $entry->fetch();
+
+        if (!$logEntry) {
+            echo json_encode(['success' => false, 'error' => 'Rreshti nuk u gjet ose eshte kthyer tashme']);
+            exit;
+        }
+
+        $rowId = (int)$logEntry['row_id'];
+        $tableName = $logEntry['table_name'];
+
+        // Check the row still exists
+        $exists = $db->prepare("SELECT COUNT(*) FROM `{$tableName}` WHERE id = ?");
+        $exists->execute([$rowId]);
+        if (!$exists->fetchColumn()) {
+            // Row already deleted, just mark changelog as reverted
+            $db->prepare("UPDATE changelog SET reverted = 1 WHERE id = ?")->execute([$changelogId]);
+            echo json_encode(['success' => true, 'message' => 'Rreshti ishte fshire tashme, u markua si kthyer']);
+            exit;
+        }
+
+        $db->beginTransaction();
+
+        // Save the row data before deleting (for the delete log)
+        $row = $db->prepare("SELECT * FROM `{$tableName}` WHERE id = ?");
+        $row->execute([$rowId]);
+        $rowData = $row->fetch(PDO::FETCH_ASSOC);
+
+        // Delete the row
+        $db->prepare("DELETE FROM `{$tableName}` WHERE id = ?")->execute([$rowId]);
+
+        // Mark the insert changelog entry as reverted
+        $db->prepare("UPDATE changelog SET reverted = 1 WHERE id = ?")->execute([$changelogId]);
+
+        // Log the deletion
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('delete', ?, ?, 'revert_insert', ?, NULL)")
+            ->execute([$tableName, $rowId, json_encode($rowData, JSON_UNESCAPED_UNICODE)]);
+
+        // Recalculate bilanci if gjendja_bankare
+        if ($tableName === 'gjendja_bankare') {
+            $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+            $running = 0;
+            foreach ($all as $r) {
+                $running = round($running + (float)$r['kredi'] + (float)$r['debia'], 2);
+                $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
+            }
+        }
+
+        $db->commit();
+        echo json_encode(['success' => true, 'message' => 'Rreshti #' . $rowId . ' u fshi (shtimi u kthye)']);
+        exit;
+    }
+
     // ---- Restore a deleted row ----
     if ($action === 'restore_delete') {
         $changelogId = (int)($input['changelog_id'] ?? 0);
