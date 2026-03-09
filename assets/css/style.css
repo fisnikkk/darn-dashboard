@@ -826,9 +826,20 @@ th.sort-desc .sort-icon { opacity: 1; }
 #clientDebtTable th {
     padding: 8px 10px;
     vertical-align: middle;
+    text-align: center;
 }
-#clientDebtTable td:first-child {
+#clientDebtTable td:first-child,
+#clientDebtTable th:first-child {
     white-space: nowrap;
+    text-align: left;
+}
+#clientDebtTable td:last-child,
+#clientDebtTable th:last-child {
+    text-align: left;
+}
+#clientDebtTable td.amount,
+#clientDebtTable th.num {
+    text-align: center;
 }
 #clientDebtTable tfoot td {
     border-top: 2px solid var(--border);
