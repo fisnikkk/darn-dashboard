@@ -167,7 +167,7 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3>Distribuimi - Të dhënat</h3>
-        <button class="btn btn-sm" onclick="openModal('gdModal')" style="margin-right:6px;background:#059669;color:#fff;border:none;"><i class="fas fa-database"></i> Merr nga GoDaddy</button>
+        <button class="btn btn-sm" onclick="openModal('gdModal'); setTimeout(gdCheckStatus, 100);" style="margin-right:6px;background:#059669;color:#fff;border:none;"><i class="fas fa-database"></i> Merr nga GoDaddy</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('pasteDist')" style="margin-right:6px;"><i class="fas fa-paste"></i> Ngjit nga Excel</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">
             <i class="fas fa-plus"></i> Shto rresht
@@ -693,14 +693,6 @@ function applyBulkPayment() {
 
 <script>
 // ── GoDaddy Import ──
-(function() {
-    const origOpen = window.openModal;
-    window.openModal = function(id) {
-        origOpen(id);
-        if (id === 'gdModal') gdCheckStatus();
-    };
-})();
-
 function gdCheckStatus() {
     const el = document.getElementById('gdStatus');
     const picker = document.getElementById('gdDatePicker');
