@@ -215,7 +215,7 @@ ob_start();
 </p>
 
 <!-- Client Debt Detail Modal -->
-<div class="modal-overlay" id="clientDebtModal" style="display:none;">
+<div class="modal-overlay" id="clientDebtModal">
     <div class="modal" style="max-width:900px;width:95%;">
         <div class="modal-header">
             <h3 id="clientDebtTitle">Transaksionet e klientit</h3>
