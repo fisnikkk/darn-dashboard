@@ -70,11 +70,21 @@ if (!in_array('', $borxhBorxhiVals)) $borxhBorxhiVals[] = '';
 sort($borxhCashVals); sort($borxhBankVals); sort($borxhFBankeVals); sort($borxhFCashVals);
 sort($borxhNoPagVals); sort($borxhDhurateVals); sort($borxhTotalVals); sort($borxhBorxhiVals);
 
-// Note columns: include blank ("") so users can filter for empty cells
-$borxhBCNoteVals = array_values(array_unique(array_map(fn($n) => $n['klient_bank_cash'] ?? '', $notes)));
-$borxhKushVals = array_values(array_unique(array_map(fn($n) => $n['kush_merr_borxhin'] ?? '', $notes)));
-$borxhKomentVals = array_values(array_unique(array_map(fn($n) => $n['koment'] ?? '', $notes)));
-// Ensure blank is always an option (for clients with no borxhet_notes entry)
+// Note columns: build filter values ONLY from clients currently in the debts table (dynamic)
+$borxhBCNoteSet = [];
+$borxhKushSet = [];
+$borxhKomentSet = [];
+foreach ($debts as $d) {
+    $noteKey = strtolower($d['klienti']);
+    $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
+    $borxhBCNoteSet[] = $note['klient_bank_cash'] ?? '';
+    $borxhKushSet[] = $note['kush_merr_borxhin'] ?? '';
+    $borxhKomentSet[] = $note['koment'] ?? '';
+}
+$borxhBCNoteVals = array_values(array_unique($borxhBCNoteSet));
+$borxhKushVals = array_values(array_unique($borxhKushSet));
+$borxhKomentVals = array_values(array_unique($borxhKomentSet));
+// Ensure blank is always an option
 if (!in_array('', $borxhBCNoteVals)) $borxhBCNoteVals[] = '';
 if (!in_array('', $borxhKushVals)) $borxhKushVals[] = '';
 if (!in_array('', $borxhKomentVals)) $borxhKomentVals[] = '';
