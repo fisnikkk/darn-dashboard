@@ -31,7 +31,7 @@ $fLitra = getFilterParam('f_litra');
 $fCmimi = getFilterParam('f_cmimi');
 $fPagesa = getFilterParam('f_pagesa');
 $fDataFp = getFilterParam('f_data_fp');
-$fKoment = getFilterParam('f_koment');
+$fKoment = getFilterParam('f_komentet');
 $fLitratTot = getFilterParam('f_litrat_tot');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
@@ -41,7 +41,7 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','data_e_fletepageses','koment','litrat_total','updated_at','created_at','boca_running','boca_total'];
+$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','data_e_fletepageses','fatura_e_derguar','litrat_total','updated_at','created_at','boca_running','boca_total'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -75,7 +75,7 @@ if ($fLitra) { $fin = buildFilterIn($fLitra, 'litra', 'd'); $where[] = $fin['sql
 if ($fCmimi) { $fin = buildFilterIn($fCmimi, 'cmimi', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fPagesa) { $fin = buildFilterIn($fPagesa, 'pagesa', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fDataFp) { $fin = buildFilterIn($fDataFp, 'data_e_fletepageses', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
-if ($fKoment) { $fin = buildFilterIn($fKoment, 'koment', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fKoment) { $fin = buildFilterIn($fKoment, 'fatura_e_derguar', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLitratTot) { $fin = buildFilterIn($fLitratTot, 'litrat_total', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -105,7 +105,7 @@ $sql = "
     )
     SELECT d.id, d.row_nr, d.klienti, d.data, d.sasia, d.boca_te_kthyera,
         d.litra, d.cmimi, d.pagesa, d.menyra_e_pageses,
-        d.data_e_fletepageses, d.koment, d.litrat_total,
+        d.data_e_fletepageses, d.fatura_e_derguar, d.litrat_total,
         t.boca_running, t.boca_total
     FROM distribuimi d
     JOIN totals t ON t.id = d.id
@@ -142,7 +142,7 @@ $distLitraVals = $db->query("SELECT DISTINCT CAST(litra AS CHAR) FROM distribuim
 $distCmimiVals = $db->query("SELECT DISTINCT CAST(cmimi AS CHAR) FROM distribuimi WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN);
 $distPagesaVals = $db->query("SELECT DISTINCT CAST(pagesa AS CHAR) FROM distribuimi WHERE pagesa IS NOT NULL ORDER BY pagesa")->fetchAll(PDO::FETCH_COLUMN);
 $distDataFpVals = $db->query("SELECT DISTINCT CAST(data_e_fletepageses AS CHAR) AS d FROM distribuimi WHERE data_e_fletepageses IS NOT NULL AND data_e_fletepageses > '0000-00-00' ORDER BY d")->fetchAll(PDO::FETCH_COLUMN);
-$distKomentVals = $db->query("SELECT DISTINCT koment FROM distribuimi WHERE koment IS NOT NULL AND koment != '' ORDER BY koment")->fetchAll(PDO::FETCH_COLUMN);
+$distKomentVals = $db->query("SELECT DISTINCT fatura_e_derguar FROM distribuimi WHERE fatura_e_derguar IS NOT NULL AND fatura_e_derguar != '' ORDER BY fatura_e_derguar")->fetchAll(PDO::FETCH_COLUMN);
 $distLitratTotVals = $db->query("SELECT DISTINCT CAST(litrat_total AS CHAR) FROM distribuimi WHERE litrat_total IS NOT NULL ORDER BY litrat_total")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
@@ -186,12 +186,12 @@ ob_start();
             </div>
             <div class="form-group" style="min-width:auto;">
                 <label>Klienti</label>
-                <select name="klienti" style="max-width:180px;padding:6px 8px;">
-                    <option value="">Të gjithë</option>
+                <input type="text" name="klienti" value="<?= e($filterClient) ?>" placeholder="Kërko klient..." list="distFilterKlientList" style="max-width:180px;padding:6px 8px;" autocomplete="off">
+                <datalist id="distFilterKlientList">
                     <?php foreach ($clients as $c): ?>
-                    <option value="<?= e($c) ?>" <?= $filterClient === $c ? 'selected' : '' ?>><?= e($c) ?></option>
+                    <option value="<?= e($c) ?>">
                     <?php endforeach; ?>
-                </select>
+                </datalist>
             </div>
             <div class="form-group" style="min-width:auto;">
                 <label>Data nga</label>
@@ -254,7 +254,7 @@ ob_start();
                         <?= withFilter(sortTh('pagesa', 'Pagesa', $sortCol, $sortDir, 'num'), 'f_pagesa', $distPagesaVals) ?>
                         <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
                         <?= withFilter(sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir), 'f_data_fp', $distDataFpVals) ?>
-                        <?= withFilter(sortTh('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $distKomentVals) ?>
+                        <?= withFilter(sortTh('fatura_e_derguar', 'Komentet', $sortCol, $sortDir), 'f_komentet', $distKomentVals) ?>
                         <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
                         <th></th>
                     </tr>
@@ -291,7 +291,7 @@ ob_start();
                             <span class="badge <?= $badge ?>"><?= e($r['menyra_e_pageses']) ?></span>
                         </td>
                         <td class="editable" data-field="data_e_fletepageses" data-type="date"><?= $r['data_e_fletepageses'] ?></td>
-                        <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>"><?= e($r['koment']) ?></td>
+                        <td class="editable truncate" data-field="fatura_e_derguar" title="<?= e($r['fatura_e_derguar']) ?>"><?= e($r['fatura_e_derguar']) ?></td>
                         <td class="num"><?= eur($r['litrat_total']) ?></td>
                         <td>
                             <button class="btn btn-danger btn-sm" onclick="deleteRow('distribuimi', <?= $r['id'] ?>)" title="Fshij">
@@ -405,8 +405,8 @@ ob_start();
                         <input type="date" name="data_e_fletepageses">
                     </div>
                     <div class="form-group">
-                        <label>Koment</label>
-                        <input type="text" name="koment">
+                        <label>Komentet</label>
+                        <input type="text" name="fatura_e_derguar">
                     </div>
                 </div>
 <script>
@@ -446,7 +446,7 @@ ob_start();
         <div class="modal-body">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
                 Kopjo rreshtat nga Excel dhe ngjiti ketu. Kolonat duhet te jene ne kete rend:<br>
-                <strong>Klienti | Data | Sasia | Boca te kthyera | Litra | Cmimi | Pagesa | Menyra e pageses | Data fletepageses | Koment</strong>
+                <strong>Klienti | Data | Sasia | Boca te kthyera | Litra | Cmimi | Pagesa | Menyra e pageses | Data fletepageses | Komentet</strong>
             </p>
             <textarea id="pasteAreaDist" rows="10" style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;" placeholder="Ngjit ketu te dhenat nga Excel (Ctrl+V)..."></textarea>
             <div id="pastePreviewDist" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
@@ -516,7 +516,7 @@ function submitPastedDistData() {
         let pagesa = parseNumberDist(cols[6]);
         const menyra_e_pageses = (cols[7] || '').trim();
         const data_e_fletepageses = parseDateDist(cols[8]);
-        const koment = (cols[9] || '').trim();
+        const fatura_e_derguar = (cols[9] || '').trim();
 
         // Auto-calculate litrat_total = sasia * litra
         const s = sasia ?? 0;
@@ -540,7 +540,7 @@ function submitPastedDistData() {
             pagesa: pagesa,
             menyra_e_pageses: menyra_e_pageses || null,
             data_e_fletepageses: data_e_fletepageses,
-            koment: koment || null,
+            fatura_e_derguar: fatura_e_derguar || null,
             litrat_total: litrat_total,
             litrat_e_konvertuara: litrat_e_konvertuara
         });

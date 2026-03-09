@@ -91,7 +91,6 @@ $borxhNoPagVals = array_values(array_unique(array_map(fn($d) => eur($d['no_payme
 $borxhDhurateVals = array_values(array_unique(array_map(fn($d) => eur($d['dhurate']), $debts)));
 $borxhTotalVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['total']), $debts)));
 $borxhBorxhiVals = array_values(array_unique(array_map(fn($d) => '€ ' . eur($d['borxhi_bank_deri']), $debts)));
-if (!in_array('', $borxhBorxhiVals)) $borxhBorxhiVals[] = '';
 sort($borxhCashVals); sort($borxhBankVals); sort($borxhFBankeVals); sort($borxhFCashVals);
 sort($borxhNoPagVals); sort($borxhDhurateVals); sort($borxhTotalVals); sort($borxhBorxhiVals);
 
@@ -242,7 +241,7 @@ ob_start();
                             <th class="num">Litra</th>
                             <th class="num">Çmimi</th>
                             <th class="num">Borxhi</th>
-                            <th>Koment</th>
+                            <th>Komentet</th>
                         </tr>
                     </thead>
                     <tbody id="clientDebtBody"></tbody>
@@ -424,6 +423,78 @@ function clientSortColumn(th, colIdx) {
     const tbody = table.querySelector('tbody');
     if (tbody) {
         observer.observe(tbody, { attributes: true, attributeFilter: ['style'], subtree: true });
+    }
+})();
+</script>
+
+<script>
+// Preserve client-side column filters across date form submissions
+(function() {
+    const STORAGE_KEY = 'borxhet_col_filters';
+    const table = document.getElementById('borxhetTable');
+    if (!table) return;
+
+    // Save active filter state before date form submits
+    const dateForm = document.querySelector('.card-header form');
+    if (dateForm) {
+        dateForm.addEventListener('submit', function() {
+            const state = {};
+            table.querySelectorAll('thead th[data-filter-mode="client"]').forEach(th => {
+                const filterName = th.dataset.filter;
+                const col = th.dataset.filterCol;
+                const dropdown = th.querySelector('.col-filter-dropdown');
+                if (!dropdown) return;
+                const checked = [];
+                dropdown.querySelectorAll('.col-filter-list label').forEach(label => {
+                    const cb = label.querySelector('input[type="checkbox"]');
+                    if (cb && !cb.checked) {
+                        // Store unchecked values (inverted logic: all checked = no filter)
+                        checked.push('__unchecked__');
+                    }
+                });
+                // Only store if some items are unchecked (filter is active)
+                const allItems = dropdown.querySelectorAll('.col-filter-list label input[type="checkbox"]');
+                const checkedItems = dropdown.querySelectorAll('.col-filter-list label input[type="checkbox"]:checked');
+                if (checkedItems.length < allItems.length && checkedItems.length > 0) {
+                    state[filterName] = Array.from(checkedItems).map(cb => cb.closest('label').dataset.value);
+                }
+            });
+            if (Object.keys(state).length) {
+                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } else {
+                sessionStorage.removeItem(STORAGE_KEY);
+            }
+        });
+    }
+
+    // Restore filter state on page load
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        try {
+            const state = JSON.parse(saved);
+            // Wait for app.js to initialize dropdowns
+            setTimeout(() => {
+                let applied = false;
+                Object.keys(state).forEach(filterName => {
+                    const th = table.querySelector('thead th[data-filter="' + filterName + '"]');
+                    if (!th) return;
+                    const dropdown = th.querySelector('.col-filter-dropdown');
+                    if (!dropdown) return;
+                    const allowedValues = new Set(state[filterName].map(v => v.toLowerCase()));
+                    dropdown.querySelectorAll('.col-filter-list label').forEach(label => {
+                        const cb = label.querySelector('input[type="checkbox"]');
+                        if (!cb) return;
+                        const val = (label.dataset.value || '').toLowerCase();
+                        cb.checked = allowedValues.has(val);
+                    });
+                    applied = true;
+                });
+                if (applied && typeof applyClientFilters === 'function') {
+                    applyClientFilters(table);
+                }
+            }, 300);
+        } catch(e) {}
     }
 })();
 </script>

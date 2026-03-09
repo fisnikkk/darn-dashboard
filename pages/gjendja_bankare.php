@@ -140,6 +140,17 @@ ob_start();
                 <i class="fas fa-info-circle"></i> Kliko <strong>✓</strong> për ta markuar si të kontrolluar
             </span>
         </div>
+        <!-- Bulk Klienti edit toolbar -->
+        <div id="bulkKlientiBar" style="display:flex;gap:8px;align-items:center;padding:8px 20px;background:#eff6ff;border-bottom:1px solid var(--border);font-size:0.85rem;">
+            <i class="fas fa-users" style="color:var(--primary);"></i>
+            <label style="font-weight:600;white-space:nowrap;">Ndrysho Klientin bulk:</label>
+            <input type="text" id="bulkKlientiInput" list="bulkKlientList" placeholder="Zgjidhni klientin..." style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:200px;" autocomplete="off">
+            <datalist id="bulkKlientList">
+            <?php foreach ($distKlientet as $k): ?><option value="<?= e($k) ?>"><?php endforeach; ?>
+            </datalist>
+            <button type="button" class="btn btn-primary btn-sm" id="bulkKlientiApply"><i class="fas fa-check"></i> Apliko për rreshtat e dukshëm</button>
+            <span id="bulkKlientiStatus" style="color:var(--text-muted);"></span>
+        </div>
         <div class="table-wrapper">
             <table class="data-table" data-table="gjendja_bankare" data-server-sort="true">
                 <thead>
@@ -371,6 +382,57 @@ function submitPastedData() {
     })
     .catch(() => showToast('Gabim ne server', 'error'));
 }
+</script>
+
+<script>
+// Bulk Klienti edit: apply to all visible rows on current page
+document.getElementById('bulkKlientiApply').addEventListener('click', function() {
+    const value = document.getElementById('bulkKlientiInput').value.trim();
+    if (!value) { showToast('Shkruani emrin e klientit', 'error'); return; }
+
+    const table = document.querySelector('table[data-table="gjendja_bankare"]');
+    const tbody = table.querySelector('tbody');
+    const visibleRows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
+    if (!visibleRows.length) { showToast('Nuk ka rreshta të dukshëm', 'error'); return; }
+
+    const statusEl = document.getElementById('bulkKlientiStatus');
+    statusEl.textContent = 'Duke ndryshuar ' + visibleRows.length + ' rreshta...';
+    this.disabled = true;
+
+    const ids = visibleRows.map(r => parseInt(r.dataset.id)).filter(id => !isNaN(id));
+    let done = 0, errors = 0;
+    const batchSize = 20;
+
+    function processBatch(startIdx) {
+        const batch = ids.slice(startIdx, startIdx + batchSize);
+        if (!batch.length) {
+            statusEl.textContent = done + ' rreshta u ndryshuan' + (errors ? ', ' + errors + ' gabime' : '');
+            document.getElementById('bulkKlientiApply').disabled = false;
+            // Update the DOM cells immediately
+            visibleRows.forEach(row => {
+                const klientiCell = row.querySelector('td[data-field="klienti"]');
+                if (klientiCell) {
+                    klientiCell.textContent = value;
+                    klientiCell.title = value;
+                    klientiCell.style.background = '#f0fdf4';
+                    setTimeout(() => klientiCell.style.background = '', 1500);
+                }
+            });
+            return;
+        }
+        Promise.all(batch.map(id =>
+            fetch('/api/update.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: 'gjendja_bankare', id, field: 'klienti', value })
+            }).then(r => r.json()).then(d => { if (d.success) done++; else errors++; }).catch(() => errors++)
+        )).then(() => {
+            statusEl.textContent = 'Duke ndryshuar... ' + done + '/' + ids.length;
+            processBatch(startIdx + batchSize);
+        });
+    }
+    processBatch(0);
+});
 </script>
 
 <?php

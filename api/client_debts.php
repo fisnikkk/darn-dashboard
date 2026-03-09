@@ -33,7 +33,7 @@ try {
     }
 
     $stmt = $db->prepare("
-        SELECT data, sasia, litra, cmimi, pagesa, koment
+        SELECT data, sasia, litra, cmimi, pagesa, fatura_e_derguar AS koment
         FROM distribuimi
         WHERE {$where}
         ORDER BY data DESC, id DESC
