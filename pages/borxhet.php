@@ -277,7 +277,11 @@ document.querySelectorAll('.borxh-client-link').forEach(link => {
             .then(data => {
                 loading.style.display = 'none';
                 if (!data.success || !data.rows.length) {
-                    content.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">Nuk ka transaksione.</p>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Nuk ka borxhe (bank) për këtë klient.</td></tr>';
+                    document.getElementById('clientDebtCount').textContent = '0 rreshta';
+                    document.getElementById('clientDebtSasia').textContent = '';
+                    document.getElementById('clientDebtLitra').textContent = '';
+                    document.getElementById('clientDebtPagesa').textContent = '';
                     content.style.display = '';
                     return;
                 }
