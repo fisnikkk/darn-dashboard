@@ -15,10 +15,12 @@ if (!$klienti) {
 
 try {
     $db = getDB();
+    // Only bank transactions (these make up the "borxhi" amount)
     $stmt = $db->prepare("
-        SELECT data, sasia, litra, cmimi, pagesa, menyra_e_pageses, koment
+        SELECT data, sasia, litra, cmimi, pagesa, koment
         FROM distribuimi
         WHERE LOWER(TRIM(klienti)) = LOWER(TRIM(?))
+          AND LOWER(TRIM(menyra_e_pageses)) = 'bank'
         ORDER BY data DESC, id DESC
     ");
     $stmt->execute([$klienti]);

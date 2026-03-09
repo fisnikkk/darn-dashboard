@@ -233,8 +233,7 @@ ob_start();
                             <th class="num">Sasia</th>
                             <th class="num">Litra</th>
                             <th class="num">Çmimi</th>
-                            <th class="num">Pagesa</th>
-                            <th>Mënyra</th>
+                            <th class="num">Borxhi</th>
                             <th>Koment</th>
                         </tr>
                     </thead>
@@ -246,7 +245,6 @@ ob_start();
                             <td class="amount" id="clientDebtLitra"></td>
                             <td></td>
                             <td class="amount" id="clientDebtPagesa"></td>
-                            <td></td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -268,7 +266,7 @@ document.querySelectorAll('.borxh-client-link').forEach(link => {
         const content = document.getElementById('clientDebtContent');
         const tbody = document.getElementById('clientDebtBody');
 
-        title.textContent = 'Borxhet: ' + klienti;
+        title.textContent = 'Borxhi (Bank): ' + klienti;
         loading.style.display = '';
         content.style.display = 'none';
         tbody.innerHTML = '';
@@ -298,7 +296,6 @@ document.querySelectorAll('.borxh-client-link').forEach(link => {
                         '<td class="amount">' + l.toFixed(2) + '</td>' +
                         '<td class="amount">' + (parseFloat(r.cmimi) || 0).toFixed(2) + '</td>' +
                         '<td class="amount">&euro; ' + p.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</td>' +
-                        '<td>' + (r.menyra_e_pageses || '-') + '</td>' +
                         '<td style="max-width:200px;white-space:normal;word-break:break-word;">' + (r.koment || '') + '</td>';
                     tbody.appendChild(tr);
                 });
