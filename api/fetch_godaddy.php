@@ -1,6 +1,6 @@
 <?php
 /**
- * Fetch from GoDaddy's delivery_report by date range
+ * Fetch from GoDaddy's delivery_report by date range (via HTTP proxy)
  *
  * Actions:
  *   action=preview  → Show what would be imported (dry run)
@@ -20,17 +20,16 @@ $action = $input['action'] ?? $_GET['action'] ?? 'status';
 
 try {
     $db = getDB();
-    $gd = getGoDaddyDB();
 
     switch ($action) {
         case 'status':
-            handleStatus($gd);
+            handleStatus();
             break;
         case 'preview':
-            handlePreview($db, $gd, $input);
+            handlePreview($db, $input);
             break;
         case 'import':
-            handleImport($db, $gd, $input);
+            handleImport($db, $input);
             break;
         default:
             echo json_encode(['success' => false, 'error' => 'Unknown action']);
@@ -42,28 +41,45 @@ try {
 /**
  * Check if GoDaddy connection works
  */
-function handleStatus($gd) {
-    if (!GD_DB_PASS) {
-        echo json_encode(['success' => false, 'connected' => false, 'reason' => 'Kredencialet nuk jane konfiguruar. Vendos GODADDY_DB_PASS ne Railway Variables.']);
+function handleStatus() {
+    $result = callGoDaddyAPI(['action' => 'ping']);
+
+    if ($result === null) {
+        echo json_encode(['success' => false, 'connected' => false, 'reason' => 'Nuk mund te lidhem me GoDaddy. Kontrollo lidhjen.']);
         return;
     }
-    if (!$gd) {
-        echo json_encode(['success' => false, 'connected' => false, 'reason' => 'Nuk mund te lidhem me GoDaddy. Kontrollo kredencialet.']);
+    if (!($result['success'] ?? false)) {
+        echo json_encode(['success' => false, 'connected' => false, 'reason' => $result['error'] ?? 'Pergjigje e pasakte nga GoDaddy.']);
         return;
     }
-    $count = (int)$gd->query("SELECT COUNT(*) FROM delivery_report")->fetchColumn();
-    echo json_encode(['success' => true, 'connected' => true, 'total_rows' => $count]);
+
+    echo json_encode(['success' => true, 'connected' => true, 'total_rows' => $result['total_rows'] ?? 0]);
+}
+
+/**
+ * Fetch rows from GoDaddy via HTTP proxy
+ */
+function fetchGoDaddyRows($dateFrom, $dateTo) {
+    $result = callGoDaddyAPI([
+        'action' => 'fetch',
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+    ]);
+
+    if ($result === null) {
+        throw new Exception('Nuk mund te lidhem me GoDaddy.');
+    }
+    if (!($result['success'] ?? false)) {
+        throw new Exception($result['error'] ?? 'Gabim nga GoDaddy.');
+    }
+
+    return $result['rows'] ?? [];
 }
 
 /**
  * Preview: fetch rows from GoDaddy for the date range, show what would be imported
  */
-function handlePreview($db, $gd, $input) {
-    if (!$gd) {
-        echo json_encode(['success' => false, 'error' => 'GoDaddy nuk eshte e lidhur.']);
-        return;
-    }
-
+function handlePreview($db, $input) {
     $dateFrom = $input['date_from'] ?? '';
     $dateTo = $input['date_to'] ?? '';
     if (!$dateFrom || !$dateTo) {
@@ -71,10 +87,7 @@ function handlePreview($db, $gd, $input) {
         return;
     }
 
-    // Fetch from GoDaddy
-    $stmt = $gd->prepare("SELECT * FROM delivery_report WHERE Date >= ? AND Date <= ? ORDER BY Date ASC, ID ASC");
-    $stmt->execute([$dateFrom, $dateTo]);
-    $gdRows = $stmt->fetchAll();
+    $gdRows = fetchGoDaddyRows($dateFrom, $dateTo);
 
     // Check which ones already exist in distribuimi (by matching key fields)
     $mapped = [];
@@ -88,7 +101,7 @@ function handlePreview($db, $gd, $input) {
         $exists = (int)$dup->fetchColumn() > 0;
 
         $m['_duplicate'] = $exists;
-        $m['_godaddy_id'] = (int)$row['ID'];
+        $m['_godaddy_id'] = (int)($row['ID'] ?? 0);
         if ($exists) $duplicates++;
         $mapped[] = $m;
     }
@@ -105,12 +118,7 @@ function handlePreview($db, $gd, $input) {
 /**
  * Import: fetch rows from GoDaddy and insert new ones into distribuimi
  */
-function handleImport($db, $gd, $input) {
-    if (!$gd) {
-        echo json_encode(['success' => false, 'error' => 'GoDaddy nuk eshte e lidhur.']);
-        return;
-    }
-
+function handleImport($db, $input) {
     $dateFrom = $input['date_from'] ?? '';
     $dateTo = $input['date_to'] ?? '';
     if (!$dateFrom || !$dateTo) {
@@ -118,10 +126,7 @@ function handleImport($db, $gd, $input) {
         return;
     }
 
-    // Fetch from GoDaddy
-    $stmt = $gd->prepare("SELECT * FROM delivery_report WHERE Date >= ? AND Date <= ? ORDER BY Date ASC, ID ASC");
-    $stmt->execute([$dateFrom, $dateTo]);
-    $gdRows = $stmt->fetchAll();
+    $gdRows = fetchGoDaddyRows($dateFrom, $dateTo);
 
     if (empty($gdRows)) {
         echo json_encode(['success' => true, 'message' => 'Asgje nuk u gjet per kete periudhe.', 'inserted' => 0, 'skipped' => 0]);

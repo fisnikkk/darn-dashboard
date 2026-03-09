@@ -1,41 +1,38 @@
 <?php
 /**
- * GoDaddy Database Connection (READ-ONLY)
- * Connects to adaptive_cylinder.delivery_report on GoDaddy's MySQL
+ * GoDaddy HTTP API Connection
+ * Fetches data from adaptive.darn-group.com/dashboard_export.php
+ * (GoDaddy blocks remote MySQL, so we use an HTTP proxy instead)
  *
  * Set these in Railway dashboard → Variables:
- *   GODADDY_DB_HOST = n1nlmysql29plsk.secureserver.net
- *   GODADDY_DB_NAME = adaptive_cylinder
- *   GODADDY_DB_USER = adaptive_jd
- *   GODADDY_DB_PASS = (password)
+ *   GODADDY_API_URL = http://adaptive.darn-group.com/dashboard_export.php
+ *   GODADDY_API_KEY = darn-dashboard-2026-secure-key
  */
 
-define('GD_DB_HOST', getenv('GODADDY_DB_HOST') ?: 'n1nlmysql29plsk.secureserver.net');
-define('GD_DB_NAME', getenv('GODADDY_DB_NAME') ?: 'adaptive_cylinder');
-define('GD_DB_USER', getenv('GODADDY_DB_USER') ?: 'adaptive_jd');
-define('GD_DB_PASS', getenv('GODADDY_DB_PASS') ?: '');
-define('GD_DB_PORT', getenv('GODADDY_DB_PORT') ?: '3306');
+define('GD_API_URL', getenv('GODADDY_API_URL') ?: 'http://adaptive.darn-group.com/dashboard_export.php');
+define('GD_API_KEY', getenv('GODADDY_API_KEY') ?: 'darn-dashboard-2026-secure-key');
 
-function getGoDaddyDB() {
-    static $pdo = null;
-    static $tried = false;
+/**
+ * Call the GoDaddy export API
+ * @param array $params  Query parameters (action, date_from, date_to, etc.)
+ * @return array|null    Decoded JSON response, or null on failure
+ */
+function callGoDaddyAPI($params = []) {
+    $params['key'] = GD_API_KEY;
+    $url = GD_API_URL . '?' . http_build_query($params);
 
-    if ($tried) return $pdo;
-    $tried = true;
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 30,
+            'ignore_errors' => true,
+        ],
+    ]);
 
-    if (!GD_DB_PASS) return null;
-
-    try {
-        $dsn = "mysql:host=" . GD_DB_HOST . ";port=" . GD_DB_PORT . ";dbname=" . GD_DB_NAME . ";charset=utf8mb4";
-        $pdo = new PDO($dsn, GD_DB_USER, GD_DB_PASS, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-            PDO::ATTR_TIMEOUT            => 10,
-        ]);
-        return $pdo;
-    } catch (PDOException $e) {
-        error_log("GoDaddy DB connection failed: " . $e->getMessage());
+    $response = @file_get_contents($url, false, $ctx);
+    if ($response === false) {
         return null;
     }
+
+    $data = json_decode($response, true);
+    return $data;
 }
