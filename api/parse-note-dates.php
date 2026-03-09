@@ -2,15 +2,25 @@
 /**
  * Parse Albanian dates from note text and populate the data column.
  * Patterns handled:
- *   "3 mars 11727.64" => March 3
+ *   "3 mars 11727.64" => March 3 (year from context)
  *   "28 shkurt 9803.64" => February 28
+ *   "30 prill 2025 19988.47" => April 30, 2025 (explicit year)
  *   "15 janar" => January 15
- * Year is inferred from created_at timestamp.
+ *
+ * Year priority:
+ *   1. Explicit year in text after month name (e.g., "prill 2025")
+ *   2. created_at year, adjusted to avoid future dates
  */
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
 
 $db = getDB();
+
+// Re-parse mode: if ?reparse=1, clear all parsed dates and redo everything
+$reparse = isset($_GET['reparse']) && $_GET['reparse'] === '1';
+if ($reparse) {
+    $db->exec("UPDATE notes SET data = NULL");
+}
 
 // Albanian month names => month numbers
 $months = [
@@ -22,8 +32,11 @@ $months = [
 
 $monthPattern = implode('|', array_keys($months));
 
-// Match: <day> <albanian_month> (at word boundary)
-$pattern = '/\b(\d{1,2})\s+(' . $monthPattern . ')\b/iu';
+// Match: <day> <albanian_month> [optional_year]
+// Captures: (1) day, (2) month name, (3) optional 4-digit year after month
+$pattern = '/\b(\d{1,2})\s+(' . $monthPattern . ')(?:\s+(20[2-9]\d))?\b/iu';
+
+$today = new DateTime();
 
 // Only process notes with no date set
 $rows = $db->query("
@@ -46,23 +59,26 @@ foreach ($rows as $row) {
 
         if (!$month || $day < 1 || $day > 31) continue;
 
-        // Determine year from created_at, fallback to current year
-        $year = date('Y');
-        if ($row['created_at']) {
-            $createdYear = (int)date('Y', strtotime($row['created_at']));
-            $createdMonth = (int)date('n', strtotime($row['created_at']));
-            $year = $createdYear;
+        // 1. Check if text contains explicit year (e.g., "prill 2025")
+        if (!empty($m[3])) {
+            $year = (int)$m[3];
+        } else {
+            // 2. Infer year from created_at
+            $year = (int)date('Y');
+            if ($row['created_at']) {
+                $createdYear = (int)date('Y', strtotime($row['created_at']));
+                $year = $createdYear;
+            }
 
-            // If note mentions a month later than created_at month,
-            // it likely refers to previous year (e.g., created in Jan, note says "dhjetor")
-            if ($month > $createdMonth + 1) {
-                $year = $createdYear - 1;
+            // 3. If resulting date would be in the future, go back 1 year
+            $candidateDate = sprintf('%04d-%02d-%02d', $year, $month, min($day, 28));
+            if (new DateTime($candidateDate) > $today) {
+                $year--;
             }
         }
 
         // Validate the date — clamp day if needed
         if (!checkdate($month, $day, $year)) {
-            // Try clamping to last day of month
             $maxDay = (int)(new DateTime("$year-$month-01"))->format('t');
             $day = min($day, $maxDay);
         }
