@@ -19,5 +19,12 @@ scripts/
 *.xlsx
 *.xls
 
+# Backups (local only, never push to git)
+backups/
+
+# Temp files
+_nxemese_export.json
+UsersPCDesktop*
+
 # Environment
 .env
