@@ -16,41 +16,33 @@ if (!empty($_SESSION['logged_in'])) {
 
 // Handle login POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF check (skip if session had no token — e.g. first visit after deploy)
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postToken = $_POST['csrf_token'] ?? '';
-    if ($sessionToken === '' || $postToken === '' || !hash_equals($sessionToken, $postToken)) {
-        $error = ($sessionToken === '') ? '' : 'Sesioni ka skaduar. Provo perseri.';
+    $db = getDB();
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+    // Rate limit check
+    $locked = checkRateLimit($db, $ip);
+    if ($locked > 0) {
+        $error = "Shume tentativa te gabuara. Provo perseri pas {$locked} minutash.";
     } else {
-        $db = getDB();
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $user = trim($_POST['username'] ?? '');
+        $pass = $_POST['password'] ?? '';
 
-        // Rate limit check
-        $locked = checkRateLimit($db, $ip);
-        if ($locked > 0) {
-            $error = "Shume tentativa te gabuara. Provo perseri pas {$locked} minutash.";
+        if ($user === AUTH_USER && AUTH_PASS !== '' && hash_equals(AUTH_PASS, $pass)) {
+            // Success
+            clearAttempts($db, $ip);
+            session_regenerate_id(true);
+            $_SESSION['logged_in'] = true;
+            $_SESSION['login_time'] = time();
+            header('Location: /index.php');
+            exit;
         } else {
-            $user = trim($_POST['username'] ?? '');
-            $pass = $_POST['password'] ?? '';
-
-            if ($user === AUTH_USER && AUTH_PASS !== '' && hash_equals(AUTH_PASS, $pass)) {
-                // Success
-                clearAttempts($db, $ip);
-                session_regenerate_id(true);
-                $_SESSION['logged_in'] = true;
-                $_SESSION['login_time'] = time();
-                header('Location: /index.php');
-                exit;
-            } else {
-                recordFailedAttempt($db, $ip);
-                $error = 'Kredencialet jane te gabuara.';
-            }
+            recordFailedAttempt($db, $ip);
+            $error = 'Kredencialet jane te gabuara.';
         }
     }
 }
 
-// Generate CSRF token
-$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+// Session is started by auth.php
 ?>
 <!DOCTYPE html>
 <html lang="sq">
@@ -76,8 +68,6 @@ $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             <?php endif; ?>
 
             <form method="POST" action="/login.php" autocomplete="off">
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-
                 <div class="login-field">
                     <label for="username"><i class="fas fa-user"></i> Perdoruesi</label>
                     <input type="text" id="username" name="username" required autofocus
