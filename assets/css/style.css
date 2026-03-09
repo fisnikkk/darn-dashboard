@@ -920,4 +920,10 @@ th.sort-desc .sort-icon { opacity: 1; }
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
+    /* Borxhet print: red background rows */
+    #borxhetTable tr[style*="fef2f2"] {
+        background: #fef2f2 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 }

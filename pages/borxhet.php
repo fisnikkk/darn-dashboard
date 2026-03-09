@@ -121,20 +121,22 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3><i class="fas fa-balance-scale"></i> Gjendja e Borxheve</h3>
-        <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <label style="font-size:0.82rem;font-weight:600;">Periudha:</label>
-            <input type="date" name="date_from" value="<?= e($dateNga) ?>" title="Nga data" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:135px;">
-            <span style="font-size:0.82rem;">—</span>
-            <input type="date" name="date" value="<?= e($dateDeri) ?>" title="Deri në datë" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:135px;">
-            <?php /* Preserve active server-side filters when submitting dates */ ?>
-            <?php foreach ($fBorxhKlienti as $fv): ?>
-            <input type="hidden" name="f_klienti[]" value="<?= e($fv) ?>">
-            <?php endforeach; ?>
-            <button type="submit" class="btn btn-primary btn-sm">Apliko</button>
-            <?php if ($dateNga): ?>
-            <a href="?date=<?= e($dateDeri) ?>" class="btn btn-outline btn-sm" style="font-size:0.78rem;">Pastro periudhën</a>
-            <?php endif; ?>
-        </form>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <label style="font-size:0.82rem;font-weight:600;">Periudha:</label>
+                <input type="date" name="date_from" value="<?= e($dateNga) ?>" title="Nga data" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:135px;">
+                <span style="font-size:0.82rem;">—</span>
+                <input type="date" name="date" value="<?= e($dateDeri) ?>" title="Deri në datë" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:135px;">
+                <?php foreach ($fBorxhKlienti as $fv): ?>
+                <input type="hidden" name="f_klienti[]" value="<?= e($fv) ?>">
+                <?php endforeach; ?>
+                <button type="submit" class="btn btn-primary btn-sm">Apliko</button>
+                <?php if ($dateNga): ?>
+                <a href="?date=<?= e($dateDeri) ?>" class="btn btn-outline btn-sm" style="font-size:0.78rem;">Pastro periudhën</a>
+                <?php endif; ?>
+            </form>
+            <button class="btn btn-outline btn-sm print-hide" onclick="window.print()"><i class="fas fa-print"></i> Printo</button>
+        </div>
     </div>
     <div class="card-body">
         <div class="table-wrapper">
@@ -142,15 +144,15 @@ ob_start();
                 <thead>
                     <tr>
                         <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;" data-filter="f_klienti" data-filter-values="<?= e(json_encode($borxhKlientet, JSON_UNESCAPED_UNICODE)) ?>">Klienti <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_cash" data-filter-values="<?= e(json_encode($borxhCashVals)) ?>" data-filter-mode="client" data-filter-col="1">Cash <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bank" data-filter-values="<?= e(json_encode($borxhBankVals)) ?>" data-filter-mode="client" data-filter-col="2">Bank <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_fbanke" data-filter-values="<?= e(json_encode($borxhFBankeVals)) ?>" data-filter-mode="client" data-filter-col="3">Faturë banke <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_fcash" data-filter-values="<?= e(json_encode($borxhFCashVals)) ?>" data-filter-mode="client" data-filter-col="4">Faturë cash <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_nopag" data-filter-values="<?= e(json_encode($borxhNoPagVals)) ?>" data-filter-mode="client" data-filter-col="5">Pa paguar <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_dhurate" data-filter-values="<?= e(json_encode($borxhDhurateVals)) ?>" data-filter-mode="client" data-filter-col="6">Dhuratë <i class="fas fa-sort"></i></th>
-                        <th class="num server-sort" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;font-weight:700;" data-filter="f_borxh_total" data-filter-values="<?= e(json_encode($borxhTotalVals)) ?>" data-filter-mode="client" data-filter-col="7">Total <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 1)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_cash" data-filter-values="<?= e(json_encode($borxhCashVals)) ?>" data-filter-mode="client" data-filter-col="1">Cash <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 2)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bank" data-filter-values="<?= e(json_encode($borxhBankVals)) ?>" data-filter-mode="client" data-filter-col="2">Bank <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 3)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_fbanke" data-filter-values="<?= e(json_encode($borxhFBankeVals)) ?>" data-filter-mode="client" data-filter-col="3">Faturë banke <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_fcash" data-filter-values="<?= e(json_encode($borxhFCashVals)) ?>" data-filter-mode="client" data-filter-col="4">Faturë cash <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_nopag" data-filter-values="<?= e(json_encode($borxhNoPagVals)) ?>" data-filter-mode="client" data-filter-col="5">Pa paguar <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 6)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_dhurate" data-filter-values="<?= e(json_encode($borxhDhurateVals)) ?>" data-filter-mode="client" data-filter-col="6">Dhuratë <i class="fas fa-sort"></i></th>
+                        <th class="num server-sort print-hide" onclick="clientSortColumn(this, 7)" style="cursor:pointer;user-select:none;font-weight:700;" data-filter="f_borxh_total" data-filter-values="<?= e(json_encode($borxhTotalVals)) ?>" data-filter-mode="client" data-filter-col="7">Total <i class="fas fa-sort"></i></th>
                         <th class="num server-sort" onclick="clientSortColumn(this, 8)" style="cursor:pointer;user-select:none;color:var(--danger);font-weight:700;" data-filter="f_borxh_borxhi" data-filter-values="<?= e(json_encode($borxhBorxhiVals)) ?>" data-filter-mode="client" data-filter-col="8">Borxhi Bank deri <?= date('d/m/Y', strtotime($dateDeri)) ?> <i class="fas fa-sort"></i></th>
-                        <th class="server-sort" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bcnote" data-filter-values="<?= e(json_encode($borxhBCNoteVals)) ?>" data-filter-mode="client" data-filter-col="9">Klient me bank apo cash <i class="fas fa-sort"></i></th>
+                        <th class="server-sort print-hide" onclick="clientSortColumn(this, 9)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_bcnote" data-filter-values="<?= e(json_encode($borxhBCNoteVals)) ?>" data-filter-mode="client" data-filter-col="9">Klient me bank apo cash <i class="fas fa-sort"></i></th>
                         <th class="server-sort" onclick="clientSortColumn(this, 10)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_kush" data-filter-values="<?= e(json_encode($borxhKushVals)) ?>" data-filter-mode="client" data-filter-col="10">Kush e merr borxhin <i class="fas fa-sort"></i></th>
                         <th class="server-sort" onclick="clientSortColumn(this, 11)" style="cursor:pointer;user-select:none;" data-filter="f_borxh_koment" data-filter-values="<?= e(json_encode($borxhKomentVals)) ?>" data-filter-mode="client" data-filter-col="11">Komment <i class="fas fa-sort"></i></th>
                     </tr>
@@ -161,16 +163,16 @@ ob_start();
                         $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
                     ?>
                     <tr <?= (float)$d['borxhi_bank_deri'] > 0 ? 'style="background:#fef2f2;"' : '' ?>>
-                        <td><?= e($d['klienti']) ?></td>
-                        <td class="amount"><?= eur($d['cash']) ?></td>
-                        <td class="amount"><?= eur($d['bank']) ?></td>
-                        <td class="amount"><?= eur($d['fature_banke']) ?></td>
-                        <td class="amount"><?= eur($d['fature_cash']) ?></td>
-                        <td class="amount"><?= eur($d['no_payment']) ?></td>
-                        <td class="amount"><?= eur($d['dhurate']) ?></td>
-                        <td class="amount" style="font-weight:700;">&euro; <?= eur($d['total']) ?></td>
+                        <td><a href="#" class="borxh-client-link" data-klienti="<?= e($d['klienti']) ?>" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--text-muted);"><?= e($d['klienti']) ?></a></td>
+                        <td class="amount print-hide"><?= eur($d['cash']) ?></td>
+                        <td class="amount print-hide"><?= eur($d['bank']) ?></td>
+                        <td class="amount print-hide"><?= eur($d['fature_banke']) ?></td>
+                        <td class="amount print-hide"><?= eur($d['fature_cash']) ?></td>
+                        <td class="amount print-hide"><?= eur($d['no_payment']) ?></td>
+                        <td class="amount print-hide"><?= eur($d['dhurate']) ?></td>
+                        <td class="amount print-hide" style="font-weight:700;">&euro; <?= eur($d['total']) ?></td>
                         <td class="amount" style="font-weight:700;color:var(--danger);">&euro; <?= eur($d['borxhi_bank_deri']) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(cleanNote($note['klient_bank_cash'] ?? '')) ?></td>
+                        <td class="borxh-note print-hide" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(cleanNote($note['klient_bank_cash'] ?? '')) ?></td>
                         <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e(cleanNote($note['kush_merr_borxhin'] ?? '')) ?></td>
                         <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e(cleanNote($note['koment'] ?? '')) ?></td>
                     </tr>
@@ -179,15 +181,15 @@ ob_start();
                 <tfoot>
                     <tr style="font-weight:700;background:#f8fafc;">
                         <td>TOTALI</td>
-                        <td class="amount">&euro; <?= eur($totals['cash']) ?></td>
-                        <td class="amount">&euro; <?= eur($totals['bank']) ?></td>
-                        <td class="amount">&euro; <?= eur($totals['fature_banke']) ?></td>
-                        <td class="amount">&euro; <?= eur($totals['fature_cash']) ?></td>
-                        <td class="amount">&euro; <?= eur($totals['no_payment']) ?></td>
-                        <td class="amount">&euro; <?= eur($totals['dhurate']) ?></td>
-                        <td class="amount">&euro; <?= eur($totals['total']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['cash']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['bank']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['fature_banke']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['fature_cash']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['no_payment']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['dhurate']) ?></td>
+                        <td class="amount print-hide">&euro; <?= eur($totals['total']) ?></td>
                         <td class="amount" style="color:var(--danger);">&euro; <?= eur($totals['borxhi_bank_deri']) ?></td>
-                        <td></td><td></td><td></td>
+                        <td class="print-hide"></td><td></td><td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -195,11 +197,123 @@ ob_start();
     </div>
 </div>
 
-<p style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
+<!-- Print header (visible only in print) -->
+<div class="print-only" style="display:none;margin-bottom:12px;">
+    <h2 style="margin:0 0 4px 0;font-size:14pt;">DARN Group — Gjendja e Borxheve</h2>
+    <p style="margin:0;font-size:9pt;color:#666;">
+        <?php if ($dateNga): ?>Periudha: <?= e($dateNga) ?> — <?= e($dateDeri) ?><?php else: ?>Deri më: <?= e($dateDeri) ?><?php endif; ?>
+        &nbsp;|&nbsp; <?= count($debts) ?> klientë
+        &nbsp;|&nbsp; Printuar: <?= date('d/m/Y H:i') ?>
+    </p>
+</div>
+
+<p class="print-hide" style="color:var(--text-muted);font-size:0.82rem;margin-top:8px;">
     <i class="fas fa-info-circle"></i> Ky raport gjenerohet automatikisht nga të dhënat e Distribuimit.
     <?= count($debts) ?> klientë me transaksione.
     <br>Kolonat Bank/Cash, Kush merr borxhin, dhe Koment ruhen automatikisht kur ndryshoni.
+    <br>Klikoni mbi emrin e klientit për të parë transaksionet me data.
 </p>
+
+<!-- Client Debt Detail Modal -->
+<div class="modal-overlay" id="clientDebtModal" style="display:none;">
+    <div class="modal" style="max-width:900px;width:95%;">
+        <div class="modal-header">
+            <h3 id="clientDebtTitle">Transaksionet e klientit</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeModal('clientDebtModal')">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+            <div id="clientDebtLoading" style="text-align:center;padding:30px;color:var(--text-muted);">
+                <i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...
+            </div>
+            <div id="clientDebtContent" style="display:none;">
+                <table class="data-table" style="width:100%;font-size:0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th class="num">Sasia</th>
+                            <th class="num">Litra</th>
+                            <th class="num">Çmimi</th>
+                            <th class="num">Pagesa</th>
+                            <th>Mënyra</th>
+                            <th>Koment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientDebtBody"></tbody>
+                    <tfoot>
+                        <tr style="font-weight:700;">
+                            <td id="clientDebtCount"></td>
+                            <td class="amount" id="clientDebtSasia"></td>
+                            <td class="amount" id="clientDebtLitra"></td>
+                            <td></td>
+                            <td class="amount" id="clientDebtPagesa"></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Click on client name to show debt detail modal
+document.querySelectorAll('.borxh-client-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const klienti = this.dataset.klienti;
+        const modal = document.getElementById('clientDebtModal');
+        const title = document.getElementById('clientDebtTitle');
+        const loading = document.getElementById('clientDebtLoading');
+        const content = document.getElementById('clientDebtContent');
+        const tbody = document.getElementById('clientDebtBody');
+
+        title.textContent = 'Borxhet: ' + klienti;
+        loading.style.display = '';
+        content.style.display = 'none';
+        tbody.innerHTML = '';
+        openModal('clientDebtModal');
+
+        fetch('/api/client_debts.php?klienti=' + encodeURIComponent(klienti))
+            .then(r => r.json())
+            .then(data => {
+                loading.style.display = 'none';
+                if (!data.success || !data.rows.length) {
+                    content.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">Nuk ka transaksione.</p>';
+                    content.style.display = '';
+                    return;
+                }
+                let totalSasia = 0, totalLitra = 0, totalPagesa = 0;
+                data.rows.forEach(r => {
+                    const s = parseFloat(r.sasia) || 0;
+                    const l = parseFloat(r.litra) || 0;
+                    const p = parseFloat(r.pagesa) || 0;
+                    totalSasia += s;
+                    totalLitra += l;
+                    totalPagesa += p;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML =
+                        '<td>' + (r.data || '-') + '</td>' +
+                        '<td class="amount">' + s.toFixed(0) + '</td>' +
+                        '<td class="amount">' + l.toFixed(2) + '</td>' +
+                        '<td class="amount">' + (parseFloat(r.cmimi) || 0).toFixed(2) + '</td>' +
+                        '<td class="amount">&euro; ' + p.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</td>' +
+                        '<td>' + (r.menyra_e_pageses || '-') + '</td>' +
+                        '<td style="max-width:200px;white-space:normal;word-break:break-word;">' + (r.koment || '') + '</td>';
+                    tbody.appendChild(tr);
+                });
+                document.getElementById('clientDebtCount').textContent = data.rows.length + ' rreshta';
+                document.getElementById('clientDebtSasia').textContent = totalSasia.toFixed(0);
+                document.getElementById('clientDebtLitra').textContent = totalLitra.toFixed(2);
+                document.getElementById('clientDebtPagesa').innerHTML = '&euro; ' + totalPagesa.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
+                content.style.display = '';
+            })
+            .catch(() => {
+                loading.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-exclamation-triangle"></i> Gabim gjatë ngarkimit.</span>';
+            });
+    });
+});
+</script>
 
 <script>
 // Auto-save borxhet notes on blur (contenteditable cells)
