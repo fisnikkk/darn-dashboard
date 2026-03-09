@@ -54,6 +54,29 @@ foreach ($debts as $d) {
     foreach ($totals as $k => &$v) $v += (float)$d[$k];
 }
 
+// Clean note value: strip invisible Unicode chars, collapse whitespace, trim
+function cleanNote($s) {
+    if ($s === null || $s === '') return '';
+    // Strip non-breaking spaces, zero-width chars, BOM, soft hyphens
+    $s = preg_replace('/[\x{00A0}\x{200B}\x{200C}\x{200D}\x{FEFF}\x{00AD}\x{2060}]/u', ' ', $s);
+    $s = preg_replace('/\s+/', ' ', $s); // collapse multiple whitespace
+    return trim($s);
+}
+
+// Case-insensitive array_unique: dedup by lowercase key, keep first occurrence
+function array_unique_ci($arr) {
+    $seen = [];
+    $result = [];
+    foreach ($arr as $v) {
+        $key = mb_strtolower($v);
+        if (!isset($seen[$key])) {
+            $seen[$key] = true;
+            $result[] = $v;
+        }
+    }
+    return array_values($result);
+}
+
 // Load per-client notes (3 extra columns)
 $notesRaw = $db->query("SELECT klienti, klient_bank_cash, kush_merr_borxhin, koment FROM borxhet_notes")->fetchAll();
 $notes = [];
@@ -79,13 +102,13 @@ $borxhKomentSet = [];
 foreach ($debts as $d) {
     $noteKey = strtolower($d['klienti']);
     $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
-    $borxhBCNoteSet[] = trim($note['klient_bank_cash'] ?? '');
-    $borxhKushSet[] = trim($note['kush_merr_borxhin'] ?? '');
-    $borxhKomentSet[] = trim($note['koment'] ?? '');
+    $borxhBCNoteSet[] = cleanNote($note['klient_bank_cash'] ?? '');
+    $borxhKushSet[] = cleanNote($note['kush_merr_borxhin'] ?? '');
+    $borxhKomentSet[] = cleanNote($note['koment'] ?? '');
 }
-$borxhBCNoteVals = array_values(array_unique($borxhBCNoteSet));
-$borxhKushVals = array_values(array_unique($borxhKushSet));
-$borxhKomentVals = array_values(array_unique($borxhKomentSet));
+$borxhBCNoteVals = array_unique_ci($borxhBCNoteSet);
+$borxhKushVals = array_unique_ci($borxhKushSet);
+$borxhKomentVals = array_unique_ci($borxhKomentSet);
 // Ensure blank is always an option
 if (!in_array('', $borxhBCNoteVals)) $borxhBCNoteVals[] = '';
 if (!in_array('', $borxhKushVals)) $borxhKushVals[] = '';
@@ -147,9 +170,9 @@ ob_start();
                         <td class="amount"><?= eur($d['dhurate']) ?></td>
                         <td class="amount" style="font-weight:700;">&euro; <?= eur($d['total']) ?></td>
                         <td class="amount" style="font-weight:700;color:var(--danger);">&euro; <?= eur($d['borxhi_bank_deri']) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(trim($note['klient_bank_cash'] ?? '')) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e(trim($note['kush_merr_borxhin'] ?? '')) ?></td>
-                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e(trim($note['koment'] ?? '')) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="klient_bank_cash" contenteditable="true" style="min-width:80px;"><?= e(cleanNote($note['klient_bank_cash'] ?? '')) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="kush_merr_borxhin" contenteditable="true" style="min-width:100px;"><?= e(cleanNote($note['kush_merr_borxhin'] ?? '')) ?></td>
+                        <td class="borxh-note" data-klienti="<?= e($noteKey) ?>" data-field="koment" contenteditable="true" style="min-width:120px;"><?= e(cleanNote($note['koment'] ?? '')) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

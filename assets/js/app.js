@@ -652,7 +652,7 @@ function applyClientFilters(table) {
         for (const key of Object.keys(filters)) {
             const filter = filters[key];
             const cell = row.cells[filter.colIdx];
-            const val = cell ? cell.textContent.trim() : '';
+            const val = cell ? cell.textContent.trim().toLowerCase() : '';
             if (!filter.selectedValues.has(val)) {
                 visible = false;
                 break;
@@ -806,7 +806,7 @@ function initColumnFilters() {
                 } else {
                     const selectedValues = new Set();
                     items.forEach(it => {
-                        if (it.querySelector('input').checked) selectedValues.add(it.dataset.value);
+                        if (it.querySelector('input').checked) selectedValues.add(it.dataset.value.toLowerCase());
                     });
                     table._clientFilters[paramName] = { colIdx, selectedValues };
                 }
