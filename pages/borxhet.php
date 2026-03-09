@@ -3,14 +3,15 @@
  * DARN Dashboard - Borxhet (Debts Report)
  * Mirrors: GJENDJA e borxheve sheet
  * REPORT page (not input) - calculated from Distribuimi using SUMIFS
- * Date filter in cell I1/M1 controls debt visibility
+ * Date range filter controls which transactions are included
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
-// Date filter (mirrors Excel cell M1)
+// Date range filter
+$dateNga = $_GET['date_from'] ?? '';
 $dateDeri = $_GET['date'] ?? date('Y-m-d');
 
 // Multi-select column filters
@@ -18,6 +19,7 @@ $fBorxhKlienti = getFilterParam('f_klienti');
 
 $borxhWhere = [];
 $borxhParams = [];
+if ($dateNga) { $borxhWhere[] = 'data >= ?'; $borxhParams[] = $dateNga; }
 if ($fBorxhKlienti) { $fin = buildFilterIn($fBorxhKlienti, 'klienti'); $borxhWhere[] = $fin['sql']; $borxhParams = array_merge($borxhParams, $fin['params']); }
 $borxhWhereSQL = $borxhWhere ? 'WHERE ' . implode(' AND ', $borxhWhere) : '';
 
@@ -96,15 +98,24 @@ ob_start();
 <div class="card">
     <div class="card-header">
         <h3><i class="fas fa-balance-scale"></i> Gjendja e Borxheve</h3>
-        <form method="GET" style="display:flex;gap:12px;align-items:center;">
-            <label style="font-size:0.82rem;font-weight:600;">Borxhi deri datën:</label>
-            <input type="date" name="date" value="<?= e($dateDeri) ?>" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;">
+        <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <label style="font-size:0.82rem;font-weight:600;">Periudha:</label>
+            <input type="date" name="date_from" value="<?= e($dateNga) ?>" title="Nga data" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:135px;">
+            <span style="font-size:0.82rem;">—</span>
+            <input type="date" name="date" value="<?= e($dateDeri) ?>" title="Deri në datë" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.82rem;width:135px;">
+            <?php /* Preserve active server-side filters when submitting dates */ ?>
+            <?php foreach ($fBorxhKlienti as $fv): ?>
+            <input type="hidden" name="f_klienti[]" value="<?= e($fv) ?>">
+            <?php endforeach; ?>
             <button type="submit" class="btn btn-primary btn-sm">Apliko</button>
+            <?php if ($dateNga): ?>
+            <a href="?date=<?= e($dateDeri) ?>" class="btn btn-outline btn-sm" style="font-size:0.78rem;">Pastro periudhën</a>
+            <?php endif; ?>
         </form>
     </div>
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table">
+            <table class="data-table" id="borxhetTable">
                 <thead>
                     <tr>
                         <th class="server-sort" onclick="clientSortColumn(this, 0)" style="cursor:pointer;user-select:none;" data-filter="f_klienti" data-filter-values="<?= e(json_encode($borxhKlientet, JSON_UNESCAPED_UNICODE)) ?>">Klienti <i class="fas fa-sort"></i></th>
@@ -209,6 +220,57 @@ function clientSortColumn(th, colIdx) {
     });
     rows.forEach(r => tbody.appendChild(r));
 }
+</script>
+
+<script>
+// Dynamic tfoot totals: recalculate based on visible rows when filters change
+(function() {
+    const table = document.getElementById('borxhetTable');
+    if (!table) return;
+
+    // Amount columns to sum (indices 1-8)
+    const sumCols = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    function recalcTotals() {
+        const tbody = table.querySelector('tbody');
+        const tfoot = table.querySelector('tfoot');
+        if (!tbody || !tfoot) return;
+        const footCells = tfoot.querySelector('tr').cells;
+
+        const sums = {};
+        sumCols.forEach(i => sums[i] = 0);
+
+        tbody.querySelectorAll('tr').forEach(row => {
+            if (row.style.display === 'none') return;
+            sumCols.forEach(i => {
+                const text = row.cells[i]?.textContent?.trim() || '0';
+                const num = parseFloat(text.replace(/[^0-9.\-]/g, ''));
+                if (!isNaN(num)) sums[i] += num;
+            });
+        });
+
+        sumCols.forEach(i => {
+            const val = sums[i].toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            footCells[i].innerHTML = '&euro; ' + val;
+        });
+    }
+
+    // Monkey-patch applyClientFilters to also recalculate totals
+    if (typeof applyClientFilters === 'function') {
+        const _orig = applyClientFilters;
+        applyClientFilters = function(tbl) {
+            _orig(tbl);
+            if (tbl === table || tbl.id === 'borxhetTable') recalcTotals();
+        };
+    }
+
+    // Also observe for visibility changes (covers table search filter too)
+    const observer = new MutationObserver(() => recalcTotals());
+    const tbody = table.querySelector('tbody');
+    if (tbody) {
+        observer.observe(tbody, { attributes: true, attributeFilter: ['style'], subtree: true });
+    }
+})();
 </script>
 
 <?php
