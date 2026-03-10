@@ -131,6 +131,37 @@ function runMigrations($pdo) {
             size_bytes INT NOT NULL DEFAULT 0
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+        // Invoices table
+        $pdo->exec("CREATE TABLE IF NOT EXISTS invoices (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            invoice_number INT NOT NULL,
+            klienti VARCHAR(255) NOT NULL,
+            date_from DATE NOT NULL,
+            date_to DATE NOT NULL,
+            total_amount DECIMAL(12,2) DEFAULT 0,
+            total_delivered INT DEFAULT 0,
+            total_returned INT DEFAULT 0,
+            row_ids TEXT,
+            pdf_filename VARCHAR(255),
+            status VARCHAR(50) DEFAULT 'created',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY idx_invoice_number (invoice_number),
+            INDEX idx_klienti (klienti)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Invoice settings (counter)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS invoice_settings (
+            setting_key VARCHAR(100) PRIMARY KEY,
+            setting_value VARCHAR(255)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $pdo->exec("INSERT IGNORE INTO invoice_settings (setting_key, setting_value) VALUES ('next_invoice_number', '131')");
+
+        // Add email column to klientet
+        $cols = $pdo->query("SHOW COLUMNS FROM klientet LIKE 'email'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE klientet ADD COLUMN email VARCHAR(255) DEFAULT NULL");
+        }
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }
