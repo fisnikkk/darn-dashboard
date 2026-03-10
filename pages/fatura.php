@@ -299,13 +299,35 @@ function loadHistory() {
                         'Falemnderit per bashkepunimin tuaj!\n\n' +
                         'Sabri Kadriu\nFinance Director\nDarn Group L.L.C'
                     );
-                    html += '<a href="mailto:' + email + '?subject=' + subject + '&body=' + body + '" style="color:#2563eb;" title="Dergo Email"><i class="fas fa-envelope"></i></a>';
+                    html += '<a href="mailto:' + email + '?subject=' + subject + '&body=' + body + '" style="color:#2563eb; margin-right:8px;" title="Dergo Email"><i class="fas fa-envelope"></i></a>';
                 }
+                html += '<a href="#" onclick="invoiceDelete(' + inv.id + ', ' + inv.invoice_number + '); return false;" style="color:#dc2626;" title="Fshij Faturen"><i class="fas fa-trash"></i></a>';
                 html += '</td>';
                 html += '</tr>';
             });
             document.getElementById('history-body').innerHTML = html;
         });
+}
+
+function invoiceDelete(id, num) {
+    if (!confirm('Jeni te sigurt qe deshironi te fshini Faturen nr ' + num + '?\n\nKjo do te:\n- Fshij PDF faturen\n- Kthej statuset CASH ne gjendjen e meparshme\n- Rikthej numrin e fatures ne ' + num)) {
+        return;
+    }
+    fetch('/api/invoice.php?action=delete&id=' + id)
+        .then(r => r.json())
+        .then(function(d) {
+            if (!d.success) { alert('Gabim: ' + d.error); return; }
+            var status = document.getElementById('invoice-status');
+            status.style.display = 'block';
+            status.style.background = '#fef2f2';
+            status.style.border = '1px solid #fca5a5';
+            status.innerHTML = '<i class="fas fa-trash" style="color:#dc2626;"></i> ' +
+                '<strong>Fatura nr ' + d.deleted_number + ' u fshi!</strong> ' +
+                d.reverted_statuses + ' statuse u kthyen ne CASH.';
+            document.getElementById('inv-number').value = d.next_number;
+            loadHistory();
+        })
+        .catch(function(e) { alert('Gabim: ' + e.message); });
 }
 
 function formatMonth(dateStr) {

@@ -226,6 +226,58 @@ try {
             echo json_encode(['success' => true, 'invoices' => $invoices]);
             break;
 
+        // ─── Delete invoice ───
+        case 'delete':
+            $id = $_GET['id'] ?? $_POST['id'] ?? null;
+            if (!$id) {
+                echo json_encode(['success' => false, 'error' => 'Mungon ID']);
+                break;
+            }
+
+            $stmt = $db->prepare("SELECT id, invoice_number, pdf_filename, row_ids FROM invoices WHERE id = ?");
+            $stmt->execute([$id]);
+            $inv = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$inv) {
+                echo json_encode(['success' => false, 'error' => 'Fatura nuk u gjet']);
+                break;
+            }
+
+            $invoiceNum = $inv['invoice_number'];
+
+            // Revert CASH status changes via changelog
+            $batchId = 'inv_' . $invoiceNum;
+            $logRows = $db->prepare("SELECT row_id, old_value FROM changelog WHERE batch_id = ? AND field_name = 'menyra_e_pageses'");
+            $logRows->execute([$batchId]);
+            $reverted = 0;
+            $revertStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ? WHERE id = ?");
+            foreach ($logRows as $log) {
+                $revertStmt->execute([$log['old_value'], $log['row_id']]);
+                $reverted += $revertStmt->rowCount();
+            }
+
+            // Delete changelog entries
+            $db->prepare("DELETE FROM changelog WHERE batch_id = ?")->execute([$batchId]);
+
+            // Delete PDF file
+            $filepath = __DIR__ . '/../storage/invoices/' . $inv['pdf_filename'];
+            if (file_exists($filepath)) {
+                unlink($filepath);
+            }
+
+            // Delete invoice record
+            $db->prepare("DELETE FROM invoices WHERE id = ?")->execute([$id]);
+
+            // Reset counter to this invoice number (so it gets reused)
+            $db->prepare("UPDATE invoice_settings SET setting_value = ? WHERE setting_key = 'next_invoice_number'")->execute([$invoiceNum]);
+
+            echo json_encode([
+                'success' => true,
+                'deleted_number' => $invoiceNum,
+                'reverted_statuses' => $reverted,
+                'next_number' => $invoiceNum
+            ]);
+            break;
+
         // ─── Client list with emails ───
         case 'clients':
             $stmt = $db->query("SELECT emri, i_regjistruar_ne_emer, email, telefoni, adresa, numri_unik_identifikues FROM klientet ORDER BY emri ASC");
