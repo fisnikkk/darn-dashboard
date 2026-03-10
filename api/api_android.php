@@ -66,20 +66,20 @@ try {
  * { "status": "1", "data": [{ "Name": "...", "Bussiness": "...", "Email": "...", ... }] }
  */
 function handleGetAllClients($db) {
-    // First try klientet (synced with GoDaddy data — has business info, email, etc.)
+    // Get real client names from distribuimi (primary source — always clean)
+    // Then LEFT JOIN klientet for business info (email, address, fiscal number, etc.)
     $stmt = $db->query("
         SELECT
-            emri,
-            i_regjistruar_ne_emer,
-            adresa,
-            telefoni,
-            numri_unik_identifikues,
-            email,
-            kontakti,
-            created_at
-        FROM klientet
-        WHERE emri IS NOT NULL AND TRIM(emri) != ''
-        ORDER BY emri ASC
+            d.klienti,
+            k.i_regjistruar_ne_emer,
+            k.adresa,
+            k.telefoni,
+            k.numri_unik_identifikues,
+            k.email,
+            k.kontakti,
+            k.created_at
+        FROM (SELECT DISTINCT klienti FROM distribuimi ORDER BY klienti ASC) d
+        LEFT JOIN klientet k ON LOWER(TRIM(k.emri)) = LOWER(TRIM(d.klienti))
     ");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -87,9 +87,9 @@ function handleGetAllClients($db) {
     foreach ($rows as $r) {
         $data[] = [
             'Timestamp'      => $r['created_at'] ?? date('Y-m-d H:i:s'),
-            'Name'           => $r['emri'] ?? '',
+            'Name'           => $r['klienti'] ?? '',
             'Bussiness'      => $r['i_regjistruar_ne_emer'] ?? '',
-            'City'           => '',  // Not stored separately in klientet
+            'City'           => '',
             'Street'         => $r['adresa'] ?? '',
             'Unique_Number'  => $r['numri_unik_identifikues'] ?? '',
             'Representative' => $r['kontakti'] ?? '',
