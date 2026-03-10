@@ -237,22 +237,21 @@ function invoiceCreate() {
             '<a href="' + d.download_url + '" class="btn" style="background:var(--primary); color:#fff; padding:6px 14px; border-radius:6px; text-decoration:none; margin-right:8px;">' +
             '<i class="fas fa-download"></i> Shkarko PDF</a>';
 
-        // Add email button if client has email
-        if (d.client_email) {
-            var subject = encodeURIComponent('Fatura per ' + client + ' per muajin ' + formatMonth(dateTo));
-            var body = encodeURIComponent(
-                'Pershendetje ' + client + ',\n\n' +
-                'Ju lutemi gjeni te bashkangjitur faturen per muajin ' + formatMonthFull(dateTo) + '.\n' +
-                'Falemnderit per bashkepunimin tuaj!\n\n' +
-                'Sabri Kadriu\nFinance Director\nDarn Group L.L.C\n' +
-                'Bulevardi Deshmoret e Kombit, nr. 62 6/1 Prishtine 10000, Kosove\n\n' +
-                'Perfaqesues zyrtar i Hexagon Ragasco ne Kosove\n' +
-                'I autorizuari i vetem ne tere Kosoven per mbushjen dhe kontrollimin e cilindrave LPG\n\n' +
-                'Cell: +383 (0) 49 62 76 76\nE-mail: sales@darngroup.com\nwww.darngroup.com'
-            );
-            status.innerHTML += ' <a href="mailto:' + d.client_email + '?subject=' + subject + '&body=' + body + '" class="btn" style="background:#2563eb; color:#fff; padding:6px 14px; border-radius:6px; text-decoration:none;">' +
-                '<i class="fas fa-envelope"></i> Dergo Email</a>';
-        }
+        // Add email button (always show, like Android app)
+        var emailTo = d.client_email || '';
+        var subject = encodeURIComponent('Fatura per ' + client + ' per muajin ' + formatMonth(dateTo));
+        var body = encodeURIComponent(
+            'Pershendetje ' + client + ',\n\n' +
+            'Ju lutemi gjeni te bashkangjitur faturen per muajin ' + formatMonthFull(dateTo) + '.\n' +
+            'Falemnderit per bashkepunimin tuaj!\n\n' +
+            'Sabri Kadriu\nFinance Director\nDarn Group L.L.C\n' +
+            'Bulevardi Deshmoret e Kombit, nr. 62 6/1 Prishtine 10000, Kosove\n\n' +
+            'Perfaqesues zyrtar i Hexagon Ragasco ne Kosove\n' +
+            'I autorizuari i vetem ne tere Kosoven per mbushjen dhe kontrollimin e cilindrave LPG\n\n' +
+            'Cell: +383 (0) 49 62 76 76\nE-mail: sales@darngroup.com\nwww.darngroup.com'
+        );
+        status.innerHTML += ' <a href="mailto:' + emailTo + '?subject=' + subject + '&body=' + body + '" class="btn" style="background:#2563eb; color:#fff; padding:6px 14px; border-radius:6px; text-decoration:none;">' +
+            '<i class="fas fa-envelope"></i> Dergo Email</a>';
 
         // Update invoice number
         document.getElementById('inv-number').value = d.invoice_number + 1;
@@ -291,16 +290,14 @@ function loadHistory() {
                 html += '<td>' + inv.created_at + '</td>';
                 html += '<td>';
                 html += '<a href="/api/invoice.php?action=download&id=' + inv.id + '" style="color:var(--primary); margin-right:8px;" title="Shkarko PDF"><i class="fas fa-download"></i></a>';
-                if (email) {
-                    var subject = encodeURIComponent('Fatura per ' + inv.klienti + ' per muajin ' + formatMonth(inv.date_to));
-                    var body = encodeURIComponent(
-                        'Pershendetje ' + inv.klienti + ',\n\n' +
-                        'Ju lutemi gjeni te bashkangjitur faturen per muajin ' + formatMonthFull(inv.date_to) + '.\n' +
-                        'Falemnderit per bashkepunimin tuaj!\n\n' +
-                        'Sabri Kadriu\nFinance Director\nDarn Group L.L.C'
-                    );
-                    html += '<a href="mailto:' + email + '?subject=' + subject + '&body=' + body + '" style="color:#2563eb; margin-right:8px;" title="Dergo Email"><i class="fas fa-envelope"></i></a>';
-                }
+                var hSubject = encodeURIComponent('Fatura per ' + inv.klienti + ' per muajin ' + formatMonth(inv.date_to));
+                var hBody = encodeURIComponent(
+                    'Pershendetje ' + inv.klienti + ',\n\n' +
+                    'Ju lutemi gjeni te bashkangjitur faturen per muajin ' + formatMonthFull(inv.date_to) + '.\n' +
+                    'Falemnderit per bashkepunimin tuaj!\n\n' +
+                    'Sabri Kadriu\nFinance Director\nDarn Group L.L.C'
+                );
+                html += '<a href="mailto:' + (email || '') + '?subject=' + hSubject + '&body=' + hBody + '" style="color:#2563eb; margin-right:8px;" title="Dergo Email"><i class="fas fa-envelope"></i></a>';
                 html += '<a href="#" onclick="invoiceDelete(' + inv.id + ', ' + inv.invoice_number + '); return false;" style="color:#dc2626;" title="Fshij Faturen"><i class="fas fa-trash"></i></a>';
                 html += '</td>';
                 html += '</tr>';
