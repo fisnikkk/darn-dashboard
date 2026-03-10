@@ -51,6 +51,10 @@ try {
         handleUpdateInvoiceNumber($db);
     } elseif (strpos($query, 'get_invoice_number') !== false) {
         handleGetInvoiceNumber($db);
+    } elseif (strpos($query, 'GetClientTransactions') !== false) {
+        handleGetClientTransactions($db);
+    } elseif (strpos($query, 'UpdateBorxhiStatus') !== false) {
+        handleUpdateBorxhiStatus($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
         handleGetBorxhet($db);
     } else {
@@ -467,4 +471,200 @@ function handleGetBorxhet($db) {
         'totals'  => $formattedTotals,
         'data'    => $data,
     ], JSON_UNESCAPED_UNICODE);
+}
+
+
+/**
+ * GetClientTransactions — Returns individual distribuimi rows for a specific client (READ-ONLY)
+ *
+ * ZERO INSERT/UPDATE/DELETE — only SELECT with prepared statements.
+ *
+ * Params (via GET):
+ *   client_name   — (required) Client name
+ *   status_filter — "bank" (only debt transactions) or "not_bank" (non-debt transactions)
+ *   date_from     — (optional) Start date YYYY-MM-DD
+ *   date_to       — (optional) End date YYYY-MM-DD
+ */
+function handleGetClientTransactions($db) {
+    $clientName   = $_GET['client_name'] ?? '';
+    $statusFilter = $_GET['status_filter'] ?? '';
+    $dateFrom     = !empty($_GET['date_from']) ? $_GET['date_from'] : '';
+    $dateTo       = !empty($_GET['date_to'])   ? $_GET['date_to']   : '';
+
+    if (trim($clientName) === '') {
+        echo json_encode(['status' => '0', 'message' => 'client_name is required']);
+        return;
+    }
+
+    $where = ['LOWER(TRIM(klienti)) = ?'];
+    $params = [strtolower(trim($clientName))];
+
+    // Status filter
+    if ($statusFilter === 'bank') {
+        $where[] = "LOWER(TRIM(menyra_e_pageses)) = 'bank'";
+    } elseif ($statusFilter === 'not_bank') {
+        $where[] = "LOWER(TRIM(menyra_e_pageses)) != 'bank'";
+    }
+
+    // Date filters
+    if ($dateFrom !== '') {
+        $where[] = 'data >= ?';
+        $params[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $where[] = 'data <= ?';
+        $params[] = $dateTo;
+    }
+
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
+
+    // READ-ONLY SELECT — no data modification
+    $sql = "SELECT id, data, sasia, litra, cmimi, pagesa, menyra_e_pageses, koment
+            FROM distribuimi
+            {$whereSQL}
+            ORDER BY data DESC, id DESC
+            LIMIT 200";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Format numeric fields
+    $data = [];
+    foreach ($rows as $r) {
+        $data[] = [
+            'id'                => (int)$r['id'],
+            'data'              => $r['data'],
+            'sasia'             => (int)$r['sasia'],
+            'litra'             => number_format((float)$r['litra'], 2, '.', ''),
+            'cmimi'             => number_format((float)$r['cmimi'], 4, '.', ''),
+            'pagesa'            => number_format((float)$r['pagesa'], 2, '.', ''),
+            'menyra_e_pageses'  => $r['menyra_e_pageses'] ?? '',
+            'koment'            => $r['koment'] ?? '',
+        ];
+    }
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => count($data) . ' transactions found',
+        'data'    => $data,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+
+/**
+ * UpdateBorxhiStatus — Change payment status on a specific distribuimi transaction.
+ *
+ * SAFETY:
+ *   - Only 2 fields ever changed: menyra_e_pageses and koment
+ *   - Only 2 actions allowed: "register_borxh" and "collect_borxh"
+ *   - Server validates current state before updating
+ *   - All changes wrapped in DB transaction (atomic)
+ *   - All changes logged to changelog table
+ *   - API key auth required (handled by parent router)
+ *
+ * Method: POST (JSON body)
+ * Body: { "id": 123, "action": "register_borxh" | "collect_borxh" }
+ */
+function handleUpdateBorxhiStatus($db) {
+    // Only accept POST
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => '0', 'message' => 'POST method required']);
+        return;
+    }
+
+    // Parse JSON body
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!$body) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid JSON body']);
+        return;
+    }
+
+    $id     = isset($body['id']) ? (int)$body['id'] : 0;
+    $action = $body['action'] ?? '';
+
+    // Validate inputs
+    if ($id <= 0) {
+        echo json_encode(['status' => '0', 'message' => 'Valid transaction ID required']);
+        return;
+    }
+    if (!in_array($action, ['register_borxh', 'collect_borxh'])) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid action. Use register_borxh or collect_borxh']);
+        return;
+    }
+
+    try {
+        $db->beginTransaction();
+
+        // Fetch current row (lock for update)
+        $stmt = $db->prepare("SELECT id, klienti, menyra_e_pageses, koment FROM distribuimi WHERE id = ? FOR UPDATE");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            $db->rollBack();
+            echo json_encode(['status' => '0', 'message' => 'Transaction not found (ID: ' . $id . ')']);
+            return;
+        }
+
+        $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
+        $currentKoment  = $row['koment'] ?? '';
+
+        // State validation
+        if ($action === 'register_borxh') {
+            if ($currentPayment === 'bank') {
+                $db->rollBack();
+                echo json_encode(['status' => '0', 'message' => 'Transaction is already marked as bank (debt). Cannot register again.']);
+                return;
+            }
+            $newPayment = 'bank';
+            // Append " - borxh" to comment (preserve existing)
+            $newKoment = trim($currentKoment) !== '' ? $currentKoment . ' - borxh' : 'borxh';
+
+        } elseif ($action === 'collect_borxh') {
+            if ($currentPayment !== 'bank') {
+                $db->rollBack();
+                echo json_encode(['status' => '0', 'message' => 'Transaction is not bank (debt). Cannot collect. Current status: ' . $row['menyra_e_pageses']]);
+                return;
+            }
+            $newPayment = 'cash';
+            // Remove " - borxh" from comment
+            $newKoment = str_replace(' - borxh', '', $currentKoment);
+            // Also remove standalone "borxh" if that's all there was
+            if (trim($newKoment) === 'borxh') $newKoment = '';
+            $newKoment = trim($newKoment);
+        }
+
+        // UPDATE only menyra_e_pageses and koment — nothing else
+        $updateStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ?, koment = ? WHERE id = ?");
+        $updateStmt->execute([$newPayment, $newKoment, $id]);
+
+        // Log to changelog — payment method change
+        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', ?, ?)");
+        $logStmt->execute([$id, $row['menyra_e_pageses'], $newPayment]);
+
+        // Log to changelog — comment change
+        $logStmt2 = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'koment', ?, ?)");
+        $logStmt2->execute([$id, $currentKoment, $newKoment]);
+
+        $db->commit();
+
+        echo json_encode([
+            'status'  => '1',
+            'message' => $action === 'register_borxh' ? 'Borxhi u regjistrua me sukses' : 'Borxhi u mblodh me sukses',
+            'data'    => [
+                'id'                    => $id,
+                'klienti'               => $row['klienti'],
+                'old_menyra_e_pageses'  => $row['menyra_e_pageses'],
+                'new_menyra_e_pageses'  => $newPayment,
+                'old_koment'            => $currentKoment,
+                'new_koment'            => $newKoment,
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        error_log('UpdateBorxhiStatus error: ' . $e->getMessage());
+        echo json_encode(['status' => '0', 'message' => 'Server error during update']);
+    }
 }
