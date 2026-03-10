@@ -27,15 +27,21 @@ ob_start();
         <h3 style="margin: 0 0 15px 0; color: var(--primary);"><i class="fas fa-file-invoice"></i> Gjenero Fature</h3>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto auto; gap: 12px; align-items: end;">
-            <!-- Client -->
-            <div>
+            <!-- Client (searchable) -->
+            <div style="position:relative;">
                 <label style="display:block; font-size:0.8rem; margin-bottom:4px; color:var(--text-secondary);">Klienti</label>
-                <select id="inv-client" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
-                    <option value="">-- Zgjidh klientin --</option>
+                <input type="text" id="inv-client" autocomplete="off" placeholder="Shkruaj per te kerkuar..."
+                    style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;"
+                    onfocus="showClientDropdown()" oninput="filterClients()">
+                <div id="client-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:0 0 6px 6px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
                     <?php foreach ($clientNames as $name): ?>
-                        <option value="<?= htmlspecialchars($name) ?>"><?= htmlspecialchars($name) ?></option>
+                        <div class="client-option" onclick="selectClient('<?= htmlspecialchars(addslashes($name)) ?>')"
+                            style="padding:8px 12px; cursor:pointer; font-size:0.85rem; border-bottom:1px solid #f0f0f0;"
+                            onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">
+                            <?= htmlspecialchars($name) ?>
+                        </div>
                     <?php endforeach; ?>
-                </select>
+                </div>
             </div>
 
             <!-- Date from -->
@@ -122,6 +128,35 @@ ob_start();
 <script>
 // Client emails map
 var clientEmails = <?= json_encode($clientEmails) ?>;
+
+// Searchable client dropdown
+function showClientDropdown() {
+    document.getElementById('client-dropdown').style.display = 'block';
+    filterClients();
+}
+
+function filterClients() {
+    var input = document.getElementById('inv-client').value.toLowerCase();
+    var options = document.querySelectorAll('.client-option');
+    options.forEach(function(opt) {
+        var name = opt.textContent.trim().toLowerCase();
+        opt.style.display = name.indexOf(input) !== -1 ? 'block' : 'none';
+    });
+}
+
+function selectClient(name) {
+    document.getElementById('inv-client').value = name;
+    document.getElementById('client-dropdown').style.display = 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    var dropdown = document.getElementById('client-dropdown');
+    var input = document.getElementById('inv-client');
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
 
 // Load next invoice number on page load
 (function() {

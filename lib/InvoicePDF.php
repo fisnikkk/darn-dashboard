@@ -1,15 +1,16 @@
 <?php
 /**
  * DARN Dashboard - Invoice PDF Generator
- * Generates invoices matching the Android Admin App format using FPDF.
+ * Matches the Android Admin App invoice layout exactly.
+ * Uses FPDF with image support (logos, QR code, signature/stamp).
  */
 require_once __DIR__ . '/FPDF/fpdf.php';
 
 class InvoicePDF extends FPDF {
 
-    // Company info (seller)
+    // Company info (seller) — hardcoded same as Android app
     const SELLER_NAME = 'DARN GROUP L.L.C';
-    const SELLER_ADDRESS = 'Bulevardi Deshmoret e Kombit Nr 62 6/1, Prishtine';
+    const SELLER_ADDRESS = "Prishtine, Bulevardi Deshmoret e Kombit Nr 62 6/1";
     const SELLER_FISKAL = '811577248';
     const SELLER_PHONE = '046199240';
     const SELLER_BIZNESI = '811577248';
@@ -31,6 +32,7 @@ class InvoicePDF extends FPDF {
     private $totalAmount;
     private $totalDelivered;
     private $totalReturned;
+    private $imgDir;
 
     public function __construct(
         $invoiceNumber, $dateFrom, $dateTo,
@@ -49,6 +51,7 @@ class InvoicePDF extends FPDF {
         $this->clientPhone = $clientPhone ?: '';
         $this->clientEmail = $clientEmail ?: '';
         $this->rows = $rows;
+        $this->imgDir = __DIR__ . '/../assets/images/';
 
         // Calculate totals
         $this->totalAmount = 0;
@@ -70,10 +73,12 @@ class InvoicePDF extends FPDF {
         $this->renderSeparator();
         $this->renderTitle();
         $this->renderParties();
+        $this->renderInvoiceInfo();
         $this->renderInvoiceDetails();
         $this->renderTransactionTable();
-        $this->renderTotals();
+        $this->renderNotes();
         $this->renderFooter();
+        $this->renderSignature();
     }
 
     public function getFilename() {
@@ -82,115 +87,157 @@ class InvoicePDF extends FPDF {
         return "Fatura nr {$this->invoiceNumber} - {$month} - {$biz}.pdf";
     }
 
-    // --- Header: Total amount ---
+    // ─── Header: 3 logos + Total amount ───
     private function renderHeader() {
-        $this->SetFont('Helvetica', 'B', 14);
-        $this->Cell(130, 15, 'DARN GROUP L.L.C', 0, 0, 'L');
-        $this->SetFont('Helvetica', '', 12);
+        $startY = $this->GetY();
+
+        // DARN logo (left)
+        $img = $this->imgDir . 'darn_pdf_icon.png';
+        if (file_exists($img)) {
+            $this->Image($img, 10, $startY + 2, 22, 16);
+        }
+
+        // Hexagon logo (middle-left)
+        $img2 = $this->imgDir . 'hexagone_icon.png';
+        if (file_exists($img2)) {
+            $this->Image($img2, 38, $startY + 2, 22, 16);
+        }
+
+        // QR code (middle)
+        $img3 = $this->imgDir . 'qr_code.png';
+        if (file_exists($img3)) {
+            $this->Image($img3, 66, $startY + 2, 16, 16);
+        }
+
+        // Total label + amount (right side)
+        $this->SetFont('Helvetica', '', 14);
         $this->SetTextColor(128, 128, 128);
-        $this->Cell(25, 15, 'Total:', 0, 0, 'R');
+        $this->SetXY(110, $startY + 3);
+        $this->Cell(40, 8, 'Total :', 0, 0, 'R');
+
+        $this->SetFont('Helvetica', 'B', 16);
         $this->SetTextColor(0, 0, 0);
-        $this->SetFont('Helvetica', 'B', 14);
-        $this->Cell(25, 15, number_format($this->totalAmount, 2, '.', ','), 0, 0, 'R');
+        $this->Cell(30, 8, number_format($this->totalAmount, 2, '.', ','), 0, 0, 'R');
+
         $this->SetFont('Helvetica', '', 10);
         $this->SetTextColor(128, 128, 128);
-        $this->Cell(10, 15, 'EUR', 0, 1, 'L');
+        $this->Cell(10, 8, 'EURO', 0, 1, 'L');
+
         $this->SetTextColor(0, 0, 0);
+        $this->SetY($startY + 22);
     }
 
-    // --- Gray separator line ---
+    // ─── Gray separator line ───
     private function renderSeparator() {
-        $this->SetDrawColor(207, 208, 210);
-        $this->SetLineWidth(0.5);
-        $this->Line(10, $this->GetY(), 200, $this->GetY());
-        $this->Ln(3);
-    }
-
-    // --- Title: FATURE ---
-    private function renderTitle() {
-        $this->SetFont('Helvetica', 'B', 16);
-        $this->Cell(0, 10, 'Fature', 0, 1, 'C');
+        $this->SetFillColor(207, 208, 210);
+        $this->Cell(0, 0.8, '', 0, 1, 'C', true);
         $this->Ln(2);
     }
 
-    // --- Seller and Buyer info side by side ---
+    // ─── Title: FATURE ───
+    private function renderTitle() {
+        $this->SetFont('Helvetica', 'B', 16);
+        $this->Cell(0, 8, 'Fature', 0, 1, 'C');
+        $this->Ln(1);
+    }
+
+    // ─── Seller and Buyer info with gray backgrounds ───
     private function renderParties() {
         $this->SetFont('Helvetica', 'B', 8);
         $startY = $this->GetY();
 
-        // Left column: Seller
-        $this->Cell(95, 5, 'Subjekti Shites: ' . self::SELLER_NAME, 0, 1, 'L');
+        // Seller line (gray bg)
+        $this->SetFillColor(207, 208, 210);
+        $this->Cell(95, 5, 'Subjekti Shites : ' . self::SELLER_NAME, 0, 0, 'L', true);
+        // Buyer line (gray bg)
+        $this->Cell(95, 5, 'Subjekti Bleres : ' . $this->clientBusiness, 0, 1, 'L', true);
+
+        // Address lines (no bg)
         $this->SetFont('Helvetica', '', 7);
-        $this->Cell(95, 4, 'Adresa: ' . self::SELLER_ADDRESS, 0, 1, 'L');
-        $sellerEndY = $this->GetY();
+        $this->Cell(95, 4, 'Adresa : ' . self::SELLER_ADDRESS, 0, 0, 'L');
+        $this->Cell(95, 4, 'Adresa : ' . $this->clientAddress, 0, 1, 'L');
 
-        // Right column: Buyer
-        $this->SetY($startY);
-        $this->SetX(105);
-        $this->SetFont('Helvetica', 'B', 8);
-        $this->Cell(95, 5, 'Subjekti Bleres: ' . $this->clientBusiness, 0, 1, 'L');
-        $this->SetX(105);
-        $this->SetFont('Helvetica', '', 7);
-        $this->Cell(95, 4, 'Adresa: ' . $this->clientAddress, 0, 1, 'L');
-
-        $this->SetY(max($sellerEndY, $this->GetY()) + 2);
-
-        // Detail rows: Seller | Buyer
-        $details = [
-            ['Nr. Fiskal:', self::SELLER_FISKAL, 'Nr. Fiskal:', $this->clientFiskal],
-            ['Tel:', self::SELLER_PHONE, 'Tel:', $this->clientPhone],
-            ['Nr.Biznesi:', self::SELLER_BIZNESI, 'Nr.Biznesi:', '-'],
-            ['e-Mail:', self::SELLER_EMAIL, 'e-Mail:', $this->clientEmail],
-        ];
-
-        $this->SetFont('Helvetica', '', 7);
-        foreach ($details as $d) {
-            $y = $this->GetY();
-            $this->Cell(20, 4, $d[0], 0, 0, 'L');
-            $this->Cell(75, 4, $d[1], 0, 0, 'L');
-            $this->Cell(20, 4, $d[2], 0, 0, 'L');
-            $this->Cell(75, 4, $d[3], 0, 1, 'L');
-        }
-        $this->Ln(3);
-    }
-
-    // --- Invoice number and date range ---
-    private function renderInvoiceDetails() {
-        $this->renderSeparator();
-        $this->SetFont('Helvetica', 'B', 9);
-        $this->Cell(95, 6, 'FATURA NR: ' . $this->invoiceNumber, 0, 0, 'L');
-        $this->SetFont('Helvetica', '', 8);
-        $this->Cell(95, 6, 'Data - Ora e dokumentit: ' . $this->dateFrom . ' deri ' . $this->dateTo, 0, 1, 'R');
         $this->Ln(2);
     }
 
-    // --- Transaction table ---
-    private function renderTransactionTable() {
-        // Column widths (total = 190)
-        $w = [25, 45, 18, 18, 20, 20, 16, 28];
-        $headers = ['Data', 'Pershkrimi', 'Dhene', 'Kthyer', 'Sasia', 'Cmimi', 'Ulje%', 'Vlera'];
+    // ─── Fiscal, Phone, Business#, Email for both parties (4 columns) ───
+    private function renderInvoiceInfo() {
+        $this->SetFont('Helvetica', '', 7);
 
-        // Header row
+        // Row 1: Fiscal + Phone
+        $this->Cell(47.5, 4, 'Nr. Fiskal : ' . self::SELLER_FISKAL, 0, 0, 'L');
+        $this->Cell(47.5, 4, 'Tel : ' . self::SELLER_PHONE, 0, 0, 'L');
+        $this->Cell(47.5, 4, 'Nr. Fiskal : ' . $this->clientFiskal, 0, 0, 'L');
+        $this->Cell(47.5, 4, 'Tel : ' . $this->clientPhone, 0, 1, 'L');
+
+        // Row 2: Business# + Email
+        $this->Cell(47.5, 4, 'Nr.Bisnesi : ' . self::SELLER_BIZNESI, 0, 0, 'L');
+        $this->Cell(47.5, 4, 'e-Mail : ' . self::SELLER_EMAIL, 0, 0, 'L');
+        $this->Cell(47.5, 4, 'Nr.Bisnesi : - ', 0, 0, 'L');
+        $this->Cell(47.5, 4, 'e-Mail : ' . $this->clientEmail, 0, 1, 'L');
+
+        $this->Ln(3);
+    }
+
+    // ─── Invoice number and date range + column headers ───
+    private function renderInvoiceDetails() {
+        // Separator
+        $this->SetDrawColor(128, 128, 128);
+        $this->SetLineWidth(0.3);
+        $this->Line(10, $this->GetY(), 200, $this->GetY());
+        $this->Ln(1);
+
+        $duration = $this->dateFrom . ' deri ' . $this->dateTo;
+        $this->SetFont('Helvetica', 'B', 8);
+        $this->Cell(95, 5, 'FATURA NR : ' . $this->invoiceNumber, 0, 0, 'L');
+        $this->SetFont('Helvetica', '', 7);
+        $this->Cell(95, 5, 'Data - Ora e dokumentit : ' . $duration, 0, 1, 'R');
+
+        // Separator
+        $this->SetDrawColor(128, 128, 128);
+        $this->Line(10, $this->GetY(), 200, $this->GetY());
+        $this->Ln(1);
+
+        // Column headers with gray background
+        $w = [25, 45, 18, 18, 20, 20, 16, 28];
+        $headers = ['Date', iconv('UTF-8', 'ISO-8859-1//TRANSLIT', 'Pershkrimi'), iconv('UTF-8', 'ISO-8859-1//TRANSLIT', 'Dhene'), 'Kthyer', 'Sasia', 'Cmim', 'Ulje %', 'Vlera'];
+
         $this->SetFont('Helvetica', 'B', 7);
-        $this->SetFillColor(44, 62, 80);
-        $this->SetTextColor(255, 255, 255);
+        $this->SetFillColor(207, 208, 210);
+        $this->SetTextColor(0, 0, 0);
         for ($i = 0; $i < count($headers); $i++) {
-            $this->Cell($w[$i], 6, $headers[$i], 1, 0, 'C', true);
+            $align = 'C';
+            if ($i === 0 || $i === 1) $align = 'L';
+            if ($i === 7) $align = 'R';
+            $this->Cell($w[$i], 5, $headers[$i], 0, 0, $align, true);
         }
         $this->Ln();
+    }
 
-        // Data rows
+    // ─── Transaction data rows ───
+    private function renderTransactionTable() {
+        $w = [25, 45, 18, 18, 20, 20, 16, 28];
+
         $this->SetFont('Helvetica', '', 7);
         $this->SetTextColor(0, 0, 0);
-        $fill = false;
-        $totalVlera = 0;
-        $totalSasia = 0;
-        $totalDhene = 0;
-        $totalKthyer = 0;
 
         foreach ($this->rows as $row) {
-            if ($fill) {
-                $this->SetFillColor(240, 240, 240);
+            // Check for page break
+            if ($this->GetY() + 5 > $this->PageBreakTrigger) {
+                $this->AddPage();
+                // Reprint column headers
+                $headers = ['Date', 'Pershkrimi', 'Dhene', 'Kthyer', 'Sasia', 'Cmim', 'Ulje %', 'Vlera'];
+                $this->SetFont('Helvetica', 'B', 7);
+                $this->SetFillColor(207, 208, 210);
+                for ($i = 0; $i < count($headers); $i++) {
+                    $align = 'C';
+                    if ($i === 0 || $i === 1) $align = 'L';
+                    if ($i === 7) $align = 'R';
+                    $this->Cell($w[$i], 5, $headers[$i], 0, 0, $align, true);
+                }
+                $this->Ln();
+                $this->SetFont('Helvetica', '', 7);
+                $this->SetTextColor(0, 0, 0);
             }
 
             $date = date('Y-m-d', strtotime($row['data']));
@@ -201,110 +248,117 @@ class InvoicePDF extends FPDF {
             $price = floatval($row['cmimi'] ?? 0);
             $vlera = floatval($row['pagesa'] ?? 0);
 
-            $totalDhene += $dhene;
-            $totalKthyer += $kthyer;
-            $totalSasia += $volume;
-            $totalVlera += $vlera;
-
-            // Check for page break
-            if ($this->GetY() + 5 > $this->PageBreakTrigger) {
-                $this->AddPage();
-                // Reprint header
-                $this->SetFont('Helvetica', 'B', 7);
-                $this->SetFillColor(44, 62, 80);
-                $this->SetTextColor(255, 255, 255);
-                for ($i = 0; $i < count($headers); $i++) {
-                    $this->Cell($w[$i], 6, $headers[$i], 1, 0, 'C', true);
-                }
-                $this->Ln();
-                $this->SetFont('Helvetica', '', 7);
-                $this->SetTextColor(0, 0, 0);
-            }
-
-            $this->Cell($w[0], 5, $date, 'LR', 0, 'C', $fill);
-            $this->Cell($w[1], 5, $this->truncate($desc, $w[1]), 'LR', 0, 'L', $fill);
-            $this->Cell($w[2], 5, $dhene, 'LR', 0, 'C', $fill);
-            $this->Cell($w[3], 5, $kthyer, 'LR', 0, 'C', $fill);
-            $this->Cell($w[4], 5, number_format($volume, 1), 'LR', 0, 'C', $fill);
-            $this->Cell($w[5], 5, number_format($price, 2), 'LR', 0, 'C', $fill);
-            $this->Cell($w[6], 5, '0', 'LR', 0, 'C', $fill);
-            $this->Cell($w[7], 5, number_format($vlera, 2), 'LR', 0, 'R', $fill);
-            $this->Ln();
-            $fill = !$fill;
+            $this->Cell($w[0], 4.5, $date, 0, 0, 'L');
+            $this->Cell($w[1], 4.5, $desc, 0, 0, 'L');
+            $this->Cell($w[2], 4.5, $dhene, 0, 0, 'R');
+            $this->Cell($w[3], 4.5, $kthyer, 0, 0, 'R');
+            $this->Cell($w[4], 4.5, number_format($volume, 1), 0, 0, 'C');
+            $this->Cell($w[5], 4.5, number_format($price, 2), 0, 0, 'C');
+            $this->Cell($w[6], 4.5, '0', 0, 0, 'R');
+            $this->Cell($w[7], 4.5, number_format($vlera, 2), 0, 1, 'R');
         }
-
-        // Totals row
-        $this->SetFont('Helvetica', 'B', 7);
-        $this->SetFillColor(44, 62, 80);
-        $this->SetTextColor(255, 255, 255);
-        $this->Cell($w[0], 6, '', 1, 0, 'C', true);
-        $this->Cell($w[1], 6, 'TOTALI', 1, 0, 'C', true);
-        $this->Cell($w[2], 6, $totalDhene, 1, 0, 'C', true);
-        $this->Cell($w[3], 6, $totalKthyer, 1, 0, 'C', true);
-        $this->Cell($w[4], 6, number_format($totalSasia, 1), 1, 0, 'C', true);
-        $this->Cell($w[5], 6, '', 1, 0, 'C', true);
-        $this->Cell($w[6], 6, '', 1, 0, 'C', true);
-        $this->Cell($w[7], 6, number_format($totalVlera, 2), 1, 0, 'R', true);
-        $this->Ln(8);
-        $this->SetTextColor(0, 0, 0);
     }
 
-    // --- VAT breakdown and notes ---
-    private function renderTotals() {
-        $this->SetFont('Helvetica', '', 8);
-        $this->Cell(95, 5, 'Shenime:', 0, 0, 'L');
+    // ─── Notes separator ───
+    private function renderNotes() {
+        $this->Ln(1);
+        $this->SetDrawColor(128, 128, 128);
+        $this->SetLineWidth(0.3);
+        $this->Line(10, $this->GetY(), 200, $this->GetY());
+        $this->Ln(1);
 
-        // VAT calculation (total includes 18% VAT)
+        $this->SetFont('Helvetica', '', 8);
+        $this->Cell(0, 5, iconv('UTF-8', 'ISO-8859-1//TRANSLIT', 'Shenime :'), 0, 1, 'L');
+        $this->Ln(2);
+    }
+
+    // ─── Footer: Bank details (left) + VAT breakdown (right) ───
+    private function renderFooter() {
+        $startY = $this->GetY();
+
+        // Check if we need a page break for footer content
+        if ($startY + 50 > $this->PageBreakTrigger) {
+            $this->AddPage();
+            $startY = $this->GetY();
+        }
+
+        // LEFT: Bank details + payment terms
+        $this->SetFont('Helvetica', '', 7);
+        $this->SetDrawColor(128, 128, 128);
+
+        $this->SetXY(10, $startY);
+        $bankText = self::BANK_NAME . ' ' . self::BANK_IBAN;
+        $this->Cell(100, 4, $bankText, 0, 1, 'L');
+
+        $this->SetX(10);
+        $this->SetFont('Helvetica', '', 6);
+        $this->MultiCell(100, 3,
+            iconv('UTF-8', 'ISO-8859-1//TRANSLIT',
+                "Verejtje: Pagesa duhet te behet 7 dite nga data e pranimit te\n" .
+                "fatures, ne te kundert aplikohet kamata ditore 0.1%"
+            )
+        );
+
+        // RIGHT: VAT breakdown table
+        $rightX = 130;
+        $this->SetFont('Helvetica', '', 7);
+
+        // MONEDHA1 | EURO
+        $this->SetXY($rightX, $startY);
+        $this->SetFillColor(207, 208, 210);
+        $this->Cell(35, 4.5, 'MONEDHA1', 0, 0, 'R', true);
+        $this->Cell(2, 4.5, '', 0, 0);
+        $this->Cell(23, 4.5, 'EURO', 1, 1, 'R');
+
+        // VLERA PA TVSH
         $totalWithVat = $this->totalAmount;
         $totalWithoutVat = round($totalWithVat / (1 + self::VAT_RATE), 2);
         $vatAmount = round($totalWithVat - $totalWithoutVat, 2);
 
-        $this->SetFont('Helvetica', '', 8);
-        $this->Cell(50, 5, 'VLERA PA TVSH:', 0, 0, 'R');
-        $this->SetFont('Helvetica', 'B', 8);
-        $this->Cell(45, 5, number_format($totalWithoutVat, 2) . ' EUR', 0, 1, 'R');
+        $this->SetX($rightX);
+        $this->Cell(35, 4.5, 'VLERA PA TVSH', 0, 0, 'R', true);
+        $this->Cell(2, 4.5, '', 0, 0);
+        $this->Cell(23, 4.5, number_format($totalWithoutVat, 2), 1, 1, 'R');
 
-        $this->Cell(95, 5, '', 0, 0, 'L');
-        $this->SetFont('Helvetica', '', 8);
-        $this->Cell(50, 5, 'TVSH 18%:', 0, 0, 'R');
-        $this->SetFont('Helvetica', 'B', 8);
-        $this->Cell(45, 5, number_format($vatAmount, 2) . ' EUR', 0, 1, 'R');
+        // TVSH 18%
+        $this->SetX($rightX);
+        $this->Cell(35, 4.5, 'TVSH 18 %', 0, 0, 'R', true);
+        $this->Cell(2, 4.5, '', 0, 0);
+        $this->Cell(23, 4.5, number_format($vatAmount, 2), 1, 1, 'R');
 
-        $this->Cell(95, 5, '', 0, 0, 'L');
-        $this->SetFont('Helvetica', '', 8);
-        $this->Cell(50, 5, 'VLERA ME TVSH:', 0, 0, 'R');
-        $this->SetFont('Helvetica', 'B', 9);
-        $this->Cell(45, 5, number_format($totalWithVat, 2) . ' EUR', 0, 1, 'R');
+        // VLERA ME TVSH
+        $this->SetX($rightX);
+        $this->Cell(35, 4.5, 'VLERA ME TVSH', 0, 0, 'R', true);
+        $this->Cell(2, 4.5, '', 0, 0);
+        $this->Cell(23, 4.5, number_format($totalWithVat, 2), 1, 1, 'R');
 
-        $this->Ln(5);
-    }
-
-    // --- Footer: Bank details, payment terms, signature ---
-    private function renderFooter() {
-        $this->renderSeparator();
+        // ART. NE PERD. NE TOTAL
+        $this->SetX(10);
         $this->SetFont('Helvetica', '', 7);
-        $this->Cell(0, 4, self::BANK_NAME . ' ' . self::BANK_IBAN, 0, 1, 'L');
-        $this->Ln(2);
+        $this->Cell(100, 5, 'ART. NE PERD. NE TOTAL :', 0, 1, 'R');
 
-        $this->SetFont('Helvetica', '', 6);
-        $this->MultiCell(0, 3,
-            'Te nderuar klient, Ju lusim qe pagesen ta kryeni brenda 7 diteve pune nga marrja e fatures. ' .
-            'Ne te kunderten do te llogariten interesat ne shumen 0.1% ne dite.'
-        );
         $this->Ln(5);
-
-        // Signature area
-        $this->SetFont('Helvetica', '', 8);
-        $startY = $this->GetY();
-        $this->Cell(95, 5, 'Leshoi ________________', 0, 0, 'L');
-        $this->Cell(95, 5, 'Pranoi ________________', 0, 1, 'R');
     }
 
-    private function truncate($text, $width) {
-        $maxChars = intval($width / 1.8);
-        if (strlen($text) > $maxChars) {
-            return substr($text, 0, $maxChars - 2) . '..';
+    // ─── Signature: stamp image (left) + "Pranoi" line (right) ───
+    private function renderSignature() {
+        $startY = $this->GetY();
+
+        // Check if we need a page break
+        if ($startY + 40 > 280) {
+            $this->AddPage();
+            $startY = $this->GetY();
         }
-        return $text;
+
+        // Left: Signature + stamp image
+        $img = $this->imgDir . 'sign_icon.png';
+        if (file_exists($img)) {
+            $this->Image($img, 10, $startY, 50, 33);
+        }
+
+        // Right: "Pranoi" line
+        $this->SetFont('Helvetica', '', 8);
+        $this->SetXY(120, $startY + 20);
+        $this->Cell(70, 5, 'Pranoi   ______________________________', 0, 1, 'L');
     }
 }

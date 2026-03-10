@@ -96,8 +96,54 @@ try {
                 break;
             }
 
+            // Auto-sync client data from GoDaddy before looking up (ensures fresh info)
+            try {
+                $ch = curl_init('http://adaptive.darn-group.com/api_product.php?GetAllClients');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                $resp = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode === 200 && $resp) {
+                    $gdData = json_decode($resp, true);
+                    $gdClients = $gdData['data'] ?? [];
+                    // Build lookup by lowercase name
+                    $gdMap = [];
+                    foreach ($gdClients as $gc) {
+                        $n = trim($gc['Name'] ?? '');
+                        if ($n !== '') $gdMap[mb_strtolower($n)] = $gc;
+                    }
+                    // Update klientet for this specific client
+                    $lower = mb_strtolower(trim($client));
+                    if (isset($gdMap[$lower])) {
+                        $gc = $gdMap[$lower];
+                        $email = trim($gc['Email'] ?? '') ?: null;
+                        $business = trim($gc['Bussiness'] ?? '') ?: $client;
+                        $phone = trim($gc['PhoneNo'] ?? '') ?: null;
+                        $street = trim($gc['Street'] ?? '');
+                        $city = trim($gc['City'] ?? '');
+                        $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
+                        $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
+
+                        // Check if exists
+                        $existCheck = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = ?");
+                        $existCheck->execute([$lower]);
+                        if ($existCheck->fetch()) {
+                            $db->prepare("UPDATE klientet SET email = ?, i_regjistruar_ne_emer = ?, telefoni = ?, adresa = ?, numri_unik_identifikues = ? WHERE LOWER(TRIM(emri)) = ?")
+                                ->execute([$email, $business, $phone, $address, $uniqueNum, $lower]);
+                        } else {
+                            $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)")
+                                ->execute([$client, $email, $business, $phone, $address, $uniqueNum]);
+                        }
+                    }
+                }
+            } catch (Exception $syncEx) {
+                // Silently fail — use whatever data we have in klientet
+            }
+
             // Get client info for PDF
-            $clientStmt = $db->prepare("SELECT * FROM klientet WHERE emri = ? LIMIT 1");
+            $clientStmt = $db->prepare("SELECT * FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?)) LIMIT 1");
             $clientStmt->execute([$client]);
             $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
