@@ -10,6 +10,44 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
+// Auto-parse dates from note text for any notes missing dates
+// (ensures the Data column is always populated on every page load)
+(function() use ($db) {
+    $months = [
+        'janar'=>1,'shkurt'=>2,'mars'=>3,'prill'=>4,'maj'=>5,'qershor'=>6,
+        'korrik'=>7,'gusht'=>8,'shtator'=>9,'tetor'=>10,'nentor'=>11,'nëntor'=>11,'dhjetor'=>12
+    ];
+    $monthPattern = implode('|', array_keys($months));
+    $patternAlb = '/\b(\d{1,2})\s+(' . $monthPattern . ')(?:\s+(20[2-9]\d))?\b/iu';
+    $patternNum = '/\b(\d{1,2})[.\/]\s*(\d{1,2})[.\/]\s*(\d{4})\b/';
+    $today = new DateTime();
+
+    $rows = $db->query("SELECT id, teksti, created_at FROM notes WHERE data IS NULL OR CAST(data AS CHAR) = '' OR CAST(data AS CHAR) = '0000-00-00'")->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($rows)) {
+        $upd = $db->prepare("UPDATE notes SET data = ? WHERE id = ?");
+        foreach ($rows as $r) {
+            $text = $r['teksti'] ?? '';
+            $date = null;
+            if (preg_match($patternAlb, $text, $m)) {
+                $day = intval($m[1]);
+                $mon = $months[mb_strtolower($m[2])];
+                $year = isset($m[3]) && $m[3] !== '' ? intval($m[3]) : intval(date('Y', strtotime($r['created_at'] ?: 'now')));
+                try {
+                    $d = new DateTime("$year-$mon-$day");
+                    if ($d > $today) { $d->modify('-1 year'); }
+                    $date = $d->format('Y-m-d');
+                } catch (Exception $e) {}
+            } elseif (preg_match($patternNum, $text, $m)) {
+                $day = intval($m[1]); $mon = intval($m[2]); $year = intval($m[3]);
+                if ($mon >= 1 && $mon <= 12 && $day >= 1 && $day <= 31) {
+                    try { $date = (new DateTime("$year-$mon-$day"))->format('Y-m-d'); } catch (Exception $e) {}
+                }
+            }
+            if ($date) { $upd->execute([$date, $r['id']]); }
+        }
+    }
+})();
+
 // Babi Cash Total (mirrors Pasqyra / Excel Distribuimi N4 = L4 + M4)
 // L4: Cash + Faturë cash from distribuimi (nga 29.08.2022) - Shpenzime cash
 $babiPayments = $db->query("

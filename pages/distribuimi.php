@@ -17,6 +17,27 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
+// Babi Cash Total (same calculation as Notes page)
+$babiPayments = $db->query("
+    SELECT
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'cash' THEN pagesa ELSE 0 END), 0) as cash,
+        COALESCE(SUM(CASE WHEN LOWER(TRIM(menyra_e_pageses)) = 'po (fature te rregullte) cash' THEN pagesa ELSE 0 END), 0) as fature_cash
+    FROM distribuimi
+    WHERE data >= '2022-08-29'
+")->fetch();
+$babiExpenses = (float)$db->query("
+    SELECT COALESCE(SUM(shuma), 0) FROM shpenzimet
+    WHERE LOWER(TRIM(lloji_i_pageses)) = 'cash'
+    AND (data_e_pageses >= '2022-08-29' OR data_e_pageses IS NULL OR data_e_pageses = '0000-00-00')
+")->fetchColumn();
+$babiManual = 281.9;
+$babiGasCash = $babiPayments['cash'] + $babiPayments['fature_cash'] - $babiExpenses + $babiManual;
+$babiProductCash = (float)$db->query("
+    SELECT COALESCE(SUM(totali), 0) FROM shitje_produkteve
+    WHERE LOWER(TRIM(menyra_pageses)) = 'cash' AND data >= '2022-09-07'
+")->fetchColumn();
+$babiCashTotal = $babiGasCash + $babiProductCash;
+
 // Filters
 $filterClient = $_GET['klienti'] ?? '';
 $filterDateFrom = $_GET['date_from'] ?? '';
@@ -161,6 +182,18 @@ ob_start();
     <div class="summary-card">
         <div class="label">Klientë unikë</div>
         <div class="value"><?= num($uniqueClients) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Babi Cash Total</div>
+        <div class="value">&euro; <?= eur($babiCashTotal) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Sipas raportit</div>
+        <div class="value"><input type="number" id="babiRaportiDist" step="0.01" placeholder="Shëno vlerën..." style="width:140px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:0.95rem;text-align:right;"></div>
+    </div>
+    <div class="summary-card" id="babiDiffCardDist">
+        <div class="label">Diferenca</div>
+        <div class="value" id="babiDiffDist" style="font-size:1.1rem;">-</div>
     </div>
 </div>
 
@@ -919,6 +952,31 @@ function gdUndo(batchId, count) {
         gdLoadHistory();
     });
 }
+
+// Babi Cash Diferenca calculation (same as Notes page)
+(function() {
+    var babiCash = <?= json_encode(round($babiCashTotal, 2)) ?>;
+    var input = document.getElementById('babiRaportiDist');
+    var diff = document.getElementById('babiDiffDist');
+    var card = document.getElementById('babiDiffCardDist');
+
+    // Load saved value
+    var saved = localStorage.getItem('babiRaportiDist');
+    if (saved) { input.value = saved; calcDiff(); }
+
+    input.addEventListener('input', function() {
+        localStorage.setItem('babiRaportiDist', this.value);
+        calcDiff();
+    });
+
+    function calcDiff() {
+        var val = parseFloat(input.value);
+        if (isNaN(val)) { diff.textContent = '-'; card.style.background = ''; return; }
+        var d = babiCash - val;
+        diff.textContent = (d >= 0 ? '+' : '') + d.toFixed(2) + ' EUR';
+        diff.style.color = Math.abs(d) < 0.01 ? '#16a34a' : '#dc2626';
+    }
+})();
 </script>
 
 <?php
