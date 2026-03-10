@@ -8,23 +8,14 @@ require_once __DIR__ . '/../config/layout.php';
 
 $db = getDB();
 
-// Get clients for dropdown
-$clients = $db->query("SELECT emri, email, i_regjistruar_ne_emer FROM klientet ORDER BY emri ASC")->fetchAll(PDO::FETCH_ASSOC);
+// Get client names from distribuimi (primary source — always has real names)
+$clientNames = $db->query("SELECT DISTINCT klienti FROM distribuimi ORDER BY klienti ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-// Also get distinct client names from distribuimi that might not be in klientet
-$distClients = $db->query("SELECT DISTINCT klienti FROM distribuimi ORDER BY klienti ASC")->fetchAll(PDO::FETCH_COLUMN);
-$clientNames = array_unique(array_merge(
-    array_column($clients, 'emri'),
-    $distClients
-));
-sort($clientNames);
-
-// Get client emails map
+// Get client emails map from klientet (match by name)
 $clientEmails = [];
-foreach ($clients as $c) {
-    if (!empty($c['email'])) {
-        $clientEmails[$c['emri']] = $c['email'];
-    }
+$klientet = $db->query("SELECT emri, email FROM klientet WHERE email IS NOT NULL AND email != ''")->fetchAll(PDO::FETCH_ASSOC);
+foreach ($klientet as $c) {
+    $clientEmails[$c['emri']] = $c['email'];
 }
 
 ob_start();

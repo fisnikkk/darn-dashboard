@@ -254,17 +254,25 @@ try {
                 break;
             }
 
-            // Build map: trimmed lowercase name => email
+            // Build map: trimmed lowercase name => full GoDaddy record
             $emailMap = [];
+            $gdFullMap = [];
             foreach ($gdClients as $gc) {
                 $name = trim($gc['Name'] ?? '');
                 $email = trim($gc['Email'] ?? '');
-                if ($name !== '' && $email !== '') {
-                    $emailMap[mb_strtolower($name)] = $email;
+                $lowerName = mb_strtolower($name);
+                if ($name !== '') {
+                    $gdFullMap[$lowerName] = $gc;
+                    if ($email !== '') {
+                        $emailMap[$lowerName] = $email;
+                    }
                 }
             }
 
-            // Update klientet where name matches
+            // Get all distinct client names from distribuimi
+            $distClients = $db->query("SELECT DISTINCT klienti FROM distribuimi")->fetchAll(PDO::FETCH_COLUMN);
+
+            // Update existing klientet rows where name matches
             $updated = 0;
             $stmt = $db->prepare("UPDATE klientet SET email = ? WHERE LOWER(TRIM(emri)) = ? AND (email IS NULL OR email = '')");
             foreach ($emailMap as $lowerName => $email) {
@@ -272,11 +280,34 @@ try {
                 $updated += $stmt->rowCount();
             }
 
+            // Insert missing clients from distribuimi that exist in GoDaddy with emails
+            $inserted = 0;
+            $existingNames = $db->query("SELECT LOWER(TRIM(emri)) FROM klientet")->fetchAll(PDO::FETCH_COLUMN);
+            $existingSet = array_flip($existingNames);
+
+            $insertStmt = $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)");
+            foreach ($distClients as $clientName) {
+                $lower = mb_strtolower(trim($clientName));
+                if (!isset($existingSet[$lower]) && isset($gdFullMap[$lower])) {
+                    $gc = $gdFullMap[$lower];
+                    $insertStmt->execute([
+                        $clientName,
+                        trim($gc['Email'] ?? '') ?: null,
+                        trim($gc['Bussiness'] ?? '') ?: $clientName,
+                        trim($gc['PhoneNo'] ?? '') ?: null,
+                        trim(($gc['Street'] ?? '') . ', ' . ($gc['City'] ?? ''), ', ') ?: null,
+                        trim($gc['Unique_Number'] ?? '') ?: null
+                    ]);
+                    $inserted++;
+                }
+            }
+
             echo json_encode([
                 'success' => true,
                 'godaddy_total' => count($gdClients),
                 'godaddy_with_email' => count($emailMap),
-                'updated' => $updated
+                'updated' => $updated,
+                'inserted' => $inserted
             ]);
             break;
 
