@@ -10,6 +10,7 @@
  *   ?GetInvoicefromToDate       — Delivery data for invoice from distribuimi
  *   ?get_invoice_number         — Next invoice number
  *   ?update_invoicenumber       — Update invoice counter
+ *   ?GetBorxhet                 — Debt summary per client (READ-ONLY)
  *
  * Auth: API key via ?api_key= parameter (set ANDROID_API_KEY env var on Railway)
  */
@@ -50,6 +51,8 @@ try {
         handleUpdateInvoiceNumber($db);
     } elseif (strpos($query, 'get_invoice_number') !== false) {
         handleGetInvoiceNumber($db);
+    } elseif (strpos($query, 'GetBorxhet') !== false) {
+        handleGetBorxhet($db);
     } else {
         echo json_encode(['status' => '0', 'message' => 'Unknown endpoint']);
     }
@@ -340,4 +343,133 @@ function handleUpdateInvoiceNumber($db) {
     echo json_encode([
         'inv_number' => $nextInv,
     ]);
+}
+
+
+/**
+ * GetBorxhet — Returns debt summary per client (READ-ONLY)
+ *
+ * Same calculation as pages/borxhet.php: GROUP BY client, SUM by payment method.
+ * ZERO INSERT/UPDATE/DELETE — only SELECT queries with prepared statements.
+ *
+ * Params (all optional via GET):
+ *   date_from    — Start date (YYYY-MM-DD). If omitted, no lower bound.
+ *   date_to      — End date (YYYY-MM-DD). Defaults to today.
+ *   payment_type — Filter: "cash", "bank", "fature_banke", "fature_cash", "no_payment", "dhurate"
+ *   client_type  — Filter by klientet.bashkepunim: "po" or "jo"
+ */
+function handleGetBorxhet($db) {
+    $dateFrom    = $_GET['date_from'] ?? '';
+    $dateTo      = $_GET['date_to'] ?? date('Y-m-d');
+    $paymentType = $_GET['payment_type'] ?? '';
+    $clientType  = $_GET['client_type'] ?? '';
+
+    // Build WHERE clause
+    $where = [];
+    $params = [];
+
+    // borxhi_bank_deri always uses date_to
+    $borxhiDateParam = $dateTo;
+
+    // date_from filter (matches borxhet.php logic)
+    if ($dateFrom !== '') {
+        $where[] = 'd.data >= ?';
+        $params[] = $dateFrom;
+    }
+
+    // Client type filter via JOIN to klientet
+    $joinKlientet = '';
+    if ($clientType !== '' && in_array($clientType, ['po', 'jo'])) {
+        $joinKlientet = 'INNER JOIN klientet k ON LOWER(TRIM(k.emri)) = LOWER(TRIM(d.klienti))';
+        $where[] = 'LOWER(TRIM(k.bashkepunim)) = ?';
+        $params[] = $clientType;
+    }
+
+    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    // Core aggregation query — READ-ONLY SELECT
+    $sql = "
+        SELECT
+            MIN(d.klienti) AS klienti,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'cash' THEN d.pagesa ELSE 0 END) AS cash,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'bank' THEN d.pagesa ELSE 0 END) AS bank,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'po (fature te rregullte) banke' THEN d.pagesa ELSE 0 END) AS fature_banke,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'po (fature te rregullte) cash' THEN d.pagesa ELSE 0 END) AS fature_cash,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'no payment' THEN d.pagesa ELSE 0 END) AS no_payment,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'dhurate' THEN d.pagesa ELSE 0 END) AS dhurate,
+            SUM(d.pagesa) AS total,
+            SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'bank' AND d.data <= ? THEN d.pagesa ELSE 0 END) AS borxhi_bank_deri
+        FROM distribuimi d
+        {$joinKlientet}
+        {$whereSQL}
+        GROUP BY LOWER(d.klienti)
+        HAVING total > 0
+        ORDER BY MIN(d.klienti)
+    ";
+
+    // borxhi date param comes first in the query (the ? in the CASE WHEN)
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$borxhiDateParam], $params));
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch bashkepunim for display
+    $bashkepunimMap = [];
+    $bkStmt = $db->query("SELECT LOWER(TRIM(emri)) AS emri_lower, bashkepunim FROM klientet WHERE emri IS NOT NULL");
+    foreach ($bkStmt->fetchAll(PDO::FETCH_ASSOC) as $bk) {
+        $bashkepunimMap[$bk['emri_lower']] = $bk['bashkepunim'] ?? '';
+    }
+
+    // Build response
+    $data = [];
+    $totals = [
+        'cash' => 0, 'bank' => 0, 'fature_banke' => 0, 'fature_cash' => 0,
+        'no_payment' => 0, 'dhurate' => 0, 'total' => 0, 'borxhi_bank_deri' => 0
+    ];
+
+    foreach ($rows as $r) {
+        // Payment type post-filter: skip rows where chosen type has zero amount
+        if ($paymentType !== '') {
+            $fieldMap = [
+                'cash' => 'cash', 'bank' => 'bank',
+                'fature_banke' => 'fature_banke', 'fature_cash' => 'fature_cash',
+                'no_payment' => 'no_payment', 'dhurate' => 'dhurate'
+            ];
+            if (isset($fieldMap[$paymentType]) && (float)$r[$fieldMap[$paymentType]] == 0) {
+                continue;
+            }
+        }
+
+        $klientiLower = strtolower(trim($r['klienti']));
+
+        $row = [
+            'klienti'          => $r['klienti'],
+            'cash'             => number_format((float)$r['cash'], 2, '.', ''),
+            'bank'             => number_format((float)$r['bank'], 2, '.', ''),
+            'fature_banke'     => number_format((float)$r['fature_banke'], 2, '.', ''),
+            'fature_cash'      => number_format((float)$r['fature_cash'], 2, '.', ''),
+            'no_payment'       => number_format((float)$r['no_payment'], 2, '.', ''),
+            'dhurate'          => number_format((float)$r['dhurate'], 2, '.', ''),
+            'total'            => number_format((float)$r['total'], 2, '.', ''),
+            'borxhi_bank_deri' => number_format((float)$r['borxhi_bank_deri'], 2, '.', ''),
+            'bashkepunim'      => $bashkepunimMap[$klientiLower] ?? '',
+        ];
+        $data[] = $row;
+
+        foreach ($totals as $k => &$v) {
+            $v += (float)$r[$k];
+        }
+    }
+
+    // Format totals
+    $formattedTotals = [];
+    foreach ($totals as $k => $v) {
+        $formattedTotals[$k] = number_format($v, 2, '.', '');
+    }
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => 'Data fetched successfully',
+        'totals'  => $formattedTotals,
+        'data'    => $data,
+    ], JSON_UNESCAPED_UNICODE);
 }
