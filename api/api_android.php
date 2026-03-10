@@ -359,10 +359,10 @@ function handleUpdateInvoiceNumber($db) {
  *   client_type  — Filter by klientet.bashkepunim: "po" or "jo"
  */
 function handleGetBorxhet($db) {
-    $dateFrom    = $_GET['date_from'] ?? '';
-    $dateTo      = $_GET['date_to'] ?? date('Y-m-d');
-    $paymentType = $_GET['payment_type'] ?? '';
-    $clientType  = $_GET['client_type'] ?? '';
+    $dateFrom    = !empty($_GET['date_from']) ? $_GET['date_from'] : '';
+    $dateTo      = !empty($_GET['date_to'])   ? $_GET['date_to']   : date('Y-m-d');
+    $paymentType = !empty($_GET['payment_type']) ? $_GET['payment_type'] : '';
+    $clientType  = !empty($_GET['client_type'])  ? $_GET['client_type']  : '';
 
     // Build WHERE clause
     $where = [];
@@ -377,11 +377,12 @@ function handleGetBorxhet($db) {
         $params[] = $dateFrom;
     }
 
-    // Client type filter via JOIN to klientet
-    $joinKlientet = '';
+    // Client type filter via LEFT JOIN to klientet
+    // Always LEFT JOIN (so clients not in klientet table still appear)
+    // Only filter by bashkepunim when client_type is specified
+    $joinKlientet = 'LEFT JOIN klientet k ON LOWER(TRIM(k.emri)) = LOWER(TRIM(d.klienti))';
     if ($clientType !== '' && in_array($clientType, ['po', 'jo'])) {
-        $joinKlientet = 'INNER JOIN klientet k ON LOWER(TRIM(k.emri)) = LOWER(TRIM(d.klienti))';
-        $where[] = 'LOWER(TRIM(k.bashkepunim)) = ?';
+        $where[] = 'LOWER(TRIM(COALESCE(k.bashkepunim, \'\'))) = ?';
         $params[] = $clientType;
     }
 
@@ -391,6 +392,7 @@ function handleGetBorxhet($db) {
     $sql = "
         SELECT
             MIN(d.klienti) AS klienti,
+            MIN(COALESCE(k.bashkepunim, '')) AS bashkepunim,
             SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'cash' THEN d.pagesa ELSE 0 END) AS cash,
             SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'bank' THEN d.pagesa ELSE 0 END) AS bank,
             SUM(CASE WHEN LOWER(TRIM(d.menyra_e_pageses)) = 'po (fature te rregullte) banke' THEN d.pagesa ELSE 0 END) AS fature_banke,
@@ -412,12 +414,7 @@ function handleGetBorxhet($db) {
     $stmt->execute(array_merge([$borxhiDateParam], $params));
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Fetch bashkepunim for display
-    $bashkepunimMap = [];
-    $bkStmt = $db->query("SELECT LOWER(TRIM(emri)) AS emri_lower, bashkepunim FROM klientet WHERE emri IS NOT NULL");
-    foreach ($bkStmt->fetchAll(PDO::FETCH_ASSOC) as $bk) {
-        $bashkepunimMap[$bk['emri_lower']] = $bk['bashkepunim'] ?? '';
-    }
+    // bashkepunim now comes from the LEFT JOIN query directly (no separate lookup needed)
 
     // Build response
     $data = [];
@@ -439,8 +436,6 @@ function handleGetBorxhet($db) {
             }
         }
 
-        $klientiLower = strtolower(trim($r['klienti']));
-
         $row = [
             'klienti'          => $r['klienti'],
             'cash'             => number_format((float)$r['cash'], 2, '.', ''),
@@ -451,7 +446,7 @@ function handleGetBorxhet($db) {
             'dhurate'          => number_format((float)$r['dhurate'], 2, '.', ''),
             'total'            => number_format((float)$r['total'], 2, '.', ''),
             'borxhi_bank_deri' => number_format((float)$r['borxhi_bank_deri'], 2, '.', ''),
-            'bashkepunim'      => $bashkepunimMap[$klientiLower] ?? '',
+            'bashkepunim'      => $r['bashkepunim'] ?? '',
         ];
         $data[] = $row;
 
