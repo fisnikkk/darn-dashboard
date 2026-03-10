@@ -205,14 +205,14 @@ function handleGetInvoiceFromToDate($db) {
             'PaymentMethod'      => $paymentMethod,
             'Comment'            => $r['fatura_e_derguar'] ?? '',
             'Distributor'        => '',
-            'ID'                 => (string)$r['id'],
-            'isCylinder'         => '1',
+            'ID'                 => (int)$r['id'],
+            'isCylinder'         => 0,
         ];
     }
 
     echo json_encode([
         'status'                  => '1',
-        'message'                 => 'success',
+        'message'                 => 'Data fetched successfully',
         'TotalDeliveredCylinders' => (string)(int)$totalDelivered,
         'TotalReturnedCylinders'  => (string)(int)$totalReturned,
         'data'                    => $data,
