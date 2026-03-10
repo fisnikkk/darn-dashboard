@@ -307,59 +307,83 @@ try {
             }
 
             // Build map: trimmed lowercase name => full GoDaddy record
-            $emailMap = [];
             $gdFullMap = [];
+            $emailCount = 0;
             foreach ($gdClients as $gc) {
                 $name = trim($gc['Name'] ?? '');
-                $email = trim($gc['Email'] ?? '');
                 $lowerName = mb_strtolower($name);
                 if ($name !== '') {
                     $gdFullMap[$lowerName] = $gc;
-                    if ($email !== '') {
-                        $emailMap[$lowerName] = $email;
-                    }
+                    if (trim($gc['Email'] ?? '') !== '') $emailCount++;
                 }
             }
 
-            // Get all distinct client names from distribuimi
-            $distClients = $db->query("SELECT DISTINCT klienti FROM distribuimi")->fetchAll(PDO::FETCH_COLUMN);
+            // Get all distinct client names from distribuimi (the real names)
+            $distClients = $db->query("SELECT DISTINCT klienti FROM distribuimi ORDER BY klienti ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-            // Update existing klientet rows where name matches
-            $updated = 0;
-            $stmt = $db->prepare("UPDATE klientet SET email = ? WHERE LOWER(TRIM(emri)) = ? AND (email IS NULL OR email = '')");
-            foreach ($emailMap as $lowerName => $email) {
-                $stmt->execute([$email, $lowerName]);
-                $updated += $stmt->rowCount();
+            // Delete junk klientet rows that are just numeric IDs (not real names)
+            $cleaned = 0;
+            $allKlientet = $db->query("SELECT id, emri FROM klientet")->fetchAll(PDO::FETCH_ASSOC);
+            $deleteStmt = $db->prepare("DELETE FROM klientet WHERE id = ?");
+            foreach ($allKlientet as $k) {
+                if (preg_match('/^\d+$/', trim($k['emri']))) {
+                    $deleteStmt->execute([$k['id']]);
+                    $cleaned++;
+                }
             }
 
-            // Insert missing clients from distribuimi that exist in GoDaddy with emails
-            $inserted = 0;
+            // Build set of existing real client names in klientet
             $existingNames = $db->query("SELECT LOWER(TRIM(emri)) FROM klientet")->fetchAll(PDO::FETCH_COLUMN);
             $existingSet = array_flip($existingNames);
 
+            // Insert/update clients from distribuimi with GoDaddy data
+            $inserted = 0;
+            $updated = 0;
             $insertStmt = $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)");
+            $updateStmt = $db->prepare("UPDATE klientet SET email = ?, i_regjistruar_ne_emer = ?, telefoni = ?, adresa = ?, numri_unik_identifikues = ? WHERE LOWER(TRIM(emri)) = ?");
+
             foreach ($distClients as $clientName) {
                 $lower = mb_strtolower(trim($clientName));
-                if (!isset($existingSet[$lower]) && isset($gdFullMap[$lower])) {
-                    $gc = $gdFullMap[$lower];
-                    $insertStmt->execute([
-                        $clientName,
-                        trim($gc['Email'] ?? '') ?: null,
-                        trim($gc['Bussiness'] ?? '') ?: $clientName,
-                        trim($gc['PhoneNo'] ?? '') ?: null,
-                        trim(($gc['Street'] ?? '') . ', ' . ($gc['City'] ?? ''), ', ') ?: null,
-                        trim($gc['Unique_Number'] ?? '') ?: null
-                    ]);
+                $gc = $gdFullMap[$lower] ?? null;
+
+                if (isset($existingSet[$lower])) {
+                    // Update existing record if GoDaddy has data
+                    if ($gc) {
+                        $email = trim($gc['Email'] ?? '') ?: null;
+                        $business = trim($gc['Bussiness'] ?? '') ?: $clientName;
+                        $phone = trim($gc['PhoneNo'] ?? '') ?: null;
+                        $street = trim($gc['Street'] ?? '');
+                        $city = trim($gc['City'] ?? '');
+                        $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
+                        $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
+                        $updateStmt->execute([$email, $business, $phone, $address, $uniqueNum, $lower]);
+                        if ($updateStmt->rowCount() > 0) $updated++;
+                    }
+                } else {
+                    // Insert new record
+                    $email = null; $business = $clientName; $phone = null; $address = null; $uniqueNum = null;
+                    if ($gc) {
+                        $email = trim($gc['Email'] ?? '') ?: null;
+                        $business = trim($gc['Bussiness'] ?? '') ?: $clientName;
+                        $phone = trim($gc['PhoneNo'] ?? '') ?: null;
+                        $street = trim($gc['Street'] ?? '');
+                        $city = trim($gc['City'] ?? '');
+                        $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
+                        $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
+                    }
+                    $insertStmt->execute([$clientName, $email, $business, $phone, $address, $uniqueNum]);
                     $inserted++;
+                    $existingSet[$lower] = true;
                 }
             }
 
             echo json_encode([
                 'success' => true,
                 'godaddy_total' => count($gdClients),
-                'godaddy_with_email' => count($emailMap),
-                'updated' => $updated,
-                'inserted' => $inserted
+                'godaddy_with_email' => $emailCount,
+                'cleaned_junk' => $cleaned,
+                'inserted' => $inserted,
+                'updated' => $updated
             ]);
             break;
 
