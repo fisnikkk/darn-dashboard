@@ -326,7 +326,7 @@ try {
             $allKlientet = $db->query("SELECT id, emri FROM klientet")->fetchAll(PDO::FETCH_ASSOC);
             $deleteStmt = $db->prepare("DELETE FROM klientet WHERE id = ?");
             foreach ($allKlientet as $k) {
-                if (preg_match('/^\d+$/', trim($k['emri']))) {
+                if (preg_match('/^\d+$/', trim($k['emri'] ?? ''))) {
                     $deleteStmt->execute([$k['id']]);
                     $cleaned++;
                 }
