@@ -367,6 +367,7 @@ function handleGetBorxhet($db) {
     $dateTo      = !empty($_GET['date_to'])   ? $_GET['date_to']   : date('Y-m-d');
     $paymentType = !empty($_GET['payment_type']) ? $_GET['payment_type'] : '';
     $clientType  = !empty($_GET['client_type'])  ? $_GET['client_type']  : '';
+    $client      = !empty($_GET['client'])      ? trim($_GET['client']) : '';
 
     // Build WHERE clause
     $where = [];
@@ -388,6 +389,12 @@ function handleGetBorxhet($db) {
     if ($clientType !== '' && in_array($clientType, ['po', 'jo'])) {
         $where[] = 'LOWER(TRIM(COALESCE(k.bashkepunim, \'\'))) = ?';
         $params[] = $clientType;
+    }
+
+    // Optional: filter by specific client name
+    if ($client !== '') {
+        $where[] = 'LOWER(TRIM(d.klienti)) = LOWER(TRIM(?))';
+        $params[] = $client;
     }
 
     $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -544,10 +551,18 @@ function handleGetClientTransactions($db) {
         ];
     }
 
+    // Also fetch total BANK amount for this client (remaining debt)
+    // This is always returned regardless of status_filter so the app can show the total
+    $bankTotalStmt = $db->prepare("SELECT COALESCE(SUM(pagesa), 0) AS bank_total FROM distribuimi WHERE LOWER(TRIM(klienti)) = ? AND LOWER(TRIM(menyra_e_pageses)) = 'bank'");
+    $bankTotalStmt->execute([strtolower(trim($clientName))]);
+    $bankTotalRow = $bankTotalStmt->fetch(PDO::FETCH_ASSOC);
+    $bankTotal = number_format((float)($bankTotalRow['bank_total'] ?? 0), 2, '.', '');
+
     echo json_encode([
-        'status'  => '1',
-        'message' => count($data) . ' transactions found',
-        'data'    => $data,
+        'status'     => '1',
+        'message'    => count($data) . ' transactions found',
+        'bank_total' => $bankTotal,
+        'data'       => $data,
     ], JSON_UNESCAPED_UNICODE);
 }
 
@@ -564,7 +579,7 @@ function handleGetClientTransactions($db) {
  *   - API key auth required (handled by parent router)
  *
  * Method: POST (JSON body)
- * Body: { "id": 123, "action": "register_borxh" | "collect_borxh" }
+ * Body: { "id": 123, "action": "register_borxh" | "collect_borxh", "comment": "optional", "user": "optional" }
  */
 function handleUpdateBorxhiStatus($db) {
     // Only accept POST
@@ -580,8 +595,10 @@ function handleUpdateBorxhiStatus($db) {
         return;
     }
 
-    $id     = isset($body['id']) ? (int)$body['id'] : 0;
-    $action = $body['action'] ?? '';
+    $id          = isset($body['id']) ? (int)$body['id'] : 0;
+    $action      = $body['action'] ?? '';
+    $userComment = isset($body['comment']) ? trim($body['comment']) : '';
+    $userName    = isset($body['user'])    ? trim($body['user'])    : '';
 
     // Validate inputs
     if ($id <= 0) {
@@ -628,11 +645,19 @@ function handleUpdateBorxhiStatus($db) {
                 return;
             }
             $newPayment = 'cash';
-            // Remove " - borxh" from comment
-            $newKoment = str_replace(' - borxh', '', $currentKoment);
-            // Also remove standalone "borxh" if that's all there was
-            if (trim($newKoment) === 'borxh') $newKoment = '';
+            // Remove the borxh marker and any previously appended user info
+            // Uses regex to clean up: "borxh | comment (nga: user)" or "existing - borxh | comment (nga: user)"
+            $newKoment = preg_replace('/\s*-?\s*borxh(\s*\|.*)?$/i', '', $currentKoment);
             $newKoment = trim($newKoment);
+        }
+
+        // Append user comment and username (if provided by new app version)
+        // Old app versions that don't send these fields still work — borxh marker is already set above
+        if ($userComment !== '') {
+            $newKoment .= ($newKoment !== '' ? ' | ' : '') . $userComment;
+        }
+        if ($userName !== '') {
+            $newKoment .= ' (nga: ' . $userName . ')';
         }
 
         // UPDATE only menyra_e_pageses and koment — nothing else
@@ -646,6 +671,12 @@ function handleUpdateBorxhiStatus($db) {
         // Log to changelog — comment change
         $logStmt2 = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'koment', ?, ?)");
         $logStmt2->execute([$id, $currentKoment, $newKoment]);
+
+        // Log user action to changelog (who did it and why)
+        if ($userComment !== '' || $userName !== '') {
+            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_action', ?, ?)");
+            $userLogStmt->execute([$id, $userName, $action . ': ' . $userComment]);
+        }
 
         $db->commit();
 
