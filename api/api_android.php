@@ -447,6 +447,13 @@ function handleGetBorxhet($db) {
             }
         }
 
+        // When a payment type filter is active, override "total" to show only that type's amount
+        // so "Total" reflects the filtered payment type, not the full turnover
+        $rowTotal = (float)$r['total'];
+        if ($paymentType !== '' && isset($fieldMap[$paymentType])) {
+            $rowTotal = (float)$r[$fieldMap[$paymentType]];
+        }
+
         $row = [
             'klienti'          => $r['klienti'],
             'cash'             => number_format((float)$r['cash'], 2, '.', ''),
@@ -455,14 +462,19 @@ function handleGetBorxhet($db) {
             'fature_cash'      => number_format((float)$r['fature_cash'], 2, '.', ''),
             'no_payment'       => number_format((float)$r['no_payment'], 2, '.', ''),
             'dhurate'          => number_format((float)$r['dhurate'], 2, '.', ''),
-            'total'            => number_format((float)$r['total'], 2, '.', ''),
+            'total'            => number_format($rowTotal, 2, '.', ''),
             'borxhi_bank_deri' => number_format((float)$r['borxhi_bank_deri'], 2, '.', ''),
             'bashkepunim'      => $r['bashkepunim'] ?? '',
         ];
         $data[] = $row;
 
+        // Use the adjusted total for summary totals too
         foreach ($totals as $k => &$v) {
-            $v += (float)$r[$k];
+            if ($k === 'total') {
+                $v += $rowTotal;
+            } else {
+                $v += (float)$r[$k];
+            }
         }
     }
 
