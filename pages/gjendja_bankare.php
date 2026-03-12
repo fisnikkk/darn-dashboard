@@ -242,9 +242,9 @@ ob_start();
                                 <i class="fas fa-check"></i>
                             </button>
                         </td>
-                        <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
-                        <td class="editable" data-field="data_valutes" data-type="date"><?= $r['data_valutes'] ?></td>
-                        <td class="editable" data-field="ora"><?= $r['ora'] ?></td>
+                        <td class="editable" data-field="data" data-type="date"><?= e($r['data']) ?></td>
+                        <td class="editable" data-field="data_valutes" data-type="date"><?= e($r['data_valutes']) ?></td>
+                        <td class="editable" data-field="ora"><?= e($r['ora']) ?></td>
                         <td class="editable truncate" data-field="shpjegim" title="<?= e($r['shpjegim']) ?>"><?= e($r['shpjegim']) ?></td>
                         <td class="editable" data-field="valuta"><?= e($r['valuta']) ?></td>
                         <td class="amount editable" data-field="debia" data-type="number"><?= $r['debia'] ? eur($r['debia']) : '' ?></td>

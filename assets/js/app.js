@@ -298,7 +298,19 @@ function toggleHighlight(id, table) {
     .then(data => {
         if (data.success) {
             const row = document.querySelector(`tr[data-id="${id}"]`);
-            if (row) row.classList.toggle('verified');
+            if (row) {
+                row.classList.toggle('verified');
+                const btn = row.querySelector('td:nth-child(2) button');
+                if (btn) {
+                    if (data.verified) {
+                        btn.classList.remove('btn-outline');
+                        btn.classList.add('btn-success');
+                    } else {
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-outline');
+                    }
+                }
+            }
             showToast(data.verified ? 'E kontrolluar' : 'Hequr kontrolli');
         } else {
             showToast('Gabim: ' + (data.error || ''), 'error');

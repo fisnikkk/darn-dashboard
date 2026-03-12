@@ -169,7 +169,7 @@ function runMigrations($pdo) {
             klienti VARCHAR(255),
             old_menyra_e_pageses VARCHAR(255),
             new_menyra_e_pageses VARCHAR(255),
-            pagesa DECIMAL(10,2) DEFAULT 0,
+            pagesa DECIMAL(12,2) DEFAULT 0,
             data_e_shitjes DATE NULL,
             koment TEXT,
             requested_by VARCHAR(255),
@@ -181,6 +181,11 @@ function runMigrations($pdo) {
             INDEX idx_pending_status (status),
             INDEX idx_pending_dist (distribuimi_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Widen pending_borxh.pagesa to match distribuimi.pagesa precision (DECIMAL(12,2))
+        try {
+            $pdo->exec("ALTER TABLE pending_borxh MODIFY COLUMN pagesa DECIMAL(12,2) DEFAULT 0");
+        } catch (PDOException $e) {}
 
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
