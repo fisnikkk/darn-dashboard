@@ -147,6 +147,11 @@ try {
             $clientStmt->execute([$client]);
             $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
+            // Get cylinder count for this client (total cylinders at their business)
+            $cylStmt = $db->prepare("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) AS boca_tek_biznesi FROM distribuimi WHERE klienti = ?");
+            $cylStmt->execute([$client]);
+            $cylinderCount = intval($cylStmt->fetchColumn() ?: 0);
+
             // Generate PDF
             require_once __DIR__ . '/../lib/InvoicePDF.php';
             $pdf = new InvoicePDF(
@@ -159,7 +164,8 @@ try {
                 $clientInfo['numri_unik_identifikues'] ?? '',
                 $clientInfo['telefoni'] ?? '',
                 $clientInfo['email'] ?? '',
-                $rows
+                $rows,
+                $cylinderCount
             );
             $pdf->generate();
 
@@ -222,10 +228,16 @@ try {
             // Get client email for response
             $clientEmailForResponse = $clientInfo['email'] ?? '';
 
+            // Format invoice number with date
+            $monthNum = date('m', strtotime($dateTo));
+            $year = date('Y', strtotime($dateTo));
+            $formattedNum = $invoiceNum . '-' . $monthNum . '-' . $year;
+
             echo json_encode([
                 'success' => true,
                 'invoice_id' => $invoiceId,
                 'invoice_number' => $invoiceNum,
+                'formatted_number' => $formattedNum,
                 'filename' => $filename,
                 'download_url' => '/api/invoice.php?action=download&id=' . $invoiceId,
                 'total_amount' => round($totalAmount, 2),
@@ -431,6 +443,216 @@ try {
                 'inserted' => $inserted,
                 'updated' => $updated
             ]);
+            break;
+
+        // ─── Preview PDF (generate temp PDF, serve inline — no side effects) ───
+        case 'preview_pdf':
+            $client = trim($_GET['client'] ?? '');
+            $dateFrom = $_GET['date_from'] ?? '';
+            $dateTo = $_GET['date_to'] ?? '';
+            $invoiceNum = intval($_GET['invoice_number'] ?? 0);
+
+            if (!$client || !$dateFrom || !$dateTo || !$invoiceNum) {
+                echo json_encode(['success' => false, 'error' => 'Mungojne parametrat']);
+                break;
+            }
+
+            // Fetch transaction rows
+            $stmt = $db->prepare("
+                SELECT id, klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, koment
+                FROM distribuimi
+                WHERE klienti = ? AND data BETWEEN ? AND ?
+                ORDER BY data ASC, id ASC
+            ");
+            $stmt->execute([$client, $dateFrom, $dateTo]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                echo json_encode(['success' => false, 'error' => 'Nuk ka te dhena per kete periudhe']);
+                break;
+            }
+
+            // Auto-sync client data from GoDaddy
+            try {
+                $ch = curl_init('http://adaptive.darn-group.com/api_product.php?GetAllClients');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                $resp = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode === 200 && $resp) {
+                    $gdData = json_decode($resp, true);
+                    $gdClients = $gdData['data'] ?? [];
+                    $gdMap = [];
+                    foreach ($gdClients as $gc) {
+                        $n = trim($gc['Name'] ?? '');
+                        if ($n !== '') $gdMap[mb_strtolower($n)] = $gc;
+                    }
+                    $lower = mb_strtolower(trim($client));
+                    if (isset($gdMap[$lower])) {
+                        $gc = $gdMap[$lower];
+                        $email = trim($gc['Email'] ?? '') ?: null;
+                        $business = trim($gc['Bussiness'] ?? '') ?: $client;
+                        $phone = trim($gc['PhoneNo'] ?? '') ?: null;
+                        $street = trim($gc['Street'] ?? '');
+                        $city = trim($gc['City'] ?? '');
+                        $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
+                        $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
+
+                        $existCheck = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = ?");
+                        $existCheck->execute([$lower]);
+                        if ($existCheck->fetch()) {
+                            $db->prepare("UPDATE klientet SET email = ?, i_regjistruar_ne_emer = ?, telefoni = ?, adresa = ?, numri_unik_identifikues = ? WHERE LOWER(TRIM(emri)) = ?")
+                                ->execute([$email, $business, $phone, $address, $uniqueNum, $lower]);
+                        } else {
+                            $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)")
+                                ->execute([$client, $email, $business, $phone, $address, $uniqueNum]);
+                        }
+                    }
+                }
+            } catch (Exception $syncEx) {}
+
+            // Get client info
+            $clientStmt = $db->prepare("SELECT * FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?)) LIMIT 1");
+            $clientStmt->execute([$client]);
+            $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            // Get cylinder count
+            $cylStmt = $db->prepare("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi WHERE klienti = ?");
+            $cylStmt->execute([$client]);
+            $cylinderCount = intval($cylStmt->fetchColumn() ?: 0);
+
+            // Generate PDF (temp — not saved to invoices table)
+            require_once __DIR__ . '/../lib/InvoicePDF.php';
+            $pdf = new InvoicePDF(
+                $invoiceNum, $dateFrom, $dateTo, $client,
+                $clientInfo['i_regjistruar_ne_emer'] ?? '',
+                $clientInfo['adresa'] ?? '',
+                $clientInfo['numri_unik_identifikues'] ?? '',
+                $clientInfo['telefoni'] ?? '',
+                $clientInfo['email'] ?? '',
+                $rows, $cylinderCount
+            );
+            $pdf->generate();
+
+            // Serve PDF inline (for preview in iframe)
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: inline; filename="preview.pdf"');
+            header_remove('X-Powered-By');
+            $pdf->Output('I', 'preview.pdf');
+            exit;
+
+        // ─── Send email with PDF attachment via Gmail SMTP ───
+        case 'send_email':
+            $id = intval($_POST['id'] ?? $_GET['id'] ?? 0);
+            if (!$id) {
+                echo json_encode(['success' => false, 'error' => 'Mungon ID']);
+                break;
+            }
+
+            $stmt = $db->prepare("SELECT invoice_number, klienti, date_from, date_to, pdf_filename FROM invoices WHERE id = ?");
+            $stmt->execute([$id]);
+            $inv = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$inv) {
+                echo json_encode(['success' => false, 'error' => 'Fatura nuk u gjet']);
+                break;
+            }
+
+            // Get client email
+            $clientStmt = $db->prepare("SELECT email FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?)) LIMIT 1");
+            $clientStmt->execute([$inv['klienti']]);
+            $clientEmail = $clientStmt->fetchColumn() ?: '';
+
+            if (!$clientEmail) {
+                echo json_encode(['success' => false, 'error' => 'Klienti nuk ka email te regjistruar']);
+                break;
+            }
+
+            $filepath = __DIR__ . '/../storage/invoices/' . $inv['pdf_filename'];
+            if (!file_exists($filepath)) {
+                echo json_encode(['success' => false, 'error' => 'PDF file nuk ekziston']);
+                break;
+            }
+
+            // Check if PHPMailer is available
+            $mailerPath = __DIR__ . '/../lib/PHPMailer/PHPMailerAutoload.php';
+            $mailerSrcPath = __DIR__ . '/../lib/PHPMailer/src/PHPMailer.php';
+            if (!file_exists($mailerPath) && !file_exists($mailerSrcPath)) {
+                echo json_encode(['success' => false, 'error' => 'PHPMailer nuk eshte instaluar. Kontaktoni administratorin.']);
+                break;
+            }
+
+            // Load PHPMailer
+            if (file_exists($mailerSrcPath)) {
+                require_once __DIR__ . '/../lib/PHPMailer/src/Exception.php';
+                require_once __DIR__ . '/../lib/PHPMailer/src/PHPMailer.php';
+                require_once __DIR__ . '/../lib/PHPMailer/src/SMTP.php';
+            } else {
+                require_once $mailerPath;
+            }
+
+            // Load email config
+            $emailConfig = [];
+            $configPath = __DIR__ . '/../config/email.php';
+            if (file_exists($configPath)) {
+                $emailConfig = require $configPath;
+            }
+
+            if (empty($emailConfig['gmail_email']) || empty($emailConfig['gmail_app_password'])) {
+                echo json_encode(['success' => false, 'error' => 'Gmail SMTP nuk eshte konfiguruar. Plotesoni config/email.php']);
+                break;
+            }
+
+            try {
+                $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host = 'smtp.gmail.com';
+                $mail->SMTPAuth = true;
+                $mail->Username = $emailConfig['gmail_email'];
+                $mail->Password = $emailConfig['gmail_app_password'];
+                $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port = 587;
+                $mail->CharSet = 'UTF-8';
+
+                // Sender
+                $mail->setFrom($emailConfig['gmail_email'], $emailConfig['sender_name'] ?? 'Darn Group L.L.C');
+                $mail->addReplyTo($emailConfig['gmail_email']);
+
+                // Recipient
+                $mail->addAddress($clientEmail);
+
+                // Format month for subject
+                $monthNames = ['Janar','Shkurt','Mars','Prill','Maj','Qershor','Korrik','Gusht','Shtator','Tetor','Nentor','Dhjetor'];
+                $monthIdx = intval(date('m', strtotime($inv['date_to']))) - 1;
+                $monthFull = $monthNames[$monthIdx] ?? '';
+                $monthShort = date('M', strtotime($inv['date_to']));
+                $yearStr = date('Y', strtotime($inv['date_to']));
+
+                $mail->Subject = "Fatura per {$inv['klienti']} per muajin {$monthShort}-{$yearStr}";
+                $mail->Body =
+                    "Pershendetje {$inv['klienti']},\n\n" .
+                    "Ju lutemi gjeni te bashkangjitur faturen per muajin {$monthFull} {$yearStr}.\n" .
+                    "Falemnderit per bashkepunimin tuaj!\n\n" .
+                    "Sabri Kadriu\nFinance Director\nDarn Group L.L.C\n" .
+                    "Bulevardi Deshmoret e Kombit, nr. 62 6/1 Prishtine 10000, Kosove\n\n" .
+                    "Perfaqesues zyrtar i Hexagon Ragasco ne Kosove\n" .
+                    "I autorizuari i vetem ne tere Kosoven per mbushjen dhe kontrollimin e cilindrave LPG\n\n" .
+                    "Cell: +383 (0) 49 62 76 76\nE-mail: sales@darngroup.com\nwww.darngroup.com";
+
+                // Attach PDF
+                $mail->addAttachment($filepath, $inv['pdf_filename']);
+
+                $mail->send();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Email u dergua me sukses te {$clientEmail}",
+                    'to' => $clientEmail
+                ]);
+            } catch (Exception $mailEx) {
+                echo json_encode(['success' => false, 'error' => 'Gabim ne dergimin e emailit: ' . $mailEx->getMessage()]);
+            }
             break;
 
         default:

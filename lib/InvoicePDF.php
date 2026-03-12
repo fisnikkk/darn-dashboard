@@ -33,12 +33,14 @@ class InvoicePDF extends FPDF {
     private $totalDelivered;
     private $totalReturned;
     private $imgDir;
+    private $cylinderCount;
+    private $formattedInvoiceNumber;
 
     public function __construct(
         $invoiceNumber, $dateFrom, $dateTo,
         $clientName, $clientBusiness, $clientAddress,
         $clientFiskal, $clientPhone, $clientEmail,
-        $rows
+        $rows, $cylinderCount = 0
     ) {
         parent::__construct('P', 'mm', 'A4');
         $this->invoiceNumber = $invoiceNumber;
@@ -52,6 +54,12 @@ class InvoicePDF extends FPDF {
         $this->clientEmail = $clientEmail ?: '';
         $this->rows = $rows;
         $this->imgDir = __DIR__ . '/../assets/images/';
+        $this->cylinderCount = intval($cylinderCount);
+
+        // Format invoice number as "134-02-2026" (number-month-year from dateTo)
+        $monthNum = date('m', strtotime($dateTo));
+        $year = date('Y', strtotime($dateTo));
+        $this->formattedInvoiceNumber = $invoiceNumber . '-' . $monthNum . '-' . $year;
 
         // Calculate totals
         $this->totalAmount = 0;
@@ -84,7 +92,7 @@ class InvoicePDF extends FPDF {
     public function getFilename() {
         $month = date('M-Y', strtotime($this->dateTo));
         $biz = preg_replace('/[^a-zA-Z0-9 ]/', '', $this->clientBusiness);
-        return "Fatura nr {$this->invoiceNumber} - {$month} - {$biz}.pdf";
+        return "Fatura nr {$this->formattedInvoiceNumber} - {$month} - {$biz}.pdf";
     }
 
     // ─── Header: 3 logos + Total amount ───
@@ -189,7 +197,7 @@ class InvoicePDF extends FPDF {
 
         $duration = $this->dateFrom . ' deri ' . $this->dateTo;
         $this->SetFont('Helvetica', 'B', 8);
-        $this->Cell(95, 5, 'FATURA NR : ' . $this->invoiceNumber, 0, 0, 'L');
+        $this->Cell(95, 5, 'FATURA NR : ' . $this->formattedInvoiceNumber, 0, 0, 'L');
         $this->SetFont('Helvetica', '', 7);
         $this->Cell(95, 5, 'Data - Ora e dokumentit : ' . $duration, 0, 1, 'R');
 
@@ -332,10 +340,10 @@ class InvoicePDF extends FPDF {
         $this->Cell(2, 4.5, '', 0, 0);
         $this->Cell(23, 4.5, number_format($totalWithVat, 2), 1, 1, 'R');
 
-        // ART. NE PERD. NE TOTAL
+        // ART. NE PERD. NE TOTAL - total cylinders client has in use
         $this->SetX(10);
-        $this->SetFont('Helvetica', '', 7);
-        $this->Cell(100, 5, 'ART. NE PERD. NE TOTAL :', 0, 1, 'R');
+        $this->SetFont('Helvetica', 'B', 7);
+        $this->Cell(80, 5, 'ART. NE PERD. NE TOTAL :  ' . $this->cylinderCount, 0, 1, 'R');
 
         $this->Ln(5);
     }
