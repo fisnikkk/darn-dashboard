@@ -55,6 +55,10 @@ try {
         handleGetClientTransactions($db);
     } elseif (strpos($query, 'UpdateBorxhiStatus') !== false) {
         handleUpdateBorxhiStatus($db);
+    } elseif (strpos($query, 'GetPendingBorxh') !== false) {
+        handleGetPendingBorxh($db);
+    } elseif (strpos($query, 'ApproveBorxh') !== false) {
+        handleApproveBorxh($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
         handleGetBorxhet($db);
     } else {
@@ -644,91 +648,269 @@ function handleUpdateBorxhiStatus($db) {
     }
 
     try {
-        $db->beginTransaction();
-
-        // Fetch current row (lock for update)
-        $stmt = $db->prepare("SELECT id, klienti, menyra_e_pageses, koment FROM distribuimi WHERE id = ? FOR UPDATE");
+        // Fetch current row to validate state and get info for pending record
+        $stmt = $db->prepare("SELECT id, klienti, data, menyra_e_pageses, koment, pagesa FROM distribuimi WHERE id = ?");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$row) {
-            $db->rollBack();
             echo json_encode(['status' => '0', 'message' => 'Transaction not found (ID: ' . $id . ')']);
             return;
         }
 
         $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
-        $currentKoment  = $row['koment'] ?? '';
 
-        // State validation
+        // State validation (same as before — catch invalid actions early)
         if ($action === 'register_borxh') {
             if ($currentPayment === 'bank') {
-                $db->rollBack();
                 echo json_encode(['status' => '0', 'message' => 'Transaction is already marked as bank (debt). Cannot register again.']);
                 return;
             }
             $newPayment = 'bank';
-            // Append " - borxh" to comment (preserve existing)
-            $newKoment = trim($currentKoment) !== '' ? $currentKoment . ' - borxh' : 'borxh';
-
         } elseif ($action === 'collect_borxh') {
             if ($currentPayment !== 'bank') {
-                $db->rollBack();
                 echo json_encode(['status' => '0', 'message' => 'Transaction is not bank (debt). Cannot collect. Current status: ' . $row['menyra_e_pageses']]);
                 return;
             }
             $newPayment = 'cash';
-            // Remove the borxh marker and any previously appended user info
-            // Uses regex to clean up: "borxh | comment (nga: user)" or "existing - borxh | comment (nga: user)"
-            $newKoment = preg_replace('/\s*-?\s*borxh(\s*\|.*)?$/i', '', $currentKoment);
-            $newKoment = trim($newKoment);
         }
 
-        // Append user comment and username (if provided by new app version)
-        // Old app versions that don't send these fields still work — borxh marker is already set above
-        if ($userComment !== '') {
-            $newKoment .= ($newKoment !== '' ? ' | ' : '') . $userComment;
+        // Check if there's already a pending request for this distribuimi row
+        $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND status = 'pending'");
+        $pendingCheck->execute([$id]);
+        if ($pendingCheck->fetch()) {
+            echo json_encode(['status' => '0', 'message' => 'Ka nje kerkese ne pritje per kete transaksion. Prisni miratimin.']);
+            return;
         }
+
+        // Build the comment that would be applied (for display in approval screen)
+        $komentForPending = $userComment;
         if ($userName !== '') {
-            $newKoment .= ' (nga: ' . $userName . ')';
+            $komentForPending .= ($komentForPending !== '' ? ' ' : '') . '(nga: ' . $userName . ')';
         }
 
-        // UPDATE only menyra_e_pageses and koment — nothing else
-        $updateStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ?, koment = ? WHERE id = ?");
-        $updateStmt->execute([$newPayment, $newKoment, $id]);
-
-        // Log to changelog — payment method change
-        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', ?, ?)");
-        $logStmt->execute([$id, $row['menyra_e_pageses'], $newPayment]);
-
-        // Log to changelog — comment change
-        $logStmt2 = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'koment', ?, ?)");
-        $logStmt2->execute([$id, $currentKoment, $newKoment]);
-
-        // Log user action to changelog (who did it and why)
-        if ($userComment !== '' || $userName !== '') {
-            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_action', ?, ?)");
-            $userLogStmt->execute([$id, $userName, $action . ': ' . $userComment]);
-        }
-
-        $db->commit();
+        // INSERT into pending_borxh instead of directly updating distribuimi
+        $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $insertStmt->execute([
+            $id,
+            $row['klienti'],
+            $row['menyra_e_pageses'],
+            $newPayment,
+            $row['pagesa'],
+            $row['data'],
+            $komentForPending,
+            $userName
+        ]);
 
         echo json_encode([
             'status'  => '1',
-            'message' => $action === 'register_borxh' ? 'Borxhi u regjistrua me sukses' : 'Borxhi u mblodh me sukses',
+            'message' => 'Kerkesa u dergua per miratim. Prisni aprovimin nga admini.',
             'data'    => [
                 'id'                    => $id,
                 'klienti'               => $row['klienti'],
                 'old_menyra_e_pageses'  => $row['menyra_e_pageses'],
                 'new_menyra_e_pageses'  => $newPayment,
-                'old_koment'            => $currentKoment,
-                'new_koment'            => $newKoment,
+                'pending'               => true,
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+
+    } catch (Exception $e) {
+        error_log('UpdateBorxhiStatus error: ' . $e->getMessage());
+        echo json_encode(['status' => '0', 'message' => 'Server error during update']);
+    }
+}
+
+/**
+ * GetPendingBorxh — Returns list of pending borxh approval requests.
+ * Method: GET
+ * Query params: status (optional, default 'pending'), limit (optional, default 100)
+ */
+function handleGetPendingBorxh($db) {
+    $status = $_GET['status'] ?? 'pending';
+    $limit  = min((int)($_GET['limit'] ?? 100), 500);
+
+    // Validate status
+    if (!in_array($status, ['pending', 'approved', 'rejected', 'all'])) {
+        $status = 'pending';
+    }
+
+    $sql = "SELECT p.*, d.sasia, d.litra, d.cmimi, d.menyra_e_pageses AS current_payment
+            FROM pending_borxh p
+            LEFT JOIN distribuimi d ON d.id = p.distribuimi_id";
+
+    $params = [];
+    if ($status !== 'all') {
+        $sql .= " WHERE p.status = ?";
+        $params[] = $status;
+    }
+
+    $sql .= " ORDER BY p.requested_at DESC LIMIT " . $limit;
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Count pending for badge
+    $countStmt = $db->query("SELECT COUNT(*) FROM pending_borxh WHERE status = 'pending'");
+    $pendingCount = (int)$countStmt->fetchColumn();
+
+    echo json_encode([
+        'status'        => '1',
+        'message'       => count($items) . ' kerkesa u gjeten',
+        'pending_count' => $pendingCount,
+        'data'          => $items,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * ApproveBorxh — Approve or reject a pending borxh request.
+ * On approve: performs the actual distribuimi update + changelog logging.
+ * On reject: marks the pending request as rejected.
+ *
+ * Method: POST (JSON body)
+ * Body: { "pending_id": 123, "decision": "approve" | "reject", "user": "admin name", "reason": "optional for reject" }
+ */
+function handleApproveBorxh($db) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => '0', 'message' => 'POST method required']);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!$body) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid JSON body']);
+        return;
+    }
+
+    $pendingId = isset($body['pending_id']) ? (int)$body['pending_id'] : 0;
+    $decision  = $body['decision'] ?? '';
+    $adminUser = isset($body['user']) ? trim($body['user']) : '';
+    $reason    = isset($body['reason']) ? trim($body['reason']) : '';
+
+    if ($pendingId <= 0) {
+        echo json_encode(['status' => '0', 'message' => 'Valid pending_id required']);
+        return;
+    }
+    if (!in_array($decision, ['approve', 'reject'])) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid decision. Use approve or reject']);
+        return;
+    }
+
+    try {
+        $db->beginTransaction();
+
+        // Fetch the pending request (lock it)
+        $pStmt = $db->prepare("SELECT * FROM pending_borxh WHERE id = ? FOR UPDATE");
+        $pStmt->execute([$pendingId]);
+        $pending = $pStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$pending) {
+            $db->rollBack();
+            echo json_encode(['status' => '0', 'message' => 'Pending request not found (ID: ' . $pendingId . ')']);
+            return;
+        }
+
+        if ($pending['status'] !== 'pending') {
+            $db->rollBack();
+            echo json_encode(['status' => '0', 'message' => 'Request has already been ' . $pending['status']]);
+            return;
+        }
+
+        if ($decision === 'reject') {
+            // Just mark as rejected
+            $rejectStmt = $db->prepare("UPDATE pending_borxh SET status = 'rejected', approved_by = ?, approved_at = NOW(), reject_reason = ? WHERE id = ?");
+            $rejectStmt->execute([$adminUser, $reason, $pendingId]);
+            $db->commit();
+
+            echo json_encode([
+                'status'  => '1',
+                'message' => 'Kerkesa u refuzua',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // APPROVE — perform the actual distribuimi update (same logic as old direct update)
+        $distId = (int)$pending['distribuimi_id'];
+
+        // Fetch current distribuimi row (locked)
+        $dStmt = $db->prepare("SELECT id, klienti, menyra_e_pageses, koment FROM distribuimi WHERE id = ? FOR UPDATE");
+        $dStmt->execute([$distId]);
+        $row = $dStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            $db->rollBack();
+            echo json_encode(['status' => '0', 'message' => 'Original transaction not found (distribuimi ID: ' . $distId . ')']);
+            return;
+        }
+
+        $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
+        $currentKoment  = $row['koment'] ?? '';
+        $newPayment     = $pending['new_menyra_e_pageses'];
+        $action         = ($newPayment === 'bank') ? 'register_borxh' : 'collect_borxh';
+
+        // Re-validate state (row may have changed since the request was made)
+        if ($action === 'register_borxh' && $currentPayment === 'bank') {
+            $db->rollBack();
+            echo json_encode(['status' => '0', 'message' => 'Transaction is already bank. State has changed since request.']);
+            return;
+        }
+        if ($action === 'collect_borxh' && $currentPayment !== 'bank') {
+            $db->rollBack();
+            echo json_encode(['status' => '0', 'message' => 'Transaction is no longer bank. State has changed since request.']);
+            return;
+        }
+
+        // Build new koment
+        if ($action === 'register_borxh') {
+            $newKoment = trim($currentKoment) !== '' ? $currentKoment . ' - borxh' : 'borxh';
+        } else {
+            $newKoment = preg_replace('/\s*-?\s*borxh(\s*\|.*)?$/i', '', $currentKoment);
+            $newKoment = trim($newKoment);
+        }
+
+        // Append the original requester's comment
+        $reqComment = $pending['koment'] ?? '';
+        if ($reqComment !== '') {
+            $newKoment .= ($newKoment !== '' ? ' | ' : '') . $reqComment;
+        }
+
+        // UPDATE distribuimi
+        $updateStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ?, koment = ? WHERE id = ?");
+        $updateStmt->execute([$newPayment, $newKoment, $distId]);
+
+        // Log to changelog — payment method change
+        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', ?, ?)");
+        $logStmt->execute([$distId, $row['menyra_e_pageses'], $newPayment]);
+
+        // Log to changelog — comment change
+        $logStmt2 = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'koment', ?, ?)");
+        $logStmt2->execute([$distId, $currentKoment, $newKoment]);
+
+        // Log approval action
+        $approvalLog = 'Approved by ' . $adminUser . ', requested by ' . ($pending['requested_by'] ?? 'unknown');
+        $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_approval', ?, ?)");
+        $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
+
+        // Mark pending request as approved
+        $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+        $approveStmt->execute([$adminUser, $pendingId]);
+
+        $db->commit();
+
+        echo json_encode([
+            'status'  => '1',
+            'message' => $action === 'register_borxh' ? 'Borxhi u miratua dhe u regjistrua' : 'Borxhi u miratua dhe u mblodh',
+            'data'    => [
+                'id'                    => $distId,
+                'klienti'               => $row['klienti'],
+                'old_menyra_e_pageses'  => $row['menyra_e_pageses'],
+                'new_menyra_e_pageses'  => $newPayment,
             ],
         ], JSON_UNESCAPED_UNICODE);
 
     } catch (Exception $e) {
         $db->rollBack();
-        error_log('UpdateBorxhiStatus error: ' . $e->getMessage());
-        echo json_encode(['status' => '0', 'message' => 'Server error during update']);
+        error_log('ApproveBorxh error: ' . $e->getMessage());
+        echo json_encode(['status' => '0', 'message' => 'Server error during approval']);
     }
 }

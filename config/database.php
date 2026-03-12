@@ -162,6 +162,26 @@ function runMigrations($pdo) {
             $pdo->exec("ALTER TABLE klientet ADD COLUMN email VARCHAR(255) DEFAULT NULL");
         }
 
+        // Pending borxh approval queue — borxh changes go here first, admin approves before distribuimi updates
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pending_borxh (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            distribuimi_id INT NOT NULL,
+            klienti VARCHAR(255),
+            old_menyra_e_pageses VARCHAR(255),
+            new_menyra_e_pageses VARCHAR(255),
+            pagesa DECIMAL(10,2) DEFAULT 0,
+            data_e_shitjes DATE NULL,
+            koment TEXT,
+            requested_by VARCHAR(255),
+            requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status ENUM('pending','approved','rejected') DEFAULT 'pending',
+            approved_by VARCHAR(255) NULL,
+            approved_at DATETIME NULL,
+            reject_reason TEXT NULL,
+            INDEX idx_pending_status (status),
+            INDEX idx_pending_dist (distribuimi_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }
