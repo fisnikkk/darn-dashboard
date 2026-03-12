@@ -101,10 +101,9 @@ $gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE
 // Client names from distribuimi for the klienti datalist/select
 $distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi WHERE klienti IS NOT NULL AND TRIM(klienti) != '' GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
 $distKlientetJSON = json_encode($distKlientet, JSON_UNESCAPED_UNICODE);
-// Merge both sources for the column filter dropdown (useful before clients are assigned)
-$allKlientetFilter = array_values(array_unique(array_merge($gbKlientetVals, $distKlientet)));
-sort($allKlientetFilter);
-if (!in_array('', $allKlientetFilter)) array_unshift($allKlientetFilter, '');
+// Column filter dropdown: only clients that actually have klienti assigned in gjendja_bankare
+// (distKlientet is used only for the bulk klienti edit datalist, NOT for the column filter)
+$allKlientetFilter = $gbKlientetVals; // These are guaranteed to return results when selected
 
 ob_start();
 ?>
@@ -196,13 +195,21 @@ ob_start();
                             <div style="margin-top:4px;position:relative;" onclick="event.stopPropagation();">
                                 <input type="text" id="klientiSearchInput" placeholder="Kerko klient..." autocomplete="off"
                                     value="<?= e($fGbKlienti ? $fGbKlienti[0] : '') ?>"
-                                    style="width:100%;padding:3px 6px;font-size:0.75rem;border:1px solid var(--border);border-radius:4px;"
+                                    style="width:100%;padding:3px 6px;font-size:0.75rem;border:1px solid <?= $fGbKlienti ? 'var(--primary)' : 'var(--border)' ?>;border-radius:4px;<?= $fGbKlienti ? 'background:#eff6ff;font-weight:600;' : '' ?>"
                                     onfocus="showKlientiDropdown()" oninput="filterKlientiOptions()">
-                                <div id="klientiDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 6px 6px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-weight:normal;">
-                                    <div class="klienti-opt" onclick="selectKlientiFilter('')" style="padding:4px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #f0f0f0;color:var(--text-muted);" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'"><em>Te gjitha</em></div>
+                                <div id="klientiDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;min-width:180px;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 6px 6px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-weight:normal;">
+                                    <div class="klienti-opt klienti-opt-reset" onclick="selectKlientiFilter('')" style="padding:5px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #e0e0e0;color:var(--text-muted);background:#fafafa;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fafafa'"><em><i class="fas fa-times-circle" style="margin-right:3px;"></i> Pastro filtrin</em></div>
+                                    <?php if (empty($allKlientetFilter) || (count($allKlientetFilter) === 1 && $allKlientetFilter[0] === '')): ?>
+                                    <div style="padding:8px;font-size:0.75rem;color:#999;text-align:center;line-height:1.3;">
+                                        Nuk ka klientë te caktuar.<br>
+                                        <span style="font-size:0.7rem;">Përdorni <strong>"Ndrysho Klientin bulk"</strong> me sipër për të caktuar klientët, ose shkruani emrin dhe shtypni <strong>Enter</strong> për të kërkuar në shpjegim.</span>
+                                    </div>
+                                    <?php else: ?>
                                     <?php foreach ($allKlientetFilter as $kf): if ($kf === '') continue; ?>
-                                    <div class="klienti-opt" onclick="selectKlientiFilter('<?= e(addslashes($kf)) ?>')" style="padding:4px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'"><?= e($kf) ?></div>
+                                    <div class="klienti-opt" onclick="selectKlientiFilter('<?= e(addslashes($kf)) ?>')" style="padding:5px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'"><?= e($kf) ?></div>
                                     <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    <div id="klientiNoMatch" style="display:none;padding:8px;font-size:0.75rem;color:#999;text-align:center;">Nuk u gjet. Shtypni <strong>Enter</strong> për të kërkuar.</div>
                                 </div>
                             </div>
                         </th>
@@ -489,11 +496,20 @@ function showKlientiDropdown() {
     filterKlientiOptions();
 }
 function filterKlientiOptions() {
-    var input = document.getElementById('klientiSearchInput').value.toLowerCase();
-    document.querySelectorAll('#klientiDropdown .klienti-opt').forEach(function(opt) {
+    var input = document.getElementById('klientiSearchInput').value.toLowerCase().trim();
+    var visibleCount = 0;
+    // Filter client options (skip the "clear filter" option which always shows)
+    document.querySelectorAll('#klientiDropdown .klienti-opt:not(.klienti-opt-reset)').forEach(function(opt) {
         var name = opt.textContent.trim().toLowerCase();
-        opt.style.display = name.indexOf(input) !== -1 ? 'block' : 'none';
+        var show = (input === '' || name.indexOf(input) !== -1);
+        opt.style.display = show ? 'block' : 'none';
+        if (show) visibleCount++;
     });
+    // Show/hide "no match" message
+    var noMatchEl = document.getElementById('klientiNoMatch');
+    if (noMatchEl) {
+        noMatchEl.style.display = (input !== '' && visibleCount === 0) ? 'block' : 'none';
+    }
 }
 function selectKlientiFilter(name) {
     document.getElementById('klientiDropdown').style.display = 'none';
@@ -513,21 +529,17 @@ document.addEventListener('click', function(e) {
         dd.style.display = 'none';
     }
 });
-// Submit filter on Enter key
+// Submit filter on Enter key (searches klienti + shpjegim on the server)
 document.getElementById('klientiSearchInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         var val = this.value.trim();
-        selectKlientiFilter(val);
+        selectKlientiFilter(val); // empty = clear filter, non-empty = server search
     }
 });
-// Auto-reset filter when input is fully cleared (like a normal filter)
-document.getElementById('klientiSearchInput').addEventListener('input', function() {
-    var val = this.value.trim();
-    if (val === '' && window.location.search.indexOf('f_klienti') !== -1) {
-        // Input cleared and filter is active — remove the filter
-        selectKlientiFilter('');
-    }
+// Select all text on focus for easy re-typing
+document.getElementById('klientiSearchInput').addEventListener('focus', function() {
+    this.select();
 });
 
 // ─── Phase 1b: Batch Verified/Unverified ───
