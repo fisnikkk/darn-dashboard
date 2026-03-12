@@ -285,6 +285,14 @@ function invoiceCreate() {
 
         var formattedNum = d.formatted_number || (d.invoice_number + '-' + ('0' + (new Date(dateTo).getMonth()+1)).slice(-2) + '-' + new Date(dateTo).getFullYear());
 
+        // Auto-download the PDF
+        var dl = document.createElement('a');
+        dl.href = d.download_url;
+        dl.download = '';
+        document.body.appendChild(dl);
+        dl.click();
+        document.body.removeChild(dl);
+
         // Hide preview
         closePreview();
 
