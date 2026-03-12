@@ -49,7 +49,22 @@ if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sq
 if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbShpjegim) { $fin = buildFilterIn($fGbShpjegim, 'shpjegim'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbDeftesa) { $fin = buildFilterIn($fGbDeftesa, 'deftesa'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
-if ($fGbKlienti) { $fin = buildFilterIn($fGbKlienti, 'klienti'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+if ($fGbKlienti) {
+    // Search in both klienti column AND shpjegim (client name often embedded in description)
+    $klientiParts = [];
+    $klientiFilterParams = [];
+    foreach ($fGbKlienti as $kv) {
+        if ($kv === '') {
+            $klientiParts[] = "((klienti IS NULL OR klienti = '') AND (shpjegim IS NULL OR shpjegim = ''))";
+        } else {
+            $klientiParts[] = "(LOWER(klienti) = LOWER(?) OR LOWER(shpjegim) LIKE CONCAT('%', LOWER(?), '%'))";
+            $klientiFilterParams[] = $kv;
+            $klientiFilterParams[] = $kv;
+        }
+    }
+    $gbWhere[] = '(' . implode(' OR ', $klientiParts) . ')';
+    $gbParams = array_merge($gbParams, $klientiFilterParams);
+}
 $gbWhereSQL = $gbWhere ? 'WHERE ' . implode(' AND ', $gbWhere) : '';
 
 $cntStmt = $db->prepare("SELECT COUNT(*) FROM gjendja_bankare {$gbWhereSQL}");
@@ -504,6 +519,14 @@ document.getElementById('klientiSearchInput').addEventListener('keydown', functi
         e.preventDefault();
         var val = this.value.trim();
         selectKlientiFilter(val);
+    }
+});
+// Auto-reset filter when input is fully cleared (like a normal filter)
+document.getElementById('klientiSearchInput').addEventListener('input', function() {
+    var val = this.value.trim();
+    if (val === '' && window.location.search.indexOf('f_klienti') !== -1) {
+        // Input cleared and filter is active — remove the filter
+        selectKlientiFilter('');
     }
 });
 

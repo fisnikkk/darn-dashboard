@@ -37,7 +37,8 @@ if ($selectedClient !== '') {
     $debiSQL = "
         SELECT d.data, 'debi' as lloji,
                CONCAT(d.sasia, ' boca × ', d.litra, 'L × ', d.cmimi, '€ — ', COALESCE(d.menyra_e_pageses,'')) as pershkrim,
-               d.pagesa as debi, 0 as kredi, d.id as ref_id, 'distribuimi' as src
+               d.pagesa as debi, 0 as kredi, d.id as ref_id, 'distribuimi' as src,
+               0 as e_kontrolluar
         FROM distribuimi d
         WHERE LOWER(d.klienti) = LOWER(?)
           AND LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) != 'dhurate'
@@ -49,7 +50,8 @@ if ($selectedClient !== '') {
     $krediCashSQL = "
         SELECT d.data, 'kredi' as lloji,
                CONCAT('Pagesa cash — ', d.sasia, ' boca') as pershkrim,
-               0 as debi, d.pagesa as kredi, d.id as ref_id, 'auto_cash' as src
+               0 as debi, d.pagesa as kredi, d.id as ref_id, 'auto_cash' as src,
+               0 as e_kontrolluar
         FROM distribuimi d
         WHERE LOWER(d.klienti) = LOWER(?)
           AND LOWER(TRIM(COALESCE(d.menyra_e_pageses,''))) IN ('cash', 'po (fature te rregullte) cash')
