@@ -140,6 +140,15 @@ ob_start();
                 <i class="fas fa-info-circle"></i> Kliko <strong>✓</strong> për ta markuar si të kontrolluar
             </span>
         </div>
+        <!-- Bulk Verified toolbar (Phase 1b) -->
+        <div id="bulkVerifyBar" style="display:none;gap:8px;align-items:center;padding:8px 20px;background:#f0fdf4;border-bottom:1px solid var(--border);font-size:0.85rem;">
+            <i class="fas fa-check-double" style="color:#16a34a;"></i>
+            <span id="bulkVerifyCount" style="font-weight:600;white-space:nowrap;">0 te zgjedhura</span>
+            <button type="button" class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;" onclick="bulkSetVerified(1)"><i class="fas fa-check"></i> Marko te kontrolluar</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="bulkSetVerified(0)"><i class="fas fa-times"></i> Hiq kontrollin</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="clearBulkSelection()">Pastro zgjedhjen</button>
+            <span id="bulkVerifyStatus" style="color:var(--text-muted);margin-left:auto;"></span>
+        </div>
         <!-- Bulk Klienti edit toolbar -->
         <div id="bulkKlientiBar" style="display:flex;gap:8px;align-items:center;padding:8px 20px;background:#eff6ff;border-bottom:1px solid var(--border);font-size:0.85rem;">
             <i class="fas fa-users" style="color:var(--primary);"></i>
@@ -155,6 +164,7 @@ ob_start();
             <table class="data-table" data-table="gjendja_bankare" data-server-sort="true">
                 <thead>
                     <tr>
+                        <th style="width:30px;"><input type="checkbox" id="selectAllCb" title="Zgjidh te gjitha" onchange="toggleSelectAll(this)"></th>
                         <th>✓</th>
                         <?= sortThGB('data', 'Data', $sortCol, $sortDir) ?>
                         <?= sortThGB('data_valutes', 'Data Valutës', $sortCol, $sortDir) ?>
@@ -166,7 +176,21 @@ ob_start();
                         <?= sortThGB('bilanci', 'Bilanci', $sortCol, $sortDir, 'num') ?>
                         <?= withFilter(sortThGB('deftesa', 'Dëftesa', $sortCol, $sortDir), 'f_deftesa', $gbDeftesaVals) ?>
                         <?= withFilter(sortThGB('lloji', 'Lloji', $sortCol, $sortDir), 'f_lloji', $llojetFilter) ?>
-                        <?= withFilter(sortThGB('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $allKlientetFilter) ?>
+                        <th class="server-sort" style="cursor:pointer;user-select:none;position:relative;<?= $sortCol==='klienti' ? 'color:var(--primary);font-weight:600;' : '' ?>" onclick="if(event.target===this||event.target.classList.contains('fa-sort')||event.target.classList.contains('fa-sort-up')||event.target.classList.contains('fa-sort-down')){window.location.href='?<?= http_build_query(array_merge($_GET, ['sort'=>'klienti','dir'=>($sortCol==='klienti'&&$sortDir==='ASC'?'DESC':'ASC'),'page'=>1])) ?>';}">
+                            Klienti <i class="fas <?= $sortCol==='klienti' ? ($sortDir==='ASC'?'fa-sort-up':'fa-sort-down') : 'fa-sort' ?>"></i>
+                            <div style="margin-top:4px;position:relative;" onclick="event.stopPropagation();">
+                                <input type="text" id="klientiSearchInput" placeholder="Kerko klient..." autocomplete="off"
+                                    value="<?= e($fGbKlienti ? $fGbKlienti[0] : '') ?>"
+                                    style="width:100%;padding:3px 6px;font-size:0.75rem;border:1px solid var(--border);border-radius:4px;"
+                                    onfocus="showKlientiDropdown()" oninput="filterKlientiOptions()">
+                                <div id="klientiDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 6px 6px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-weight:normal;">
+                                    <div class="klienti-opt" onclick="selectKlientiFilter('')" style="padding:4px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #f0f0f0;color:var(--text-muted);" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'"><em>Te gjitha</em></div>
+                                    <?php foreach ($allKlientetFilter as $kf): if ($kf === '') continue; ?>
+                                    <div class="klienti-opt" onclick="selectKlientiFilter('<?= e(addslashes($kf)) ?>')" style="padding:4px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'"><?= e($kf) ?></div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </th>
                         <?= sortThGB('komentet', 'Komentet', $sortCol, $sortDir) ?>
                         <th></th>
                     </tr>
@@ -174,8 +198,9 @@ ob_start();
                 <tbody>
                     <?php foreach ($rows as $r): ?>
                     <tr data-id="<?= $r['id'] ?>" class="<?= $r['e_kontrolluar'] ? 'verified' : '' ?>">
+                        <td><input type="checkbox" class="row-cb" data-id="<?= $r['id'] ?>" onchange="updateBulkVerifyBar()"></td>
                         <td>
-                            <button class="btn btn-sm <?= $r['e_kontrolluar'] ? 'btn-success' : 'btn-outline' ?>" 
+                            <button class="btn btn-sm <?= $r['e_kontrolluar'] ? 'btn-success' : 'btn-outline' ?>"
                                     onclick="toggleHighlight(<?= $r['id'] ?>, 'gjendja_bankare')" title="Marko si te kontrolluar">
                                 <i class="fas fa-check"></i>
                             </button>
@@ -268,7 +293,8 @@ ob_start();
         <div class="modal-body">
             <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
                 Kopjo rreshtat nga Excel dhe ngjiti ketu. Kolonat duhet te jene ne kete rend:<br>
-                <strong>Data | Data Valutes | Ora | Shpjegim | Valuta | Debi | Kredi | Bilanci | Deftesa | Lloji | Klienti | Komentet</strong>
+                <strong>Data | Data Valutes | Ora | Shpjegim | Valuta | Debi | Kredi | Bilanci | Deftesa | Lloji | Klienti | Komentet</strong><br>
+                <small>Opsionale: kolona e 13-te <strong>E kontrolluar</strong> (po/yes/1 = e verifikuar)</small>
             </p>
             <textarea id="pasteArea" rows="10" style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;" placeholder="Ngjit ketu te dhenat nga Excel (Ctrl+V)..."></textarea>
             <div id="pastePreview" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
@@ -348,7 +374,7 @@ function submitPastedData() {
         const cols = line.split('\t');
         if (cols.length < 4) continue; // Need at least data + shpjegim
 
-        rows.push({
+        var row = {
             data: parseDate(cols[0]),
             data_valutes: parseDate(cols[1]),
             ora: (cols[2] || '').trim(),
@@ -361,7 +387,13 @@ function submitPastedData() {
             lloji: (cols[9] || '').trim() || null,
             klienti: (cols[10] || '').trim() || null,
             komentet: (cols[11] || '').trim() || null
-        });
+        };
+        // Optional 13th column: e_kontrolluar (verified)
+        if (cols.length >= 13) {
+            var v = (cols[12] || '').trim().toLowerCase();
+            row.e_kontrolluar = (v === 'po' || v === 'yes' || v === '1' || v === 'true') ? 1 : 0;
+        }
+        rows.push(row);
     }
 
     if (!rows.length) { showToast('Nuk u gjet asnje rresht valid', 'error'); return; }
@@ -433,6 +465,115 @@ document.getElementById('bulkKlientiApply').addEventListener('click', function()
     }
     processBatch(0);
 });
+</script>
+
+<script>
+// ─── Phase 1a: Searchable Client Filter ───
+function showKlientiDropdown() {
+    document.getElementById('klientiDropdown').style.display = 'block';
+    filterKlientiOptions();
+}
+function filterKlientiOptions() {
+    var input = document.getElementById('klientiSearchInput').value.toLowerCase();
+    document.querySelectorAll('#klientiDropdown .klienti-opt').forEach(function(opt) {
+        var name = opt.textContent.trim().toLowerCase();
+        opt.style.display = name.indexOf(input) !== -1 ? 'block' : 'none';
+    });
+}
+function selectKlientiFilter(name) {
+    document.getElementById('klientiDropdown').style.display = 'none';
+    // Build URL with the selected client filter (or remove filter if empty)
+    var params = new URLSearchParams(window.location.search);
+    params.delete('f_klienti[]');
+    params.set('page', '1');
+    if (name) {
+        params.append('f_klienti[]', name);
+    }
+    window.location.href = '?' + params.toString();
+}
+document.addEventListener('click', function(e) {
+    var dd = document.getElementById('klientiDropdown');
+    var inp = document.getElementById('klientiSearchInput');
+    if (dd && inp && !inp.contains(e.target) && !dd.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
+// Submit filter on Enter key
+document.getElementById('klientiSearchInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        var val = this.value.trim();
+        selectKlientiFilter(val);
+    }
+});
+
+// ─── Phase 1b: Batch Verified/Unverified ───
+function toggleSelectAll(masterCb) {
+    document.querySelectorAll('.row-cb').forEach(function(cb) {
+        cb.checked = masterCb.checked;
+    });
+    updateBulkVerifyBar();
+}
+function updateBulkVerifyBar() {
+    var checked = document.querySelectorAll('.row-cb:checked');
+    var bar = document.getElementById('bulkVerifyBar');
+    if (checked.length > 0) {
+        bar.style.display = 'flex';
+        document.getElementById('bulkVerifyCount').textContent = checked.length + ' te zgjedhura';
+    } else {
+        bar.style.display = 'none';
+    }
+    // Update master checkbox state
+    var all = document.querySelectorAll('.row-cb');
+    document.getElementById('selectAllCb').checked = all.length > 0 && checked.length === all.length;
+}
+function clearBulkSelection() {
+    document.querySelectorAll('.row-cb').forEach(function(cb) { cb.checked = false; });
+    document.getElementById('selectAllCb').checked = false;
+    updateBulkVerifyBar();
+}
+function bulkSetVerified(val) {
+    var checked = document.querySelectorAll('.row-cb:checked');
+    var ids = Array.from(checked).map(function(cb) { return parseInt(cb.dataset.id); });
+    if (!ids.length) return;
+
+    var statusEl = document.getElementById('bulkVerifyStatus');
+    statusEl.textContent = 'Duke ndryshuar ' + ids.length + ' rreshta...';
+    var done = 0, errors = 0;
+    var batchSize = 20;
+
+    function processBatch(startIdx) {
+        var batch = ids.slice(startIdx, startIdx + batchSize);
+        if (!batch.length) {
+            statusEl.textContent = done + ' rreshta u ndryshuan' + (errors ? ', ' + errors + ' gabime' : '');
+            // Update DOM
+            checked.forEach(function(cb) {
+                var row = cb.closest('tr');
+                var btn = row.querySelector('td:nth-child(2) button');
+                if (val) {
+                    row.classList.add('verified');
+                    if (btn) { btn.classList.remove('btn-outline'); btn.classList.add('btn-success'); }
+                } else {
+                    row.classList.remove('verified');
+                    if (btn) { btn.classList.remove('btn-success'); btn.classList.add('btn-outline'); }
+                }
+            });
+            clearBulkSelection();
+            return;
+        }
+        Promise.all(batch.map(function(id) {
+            return fetch('/api/update.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: 'gjendja_bankare', id: id, field: 'e_kontrolluar', value: val })
+            }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) done++; else errors++; }).catch(function() { errors++; });
+        })).then(function() {
+            statusEl.textContent = 'Duke ndryshuar... ' + done + '/' + ids.length;
+            processBatch(startIdx + batchSize);
+        });
+    }
+    processBatch(0);
+}
 </script>
 
 <?php
