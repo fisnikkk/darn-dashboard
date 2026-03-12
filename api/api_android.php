@@ -484,6 +484,27 @@ function handleGetBorxhet($db) {
         $formattedTotals[$k] = number_format($v, 2, '.', '');
     }
 
+    // Calculate borxhi_mbledhur (collected debts) from changelog
+    // These are transactions that were changed from BANK → CASH via collect_borxh
+    $borxhiMbledhurStmt = $db->query("
+        SELECT COALESCE(SUM(d.pagesa), 0)
+        FROM changelog c
+        JOIN distribuimi d ON d.id = c.row_id
+        WHERE c.table_name = 'distribuimi'
+        AND c.field_name = 'menyra_e_pageses'
+        AND LOWER(TRIM(c.old_value)) = 'bank'
+        AND LOWER(TRIM(c.new_value)) = 'cash'
+    ");
+    $borxhiMbledhur = (float)$borxhiMbledhurStmt->fetchColumn();
+    $formattedTotals['borxhi_mbledhur'] = number_format($borxhiMbledhur, 2, '.', '');
+
+    // Cash from borxhe = same as borxhi_mbledhur (cash that originated from debt collection)
+    $formattedTotals['cash_from_borxhe'] = $formattedTotals['borxhi_mbledhur'];
+
+    // Cash from shitje = total cash minus cash from collected borxhe
+    $cashFromShitje = $totals['cash'] - $borxhiMbledhur;
+    $formattedTotals['cash_from_shitje'] = number_format(max(0, $cashFromShitje), 2, '.', '');
+
     echo json_encode([
         'status'  => '1',
         'message' => 'Data fetched successfully',
