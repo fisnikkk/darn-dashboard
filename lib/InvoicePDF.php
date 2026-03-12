@@ -181,18 +181,12 @@ class InvoicePDF extends FPDF {
         // Row 2: Business# + Email
         $this->Cell(47.5, 4, 'Nr.Bisnesi : ' . self::SELLER_BIZNESI, 0, 0, 'L');
         $this->Cell(47.5, 4, 'e-Mail : ' . self::SELLER_EMAIL, 0, 0, 'L');
-        $this->Cell(25, 4, 'Nr.Bisnesi : - ', 0, 0, 'L');
-        // Client email gets extra width (70mm) to avoid overflow on long addresses
-        $emailText = 'e-Mail : ' . $this->clientEmail;
-        $emailW = $this->GetStringWidth($emailText);
-        $savedSize = $this->FontSizePt;
-        if ($emailW > 68) {
-            $this->SetFont('Helvetica', '', 6);
-        }
-        $this->Cell(70, 4, $emailText, 0, 1, 'L');
-        if ($savedSize != $this->FontSizePt) {
-            $this->SetFont('Helvetica', '', $savedSize);
-        }
+        // Buyer: Nr.Bisnesi is always "-", keep it minimal so email gets full space
+        $this->Cell(95, 4, 'Nr.Bisnesi : -', 0, 1, 'L');
+
+        // Buyer email on its own row, right-aligned under buyer section (full 95mm width)
+        $this->Cell(95, 4, '', 0, 0);  // skip seller half
+        $this->Cell(95, 4, 'e-Mail : ' . $this->clientEmail, 0, 1, 'L');
 
         $this->Ln(3);
     }
