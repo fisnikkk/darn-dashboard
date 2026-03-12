@@ -50,16 +50,36 @@ if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin[
 if ($fGbShpjegim) { $fin = buildFilterIn($fGbShpjegim, 'shpjegim'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbDeftesa) { $fin = buildFilterIn($fGbDeftesa, 'deftesa'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbKlienti) {
-    // Search in both klienti column AND shpjegim (client name often embedded in description)
+    // Smart search: split search term into words and match ALL words against shpjegim.
+    // This handles bank descriptions like "SUSHICO KOSOVA SHPK" matching search "Sushi Co"
+    // because each word ("sushi", "co") is found individually via LIKE '%word%'.
     $klientiParts = [];
     $klientiFilterParams = [];
     foreach ($fGbKlienti as $kv) {
         if ($kv === '') {
             $klientiParts[] = "((klienti IS NULL OR klienti = '') AND (shpjegim IS NULL OR shpjegim = ''))";
         } else {
-            $klientiParts[] = "(LOWER(klienti) = LOWER(?) OR LOWER(shpjegim) LIKE CONCAT('%', LOWER(?), '%'))";
+            // 1) Exact match on klienti column
+            $subParts = ["LOWER(klienti) = LOWER(?)"];
             $klientiFilterParams[] = $kv;
-            $klientiFilterParams[] = $kv;
+
+            // 2) Word-by-word match on shpjegim: each word must appear somewhere in the text
+            $words = preg_split('/\s+/', trim($kv));
+            $words = array_filter($words, fn($w) => mb_strlen($w) >= 2); // skip 1-char words
+            if (!empty($words)) {
+                $wordConditions = [];
+                foreach ($words as $word) {
+                    $wordConditions[] = "LOWER(shpjegim) LIKE CONCAT('%', LOWER(?), '%')";
+                    $klientiFilterParams[] = $word;
+                }
+                $subParts[] = '(' . implode(' AND ', $wordConditions) . ')';
+            } else {
+                // Single short word or empty — fall back to simple LIKE on full term
+                $subParts[] = "LOWER(shpjegim) LIKE CONCAT('%', LOWER(?), '%')";
+                $klientiFilterParams[] = $kv;
+            }
+
+            $klientiParts[] = '(' . implode(' OR ', $subParts) . ')';
         }
     }
     $gbWhere[] = '(' . implode(' OR ', $klientiParts) . ')';
@@ -101,9 +121,11 @@ $gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE
 // Client names from distribuimi for the klienti datalist/select
 $distKlientet = $db->query("SELECT DISTINCT MIN(klienti) as k FROM distribuimi WHERE klienti IS NOT NULL AND TRIM(klienti) != '' GROUP BY LOWER(klienti) ORDER BY k")->fetchAll(PDO::FETCH_COLUMN);
 $distKlientetJSON = json_encode($distKlientet, JSON_UNESCAPED_UNICODE);
-// Column filter dropdown: only clients that actually have klienti assigned in gjendja_bankare
-// (distKlientet is used only for the bulk klienti edit datalist, NOT for the column filter)
-$allKlientetFilter = $gbKlientetVals; // These are guaranteed to return results when selected
+// Column filter dropdown: merge gjendja_bankare clients + distribuimi clients.
+// The smart word-based SQL filter will match client names against bank descriptions in shpjegim.
+$allKlientetFilter = array_values(array_unique(array_merge($gbKlientetVals, $distKlientet)));
+sort($allKlientetFilter);
+if (!in_array('', $allKlientetFilter)) array_unshift($allKlientetFilter, '');
 
 ob_start();
 ?>
@@ -199,16 +221,9 @@ ob_start();
                                     onfocus="showKlientiDropdown()" oninput="filterKlientiOptions()">
                                 <div id="klientiDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;min-width:180px;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 6px 6px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-weight:normal;">
                                     <div class="klienti-opt klienti-opt-reset" onclick="selectKlientiFilter('')" style="padding:5px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #e0e0e0;color:var(--text-muted);background:#fafafa;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fafafa'"><em><i class="fas fa-times-circle" style="margin-right:3px;"></i> Pastro filtrin</em></div>
-                                    <?php if (empty($allKlientetFilter) || (count($allKlientetFilter) === 1 && $allKlientetFilter[0] === '')): ?>
-                                    <div style="padding:8px;font-size:0.75rem;color:#999;text-align:center;line-height:1.3;">
-                                        Nuk ka klientë te caktuar.<br>
-                                        <span style="font-size:0.7rem;">Përdorni <strong>"Ndrysho Klientin bulk"</strong> me sipër për të caktuar klientët, ose shkruani emrin dhe shtypni <strong>Enter</strong> për të kërkuar në shpjegim.</span>
-                                    </div>
-                                    <?php else: ?>
                                     <?php foreach ($allKlientetFilter as $kf): if ($kf === '') continue; ?>
                                     <div class="klienti-opt" onclick="selectKlientiFilter('<?= e(addslashes($kf)) ?>')" style="padding:5px 8px;cursor:pointer;font-size:0.78rem;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'"><?= e($kf) ?></div>
                                     <?php endforeach; ?>
-                                    <?php endif; ?>
                                     <div id="klientiNoMatch" style="display:none;padding:8px;font-size:0.75rem;color:#999;text-align:center;">Nuk u gjet. Shtypni <strong>Enter</strong> për të kërkuar.</div>
                                 </div>
                             </div>
