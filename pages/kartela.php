@@ -57,11 +57,12 @@ if ($selectedClient !== '') {
           {$dateWhere}
     ";
 
-    // 3. Bank KREDI from gjendja_bankare
+    // 3. Bank KREDI from gjendja_bankare (includes e_kontrolluar for verified indicator)
     $krediBankSQL = "
         SELECT g.data, 'kredi' as lloji,
                CONCAT('Pagesa bankare — ', COALESCE(g.shpjegim,'')) as pershkrim,
-               0 as debi, g.kredi as kredi, g.id as ref_id, 'banka' as src
+               0 as debi, g.kredi as kredi, g.id as ref_id, 'banka' as src,
+               COALESCE(g.e_kontrolluar, 0) as e_kontrolluar
         FROM gjendja_bankare g
         WHERE LOWER(g.klienti) = LOWER(?)
           AND g.kredi > 0
@@ -245,6 +246,11 @@ if ($selectedClient !== '') {
                                     <i class="fas fa-coins" style="color:var(--success);margin-right:4px;"></i>
                                 <?php else: ?>
                                     <i class="fas fa-university" style="color:var(--success);margin-right:4px;"></i>
+                                    <?php if (!empty($t['e_kontrolluar'])): ?>
+                                        <i class="fas fa-check-circle" style="color:#2E7D32;margin-right:4px;font-size:0.8em;" title="E kontrolluar"></i>
+                                    <?php else: ?>
+                                        <i class="fas fa-exclamation-circle" style="color:#FFA000;margin-right:4px;font-size:0.8em;" title="E pa kontrolluar"></i>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 <?= e($t['pershkrim']) ?>
                             </td>
