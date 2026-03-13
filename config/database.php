@@ -99,6 +99,35 @@ function runMigrations($pdo) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+        // Stoku zyrtar table (Official Product Inventory — ~31 rows from Excel)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS stoku_zyrtar (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data DATE NULL,
+            kodi VARCHAR(100),
+            kodi_2 VARCHAR(255),
+            pershkrimi TEXT,
+            njesi VARCHAR(255),
+            sasia DECIMAL(12,2) DEFAULT 0,
+            cmimi DECIMAL(10,4) NULL,
+            vlera DECIMAL(12,2) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_kodi (kodi),
+            INDEX idx_data (data)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Depo table (Product Accessories Stock — ~21 rows from Excel)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS depo (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data DATE NULL,
+            produkti VARCHAR(255),
+            sasia INT DEFAULT 0,
+            cmimi DECIMAL(10,2) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_produkti (produkti)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
         // Widen columns that are too small for Excel data
         // stoku_zyrtar.njesi, shitje_produkteve.statusi_i_pageses, gjendja_bankare.lloji, distribuimi.fatura_e_derguar
         try {
@@ -106,6 +135,9 @@ function runMigrations($pdo) {
         } catch (PDOException $e) {}
         try {
             $pdo->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL");
         } catch (PDOException $e) {}
         try {
             $pdo->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL");
