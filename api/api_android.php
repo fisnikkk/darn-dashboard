@@ -59,6 +59,8 @@ try {
         handleGetPendingBorxh($db);
     } elseif (strpos($query, 'ApproveBorxh') !== false) {
         handleApproveBorxh($db);
+    } elseif (strpos($query, 'InsertProductSale') !== false) {
+        handleInsertProductSale($db);
     } elseif (strpos($query, 'getSalesLastReport') !== false) {
         handleGetSalesLastReport($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
@@ -987,4 +989,88 @@ function handleGetSalesLastReport($db) {
         'no_payment'   => number_format($noPaymentTotal, 2, '.', ''),
         'data'         => $data,
     ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * InsertProductSale — Inserts a product sale into shitje_produkteve table
+ *
+ * Called by the Client App's "Sell Product" screen when driver presses SELL.
+ * Maps the app's fields to the dashboard's shitje_produkteve columns.
+ *
+ * Parameters (GET):
+ *   pro_name       — Product name           → produkti
+ *   ClientName     — Client name            → klienti
+ *   initial_stock  — Quantity               → cilindra_sasia
+ *   UnitPrice      — Price per unit         → cmimi
+ *   PaymentMethod  — CASH/BANK/NO PAYMENT   → menyra_pageses
+ *   Comment        — Comment                → koment
+ *   Time           — Date/time              → data
+ *   category       — Category (unused but accepted)
+ *   TransactionStatus — Status              → statusi_i_pageses
+ *
+ * Returns: { "status": "1", "message": "Product sale inserted successfully", "id": "123" }
+ */
+function handleInsertProductSale($db) {
+    $produkti         = $_GET['pro_name'] ?? '';
+    $klienti          = $_GET['ClientName'] ?? '';
+    $cilindra_sasia   = (int)($_GET['initial_stock'] ?? 0);
+    $cmimi            = (float)($_GET['UnitPrice'] ?? 0);
+    $menyra_pageses   = $_GET['PaymentMethod'] ?? '';
+    $koment           = $_GET['Comment'] ?? '';
+    $timeStr          = $_GET['Time'] ?? '';
+    $statusi          = $_GET['TransactionStatus'] ?? '';
+
+    // Validate required fields
+    if (empty($produkti) || empty($klienti)) {
+        echo json_encode(['status' => '0', 'message' => 'Product name and client name are required']);
+        return;
+    }
+
+    // Parse date from the app's format (MM/dd/yyyy HH:mm:ss) to database format (YYYY-MM-DD)
+    $data = null;
+    if (!empty($timeStr)) {
+        $parsed = DateTime::createFromFormat('m/d/Y H:i:s', $timeStr);
+        if ($parsed) {
+            $data = $parsed->format('Y-m-d');
+        } else {
+            $parsed = DateTime::createFromFormat('Y-m-d', $timeStr);
+            if ($parsed) {
+                $data = $parsed->format('Y-m-d');
+            } else {
+                $data = date('Y-m-d');
+            }
+        }
+    } else {
+        $data = date('Y-m-d');
+    }
+
+    // Calculate total
+    $totali = $cmimi * $cilindra_sasia;
+
+    $stmt = $db->prepare("
+        INSERT INTO shitje_produkteve
+            (data, cilindra_sasia, produkti, klienti, cmimi, totali, menyra_pageses, koment, statusi_i_pageses)
+        VALUES
+            (:data, :cilindra_sasia, :produkti, :klienti, :cmimi, :totali, :menyra_pageses, :koment, :statusi)
+    ");
+
+    $stmt->execute([
+        ':data'            => $data,
+        ':cilindra_sasia'  => $cilindra_sasia,
+        ':produkti'        => $produkti,
+        ':klienti'         => $klienti,
+        ':cmimi'           => $cmimi,
+        ':totali'          => $totali,
+        ':menyra_pageses'  => $menyra_pageses,
+        ':koment'          => $koment,
+        ':statusi'         => $statusi,
+    ]);
+
+    $newId = $db->lastInsertId();
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => 'Product sale inserted successfully',
+        'id'      => (string)$newId,
+    ]);
 }
