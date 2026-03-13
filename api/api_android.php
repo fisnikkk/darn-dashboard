@@ -59,6 +59,8 @@ try {
         handleGetPendingBorxh($db);
     } elseif (strpos($query, 'ApproveBorxh') !== false) {
         handleApproveBorxh($db);
+    } elseif (strpos($query, 'getSalesLastReport') !== false) {
+        handleGetSalesLastReport($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
         handleGetBorxhet($db);
     } else {
@@ -913,4 +915,76 @@ function handleApproveBorxh($db) {
         error_log('ApproveBorxh error: ' . $e->getMessage());
         echo json_encode(['status' => '0', 'message' => 'Server error during approval']);
     }
+}
+
+
+/**
+ * getSalesLastReport — Returns product sales data for the Android Sales Report screen.
+ *
+ * Reads from shitje_produkteve table, maps DB column names to Android POJO field names.
+ * Returns payment totals (cash, bank, no_payment) and individual transaction rows.
+ *
+ * Expected by Android (SalesReportPojo):
+ * {
+ *   "status": "1",
+ *   "stock_loaded": "994",
+ *   "cash_payment": "450.00",
+ *   "bank_payment": "280.00",
+ *   "no_payment": "10.50",
+ *   "data": [{ "ID": "1", "pro_name": "...", "ClientName": "...", ... }]
+ * }
+ */
+function handleGetSalesLastReport($db) {
+    $stmt = $db->query("
+        SELECT id, data, cilindra_sasia, produkti, klienti, cmimi, totali,
+               menyra_pageses, koment, statusi_i_pageses, created_at
+        FROM shitje_produkteve
+        ORDER BY data DESC, id DESC
+    ");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $cashTotal = 0;
+    $bankTotal = 0;
+    $noPaymentTotal = 0;
+    $data = [];
+
+    foreach ($rows as $r) {
+        $total = (float)($r['totali'] ?? 0);
+        $payment = strtolower(trim($r['menyra_pageses'] ?? ''));
+
+        // Aggregate by payment method
+        if (strpos($payment, 'cash') !== false) {
+            $cashTotal += $total;
+        } elseif (strpos($payment, 'bank') !== false) {
+            $bankTotal += $total;
+        } else {
+            $noPaymentTotal += $total;
+        }
+
+        // Map DB fields → Android Datum POJO fields
+        $data[] = [
+            'Timestamp'         => $r['created_at'] ?? '',
+            'ID'                => (string)$r['id'],
+            'pro_name'          => $r['produkti'] ?? '',
+            'category'          => '',
+            'ClientName'        => $r['klienti'] ?? '',
+            'UnitPrice'         => number_format((float)($r['cmimi'] ?? 0), 2, '.', ''),
+            'TransactionStatus' => $r['statusi_i_pageses'] ?? '',
+            'PaymentMethod'     => strtoupper($r['menyra_pageses'] ?? ''),
+            'Comment'           => $r['koment'] ?? '',
+            'Distributor'       => '',
+            'Time'              => $r['data'] ?? '',
+            'initial_stock'     => (string)(int)($r['cilindra_sasia'] ?? 0),
+        ];
+    }
+
+    echo json_encode([
+        'status'       => '1',
+        'message'      => count($data) . ' sales records found',
+        'stock_loaded' => (string)count($data),
+        'cash_payment' => number_format($cashTotal, 2, '.', ''),
+        'bank_payment' => number_format($bankTotal, 2, '.', ''),
+        'no_payment'   => number_format($noPaymentTotal, 2, '.', ''),
+        'data'         => $data,
+    ], JSON_UNESCAPED_UNICODE);
 }
