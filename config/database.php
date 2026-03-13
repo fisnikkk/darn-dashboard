@@ -100,7 +100,10 @@ function runMigrations($pdo) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         // Widen columns that are too small for Excel data
-        // stoku_zyrtar.njesi, shitje_produkteve.statusi_i_pageses, gjendja_bankare.lloji
+        // stoku_zyrtar.njesi, shitje_produkteve.statusi_i_pageses, gjendja_bankare.lloji, distribuimi.fatura_e_derguar
+        try {
+            $pdo->exec("ALTER TABLE distribuimi MODIFY COLUMN fatura_e_derguar TEXT NULL");
+        } catch (PDOException $e) {}
         try {
             $pdo->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL");
         } catch (PDOException $e) {}
