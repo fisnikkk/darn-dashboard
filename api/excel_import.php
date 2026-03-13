@@ -126,61 +126,108 @@ if ($action === 'import_rows') {
         $db = getDB();
         $deleted = 0;
 
-        // Ensure columns are wide enough for Excel data
-        // Drop indexes first if they block TEXT conversion, then widen
-        try {
-            // Find and drop any index on gjendja_bankare.lloji
-            $indexes = $db->query("SHOW INDEX FROM gjendja_bankare WHERE Column_name = 'lloji'")->fetchAll();
-            foreach ($indexes as $idx) {
-                $keyName = $idx['Key_name'];
-                if ($keyName !== 'PRIMARY') {
-                    $db->exec("ALTER TABLE gjendja_bankare DROP INDEX `{$keyName}`");
-                }
-            }
-            $db->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL");
-        } catch (PDOException $e) { /* ignore */ }
-        try { $db->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL"); } catch (PDOException $e) {}
-        try { $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL"); } catch (PDOException $e) {}
-        try { $db->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL"); } catch (PDOException $e) {}
+        // --- Pre-import: ensure table schema can handle ANY incoming data ---
 
-        // Replace mode: delete existing data first
-        if ($mode === 'replace') {
-            $deleted = (int)$db->query("SELECT COUNT(*) FROM {$tableName}")->fetchColumn();
-            $db->exec("DELETE FROM {$tableName}");
-            $db->exec("ALTER TABLE {$tableName} AUTO_INCREMENT = 1");
+        // 1. Get incoming columns from first row
+        $columns = array_keys($rows[0]);
+        $columns = array_filter($columns, fn($c) => $c !== '' && $c !== null);
+        $columns = array_values($columns);
+
+        // 2. Read existing DB columns
+        $existingCols = [];
+        try {
+            $colInfo = $db->query("SHOW COLUMNS FROM {$tableName}")->fetchAll();
+            foreach ($colInfo as $ci) {
+                $existingCols[$ci['Field']] = $ci;
+            }
+        } catch (PDOException $e) {
+            // Table might not exist — migrations in getDB() should have created it
+            throw new PDOException("Tabela '{$tableName}' nuk ekziston në databazë. Rifresko faqen dhe provo përsëri.");
         }
 
-        // Insert rows in a transaction
+        // 3. Auto-add missing columns (Excel has a column the DB doesn't)
+        $addedCols = [];
+        foreach ($columns as $col) {
+            if (!isset($existingCols[$col])) {
+                try {
+                    $safeName = preg_replace('/[^a-z0-9_]/', '_', strtolower($col));
+                    // Use the original column name (already sanitized by SheetJS mapper)
+                    $db->exec("ALTER TABLE `{$tableName}` ADD COLUMN `{$col}` TEXT NULL");
+                    $existingCols[$col] = ['Field' => $col, 'Type' => 'text'];
+                    $addedCols[] = $col;
+                } catch (PDOException $e) { /* column might already exist with different case */ }
+            }
+        }
+
+        // 4. Auto-widen VARCHAR columns if incoming data exceeds their limit
+        //    Scan max string length per column across all incoming rows
+        $varcharCols = [];
+        foreach ($columns as $col) {
+            if (!isset($existingCols[$col])) continue;
+            $type = strtolower($existingCols[$col]['Type']);
+            if (preg_match('/^varchar\((\d+)\)/', $type, $m)) {
+                $varcharCols[$col] = (int)$m[1];
+            }
+        }
+
+        if (!empty($varcharCols)) {
+            $maxLengths = array_fill_keys(array_keys($varcharCols), 0);
+            foreach ($rows as $row) {
+                foreach ($varcharCols as $col => $limit) {
+                    $val = $row[$col] ?? null;
+                    if ($val !== null && $val !== '') {
+                        $len = mb_strlen((string)$val);
+                        if ($len > $maxLengths[$col]) $maxLengths[$col] = $len;
+                    }
+                }
+            }
+
+            foreach ($maxLengths as $col => $maxLen) {
+                if ($maxLen > $varcharCols[$col]) {
+                    try {
+                        // Drop any index on this column first (TEXT can't have a regular index)
+                        $indexes = $db->query("SHOW INDEX FROM `{$tableName}` WHERE Column_name = " . $db->quote($col))->fetchAll();
+                        foreach ($indexes as $idx) {
+                            if ($idx['Key_name'] !== 'PRIMARY') {
+                                $db->exec("ALTER TABLE `{$tableName}` DROP INDEX `{$idx['Key_name']}`");
+                            }
+                        }
+                        $db->exec("ALTER TABLE `{$tableName}` MODIFY COLUMN `{$col}` TEXT NULL");
+                        $existingCols[$col]['Type'] = 'text';
+                    } catch (PDOException $e) { /* ignore */ }
+                }
+            }
+        }
+
+        // --- Replace mode: delete existing data first ---
+        if ($mode === 'replace') {
+            $deleted = (int)$db->query("SELECT COUNT(*) FROM `{$tableName}`")->fetchColumn();
+            $db->exec("DELETE FROM `{$tableName}`");
+            $db->exec("ALTER TABLE `{$tableName}` AUTO_INCREMENT = 1");
+        }
+
+        // --- Insert rows ---
         $db->beginTransaction();
         $imported = 0;
         $errors = [];
 
-        // Get columns from first row
-        $columns = array_keys($rows[0]);
-        // Filter out any null/empty column names
-        $columns = array_filter($columns, fn($c) => $c !== '' && $c !== null);
-        $columns = array_values($columns);
-
         $placeholders = '(' . implode(',', array_fill(0, count($columns), '?')) . ')';
-        $sql = "INSERT INTO {$tableName} (" . implode(',', $columns) . ") VALUES {$placeholders}";
+        $colList = implode(',', array_map(fn($c) => "`{$c}`", $columns));
+        $sql = "INSERT INTO `{$tableName}` ({$colList}) VALUES {$placeholders}";
         $stmt = $db->prepare($sql);
 
-        // Detect date columns from DB schema for value sanitization
+        // Detect date/numeric columns for value sanitization
         $dateColumnsDB = [];
         $numColumnsDB = [];
-        try {
-            $colInfo = $db->query("SHOW COLUMNS FROM {$tableName}")->fetchAll();
-            foreach ($colInfo as $ci) {
-                $type = strtolower($ci['Type']);
-                if (in_array($ci['Field'], $columns)) {
-                    if (strpos($type, 'date') !== false || strpos($type, 'time') !== false) {
-                        $dateColumnsDB[] = $ci['Field'];
-                    } elseif (preg_match('/^(int|decimal|float|double|bigint|smallint|tinyint|numeric)/', $type)) {
-                        $numColumnsDB[] = $ci['Field'];
-                    }
-                }
+        foreach ($columns as $col) {
+            if (!isset($existingCols[$col])) continue;
+            $type = strtolower($existingCols[$col]['Type']);
+            if (strpos($type, 'date') !== false || strpos($type, 'time') !== false) {
+                $dateColumnsDB[] = $col;
+            } elseif (preg_match('/^(int|decimal|float|double|bigint|smallint|tinyint|numeric)/', $type)) {
+                $numColumnsDB[] = $col;
             }
-        } catch (PDOException $e) { /* ignore */ }
+        }
 
         foreach ($rows as $idx => $row) {
             try {
@@ -290,6 +337,10 @@ if ($action === 'import_rows') {
         $db->commit();
 
         $response = ['success' => true, 'imported' => $imported, 'deleted' => $deleted];
+        if (!empty($addedCols)) {
+            $response['added_columns'] = $addedCols;
+            $response['info'] = count($addedCols) . ' kolona të reja u shtuan automatikisht: ' . implode(', ', $addedCols);
+        }
         if ($errors) {
             $response['errors'] = $errors;
             $response['warning'] = count($errors) . ' rreshta me gabime';

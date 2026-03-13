@@ -57,6 +57,205 @@ function runMigrations($pdo) {
     $migrated = true;
 
     try {
+        // ============================================================
+        // Core tables — CREATE IF NOT EXISTS (safety net so imports
+        // never fail with "table not found"). In normal operation these
+        // already exist from the initial schema import.
+        // ============================================================
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS distribuimi (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            row_nr INT,
+            klienti VARCHAR(255),
+            data DATE,
+            sasia INT DEFAULT 0,
+            boca_te_kthyera INT DEFAULT 0,
+            litra DECIMAL(10,2) DEFAULT 0,
+            cmimi DECIMAL(10,4) DEFAULT 0,
+            pagesa DECIMAL(12,2) DEFAULT 0,
+            menyra_e_pageses VARCHAR(100),
+            fatura_e_derguar TEXT,
+            data_e_fletepageses DATE NULL,
+            koment TEXT,
+            litrat_total DECIMAL(10,2) DEFAULT 0,
+            litrat_e_konvertuara DECIMAL(10,2) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_klienti (klienti),
+            INDEX idx_data (data),
+            INDEX idx_menyra (menyra_e_pageses),
+            INDEX idx_klienti_data (klienti, data)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS shpenzimet (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data_e_pageses DATE,
+            shuma DECIMAL(12,2),
+            arsyetimi VARCHAR(255),
+            lloji_i_pageses VARCHAR(100),
+            lloji_i_transaksionit VARCHAR(100),
+            pershkrim_i_detajuar TEXT,
+            nafta_ne_litra DECIMAL(10,2) NULL,
+            numri_i_fatures VARCHAR(100),
+            fatura_e_rregullte VARCHAR(50) NULL,
+            data_e_fatures DATE NULL,
+            shuma_fatures DECIMAL(12,2) NULL,
+            lloji_fatures VARCHAR(100) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_data (data_e_pageses),
+            INDEX idx_lloji_trans (lloji_i_transaksionit),
+            INDEX idx_lloji_pag (lloji_i_pageses)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS plini_depo (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nr_i_fatures VARCHAR(100),
+            data DATE,
+            kg DECIMAL(12,2),
+            sasia_ne_litra DECIMAL(12,2),
+            cmimi DECIMAL(10,4),
+            faturat_e_pranuara DECIMAL(12,2),
+            dalje_pagesat_sipas_bankes DECIMAL(12,2) DEFAULT 0,
+            menyra_e_pageses VARCHAR(100),
+            cash_banke VARCHAR(50),
+            furnitori VARCHAR(255),
+            koment TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_data (data),
+            INDEX idx_menyra (menyra_e_pageses)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS shitje_produkteve (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data DATE,
+            cilindra_sasia INT DEFAULT 0,
+            produkti VARCHAR(255),
+            klienti VARCHAR(255),
+            adresa VARCHAR(255),
+            qyteti VARCHAR(100),
+            cmimi DECIMAL(10,2),
+            totali DECIMAL(12,2),
+            menyra_pageses VARCHAR(100),
+            koment TEXT,
+            statusi_i_pageses TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_data (data),
+            INDEX idx_klienti (klienti),
+            INDEX idx_menyra (menyra_pageses)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS kontrata (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nr_i_kontrates INT NULL,
+            data DATE NULL,
+            biznesi VARCHAR(255),
+            name_from_database VARCHAR(255),
+            numri_ne_stok_sipas_kontrates INT DEFAULT 0,
+            sipas_skenimit_pda TEXT NULL,
+            bashkepunim VARCHAR(50),
+            qyteti VARCHAR(100),
+            rruga VARCHAR(255),
+            numri_unik VARCHAR(100),
+            perfaqesuesi VARCHAR(255),
+            nr_telefonit VARCHAR(100),
+            koment TEXT,
+            email VARCHAR(255),
+            ne_grup_njoftues VARCHAR(50),
+            kontrate_e_vjeter VARCHAR(100),
+            lloji_i_bocave VARCHAR(100),
+            bocat_e_paguara VARCHAR(50),
+            data_rregullatoret DATE NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_biznesi (biznesi),
+            INDEX idx_name_db (name_from_database)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS gjendja_bankare (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data DATE,
+            data_valutes DATE NULL,
+            ora TIME NULL,
+            shpjegim TEXT,
+            valuta VARCHAR(10) DEFAULT 'EUR',
+            debia DECIMAL(12,2) DEFAULT 0,
+            kredi DECIMAL(12,2) DEFAULT 0,
+            bilanci DECIMAL(12,2) DEFAULT 0,
+            deftesa VARCHAR(100),
+            lloji TEXT,
+            klienti VARCHAR(255) NULL,
+            komentet TEXT DEFAULT NULL,
+            e_kontrolluar BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_data (data)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS nxemese (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            klienti VARCHAR(255),
+            data DATE,
+            te_dhena INT DEFAULT 0,
+            te_marra INT DEFAULT 0,
+            lloji_i_nxemjes VARCHAR(100),
+            koment TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_klienti (klienti),
+            INDEX idx_data (data)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS klientet (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            emri VARCHAR(255),
+            bashkepunim VARCHAR(100),
+            data_e_kontrates DATE NULL,
+            stoku INT DEFAULT 0,
+            koment TEXT,
+            kontakti VARCHAR(255),
+            i_regjistruar_ne_emer VARCHAR(255),
+            numri_unik_identifikues VARCHAR(100),
+            adresa VARCHAR(255),
+            telefoni VARCHAR(100),
+            telefoni_2 VARCHAR(100),
+            email VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_emri (emri)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS changelog (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            action_type VARCHAR(50),
+            table_name VARCHAR(100),
+            row_id INT DEFAULT 0,
+            field_name VARCHAR(100),
+            old_value TEXT,
+            new_value TEXT,
+            reverted TINYINT(1) DEFAULT 0,
+            batch_id VARCHAR(50) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_table (table_name),
+            INDEX idx_changelog_batch (batch_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS borxhet_notes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            klienti VARCHAR(255),
+            klient_bank_cash VARCHAR(255),
+            kush_merr_borxhin VARCHAR(255),
+            koment TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_klienti (klienti)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // ============================================================
+        // Column migrations (add/widen columns on existing tables)
+        // ============================================================
+
         // Add komentet column to gjendja_bankare (if not exists)
         $cols = $pdo->query("SHOW COLUMNS FROM gjendja_bankare LIKE 'komentet'")->fetchAll();
         if (empty($cols)) {
@@ -128,23 +327,18 @@ function runMigrations($pdo) {
             INDEX idx_produkti (produkti)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-        // Widen columns that are too small for Excel data
-        // stoku_zyrtar.njesi, shitje_produkteve.statusi_i_pageses, gjendja_bankare.lloji, distribuimi.fatura_e_derguar
-        try {
-            $pdo->exec("ALTER TABLE distribuimi MODIFY COLUMN fatura_e_derguar TEXT NULL");
-        } catch (PDOException $e) {}
-        try {
-            $pdo->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN njesi VARCHAR(255) NULL");
-        } catch (PDOException $e) {}
-        try {
-            $pdo->exec("ALTER TABLE stoku_zyrtar MODIFY COLUMN pershkrimi TEXT NULL");
-        } catch (PDOException $e) {}
-        try {
-            $pdo->exec("ALTER TABLE shitje_produkteve MODIFY COLUMN statusi_i_pageses TEXT NULL");
-        } catch (PDOException $e) {}
-        try {
-            $pdo->exec("ALTER TABLE gjendja_bankare MODIFY COLUMN lloji TEXT NULL");
-        } catch (PDOException $e) {}
+        // Widen columns that were originally too narrow for Excel data
+        // (CREATE TABLE above uses wide types, but existing DBs may have old narrow types)
+        $widenColumns = [
+            ['distribuimi', 'fatura_e_derguar', 'TEXT NULL'],
+            ['stoku_zyrtar', 'njesi', 'VARCHAR(255) NULL'],
+            ['stoku_zyrtar', 'pershkrimi', 'TEXT NULL'],
+            ['shitje_produkteve', 'statusi_i_pageses', 'TEXT NULL'],
+            ['gjendja_bankare', 'lloji', 'TEXT NULL'],
+        ];
+        foreach ($widenColumns as [$tbl, $col, $newType]) {
+            try { $pdo->exec("ALTER TABLE {$tbl} MODIFY COLUMN {$col} {$newType}"); } catch (PDOException $e) {}
+        }
 
         // Trim whitespace in borxhet_notes (one-time cleanup)
         try {
