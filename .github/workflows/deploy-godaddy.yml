@@ -1,0 +1,30 @@
+name: Deploy to GoDaddy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /dashboard.darn-group.com.darn-group.com/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .claude/**
+            scripts/**
+            backups/**
+            .env
+            .env.php
+            Dockerfile
+            start.sh
+            README.md
