@@ -4,12 +4,18 @@
  * Update these values for your environment
  */
 
-// Load .env file if it exists (GoDaddy deployment — Railway uses system env vars)
-if (file_exists(__DIR__ . '/../.env')) {
-    $lines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        if (strpos($line, '=') !== false) putenv(trim($line));
+// Load environment file if it exists (GoDaddy deployment — Railway uses system env vars)
+// Uses .env.php so IIS never serves credentials as plain text
+$envFiles = [__DIR__ . '/../.env.php', __DIR__ . '/../.env'];
+foreach ($envFiles as $envFile) {
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || $trimmed[0] === '#' || strpos($trimmed, '<?') === 0 || strpos($trimmed, '//') === 0 || strpos($trimmed, 'die') === 0) continue;
+            if (strpos($trimmed, '=') !== false) putenv($trimmed);
+        }
+        break;
     }
 }
 
