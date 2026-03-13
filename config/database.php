@@ -4,6 +4,15 @@
  * Update these values for your environment
  */
 
+// Load .env file if it exists (GoDaddy deployment — Railway uses system env vars)
+if (file_exists(__DIR__ . '/../.env')) {
+    $lines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) continue;
+        if (strpos($line, '=') !== false) putenv(trim($line));
+    }
+}
+
 define('DB_HOST', getenv('MYSQLHOST') ?: 'localhost');
 define('DB_USER', getenv('MYSQLUSER') ?: 'root');
 define('DB_PASS', getenv('MYSQLPASSWORD') ?: '');

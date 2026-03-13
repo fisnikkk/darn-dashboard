@@ -1,0 +1,23 @@
+# DARN Dashboard - Apache Configuration (GoDaddy/Plesk)
+# Railway uses PHP built-in server, GoDaddy uses Apache
+# PHP settings are in .user.ini (works with PHP-FPM)
+
+# Deny access to sensitive files
+<FilesMatch "\.(env|ini|md|lock|sql|sh)$">
+    Require all denied
+</FilesMatch>
+
+# Deny access to Dockerfile
+<Files "Dockerfile">
+    Require all denied
+</Files>
+
+# Deny access to sensitive directories
+RedirectMatch 403 ^/\.git
+RedirectMatch 403 ^/database
+RedirectMatch 403 ^/scripts
+RedirectMatch 403 ^/config
+RedirectMatch 403 ^/backups
+
+# Default charset
+AddDefaultCharset UTF-8
