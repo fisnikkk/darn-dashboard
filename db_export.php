@@ -19,7 +19,7 @@ if ($apiKey !== $expectedKey) {
 require_once __DIR__ . '/config/database.php';
 
 try {
-    $pdo = getDbConnection();
+    $pdo = getDB();
 } catch (Exception $e) {
     die('DB connection failed: ' . $e->getMessage());
 }
