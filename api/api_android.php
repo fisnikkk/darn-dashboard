@@ -67,6 +67,8 @@ try {
         handleInsertProductSale($db);
     } elseif (strpos($query, 'getSalesLastReport') !== false) {
         handleGetSalesLastReport($db);
+    } elseif (strpos($query, 'GetBorxhCollections') !== false) {
+        handleGetBorxhCollections($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
         handleGetBorxhet($db);
     } elseif (strpos($query, 'SearchARBK') !== false) {
@@ -1447,4 +1449,95 @@ function handleRegisterContract($db) {
         error_log('RegisterContract error: ' . $e->getMessage());
         echo json_encode(['status' => '0', 'message' => 'Failed to register contract: ' . $e->getMessage()]);
     }
+}
+
+
+/**
+ * GetBorxhCollections — Returns list of approved borxh collection records.
+ *
+ * Used by Delivery Status screen to show WHO collected borxh from WHICH client.
+ * Data comes from pending_borxh table (approved collect_borxh records).
+ *
+ * ZERO INSERT/UPDATE/DELETE — only SELECT with prepared statements.
+ *
+ * Params (via GET):
+ *   requested_by — (optional) Filter by seller/collector name (for Client App per-user view)
+ *   date_from    — (optional) Start date YYYY-MM-DD (filters by approved_at)
+ *   date_to      — (optional) End date YYYY-MM-DD (filters by approved_at)
+ *   limit        — (optional) Max rows, default 200
+ */
+function handleGetBorxhCollections($db) {
+    $requestedBy = isset($_GET['requested_by']) ? trim($_GET['requested_by']) : '';
+    $dateFrom    = !empty($_GET['date_from']) ? $_GET['date_from'] : '';
+    $dateTo      = !empty($_GET['date_to'])   ? $_GET['date_to']   : '';
+    $limit       = isset($_GET['limit']) ? min((int)$_GET['limit'], 500) : 200;
+    if ($limit <= 0) $limit = 200;
+
+    $where  = ["pb.status = 'approved'", "pb.new_menyra_e_pageses = 'cash'"];
+    $params = [];
+
+    // Filter by collector (seller) name
+    if ($requestedBy !== '') {
+        $where[]  = 'LOWER(TRIM(pb.requested_by)) = ?';
+        $params[] = strtolower(trim($requestedBy));
+    }
+
+    // Date filters on approval date
+    if ($dateFrom !== '') {
+        $where[]  = 'DATE(pb.approved_at) >= ?';
+        $params[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $where[]  = 'DATE(pb.approved_at) <= ?';
+        $params[] = $dateTo;
+    }
+
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
+
+    $sql = "SELECT
+                pb.id,
+                pb.distribuimi_id,
+                pb.klienti,
+                pb.pagesa,
+                pb.data_e_shitjes,
+                pb.requested_by,
+                pb.requested_at,
+                pb.approved_by,
+                pb.approved_at,
+                pb.koment
+            FROM pending_borxh pb
+            {$whereSQL}
+            ORDER BY pb.approved_at DESC
+            LIMIT {$limit}";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Format the data
+    $data = [];
+    $totalCollected = 0;
+    foreach ($rows as $r) {
+        $amount = (float)($r['pagesa'] ?? 0);
+        $totalCollected += $amount;
+        $data[] = [
+            'id'              => (int)$r['id'],
+            'distribuimi_id'  => (int)$r['distribuimi_id'],
+            'klienti'         => $r['klienti'] ?? '',
+            'pagesa'          => number_format($amount, 2, '.', ''),
+            'data_e_shitjes'  => $r['data_e_shitjes'] ?? '',
+            'requested_by'    => $r['requested_by'] ?? '',
+            'requested_at'    => $r['requested_at'] ?? '',
+            'approved_by'     => $r['approved_by'] ?? '',
+            'approved_at'     => $r['approved_at'] ?? '',
+            'koment'          => $r['koment'] ?? '',
+        ];
+    }
+
+    echo json_encode([
+        'status'          => '1',
+        'message'         => count($data) . ' borxh collections found',
+        'total_collected'  => number_format($totalCollected, 2, '.', ''),
+        'data'            => $data,
+    ], JSON_UNESCAPED_UNICODE);
 }
