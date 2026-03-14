@@ -1242,7 +1242,7 @@ function handleSearchARBK() {
         return;
     }
 
-    $arbkApiKey = getenv('ARBK_API_KEY') ?: '';
+    $arbkApiKey = getenv('ARBK_API_KEY') ?: 'arbk_nMNlAR8dh7JGcbVHSUmeEJc5VtnILla1wdDMKx5OBzD4ndioutghSK9vwLsc';
     if ($arbkApiKey === '') {
         echo json_encode(['status' => '0', 'message' => 'ARBK API key not configured on server']);
         return;
