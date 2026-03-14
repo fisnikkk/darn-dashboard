@@ -69,6 +69,10 @@ try {
         handleGetSalesLastReport($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
         handleGetBorxhet($db);
+    } elseif (strpos($query, 'SearchARBK') !== false) {
+        handleSearchARBK();
+    } elseif (strpos($query, 'RegisterContract') !== false) {
+        handleRegisterContract($db);
     } else {
         echo json_encode(['status' => '0', 'message' => 'Unknown endpoint']);
     }
@@ -1205,4 +1209,220 @@ function handleGetNxemesePerKlient($db) {
         ],
         'data' => $data,
     ], JSON_UNESCAPED_UNICODE);
+}
+
+
+/**
+ * SearchARBK — Proxy for ARBK business lookup via arbk.micro-devs.com
+ *
+ * Parameters:
+ *   search_type = name | nui | fiscal
+ *   search_term = the search query
+ *
+ * Returns: { status, message, data: [{ emri, emri_tregtar, nui, komuna, lloji_biznesit, statusi }] }
+ */
+function handleSearchARBK() {
+    $searchType = trim($_GET['search_type'] ?? 'name');
+    $searchTerm = trim($_GET['search_term'] ?? '');
+
+    if ($searchTerm === '') {
+        echo json_encode(['status' => '0', 'message' => 'search_term is required']);
+        return;
+    }
+
+    // Map search_type to micro-devs API endpoint + parameter
+    $typeMap = [
+        'name'   => ['endpoint' => 'search-by-name',          'param' => 'name'],
+        'nui'    => ['endpoint' => 'search-by-nui',            'param' => 'nui'],
+        'fiscal' => ['endpoint' => 'search-by-fiscal-number',  'param' => 'fiscal_number'],
+    ];
+
+    if (!isset($typeMap[$searchType])) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid search_type. Use: name, nui, or fiscal']);
+        return;
+    }
+
+    $arbkApiKey = getenv('ARBK_API_KEY') ?: '';
+    if ($arbkApiKey === '') {
+        echo json_encode(['status' => '0', 'message' => 'ARBK API key not configured on server']);
+        return;
+    }
+
+    $endpoint = $typeMap[$searchType]['endpoint'];
+    $param    = $typeMap[$searchType]['param'];
+    $url      = 'https://arbk.micro-devs.com/api/v1/business/' . $endpoint . '?' . $param . '=' . urlencode($searchTerm);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => [
+            'X-API-Key: ' . $arbkApiKey,
+            'Accept: application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) {
+        $errMsg = $curlError ?: "ARBK API returned HTTP $httpCode";
+        error_log("SearchARBK error: $errMsg (url: $url)");
+        echo json_encode(['status' => '0', 'message' => 'ARBK service unavailable: ' . $errMsg]);
+        return;
+    }
+
+    $arbkData = json_decode($response, true);
+    if (!is_array($arbkData)) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid response from ARBK API']);
+        return;
+    }
+
+    // Normalize: the micro-devs API may return data in various formats
+    // We standardize to our expected field names
+    $results = [];
+    $items = $arbkData['data'] ?? $arbkData['results'] ?? $arbkData;
+    if (!is_array($items)) {
+        $items = [];
+    }
+    // If it's a single result (e.g., search by NUI), wrap in array
+    if (!empty($items) && !isset($items[0])) {
+        $items = [$items];
+    }
+
+    foreach ($items as $item) {
+        if (!is_array($item)) continue;
+        $results[] = [
+            'emri'            => $item['emri'] ?? $item['name'] ?? $item['Emri'] ?? '',
+            'emri_tregtar'    => $item['emri_tregtar'] ?? $item['tradeName'] ?? $item['Emri tregtar'] ?? '',
+            'nui'             => $item['nui'] ?? $item['NUI'] ?? $item['uniqueNumber'] ?? '',
+            'komuna'          => $item['komuna'] ?? $item['municipality'] ?? $item['Komuna'] ?? '',
+            'lloji_biznesit'  => $item['lloji_biznesit'] ?? $item['businessType'] ?? $item['Lloji biznesit'] ?? '',
+            'statusi'         => $item['statusi'] ?? $item['status'] ?? $item['Statusi'] ?? '',
+        ];
+    }
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => count($results) . ' results found',
+        'data'    => $results,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+
+/**
+ * RegisterContract — Save full contract data to kontrata + klientet tables
+ *
+ * POST body (JSON):
+ *   biznesi, name_from_database, numri_unik, qyteti, rruga,
+ *   perfaqesuesi, nr_telefonit, email, bashkepunim, koment
+ *
+ * Smart UPSERT for klientet: only updates NULL/empty fields, never overwrites existing data.
+ */
+function handleRegisterContract($db) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => '0', 'message' => 'POST method required']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid JSON body']);
+        return;
+    }
+
+    $biznesi           = trim($input['biznesi'] ?? '');
+    $nameFromDb        = trim($input['name_from_database'] ?? '');
+    $numriUnik         = trim($input['numri_unik'] ?? '');
+    $qyteti            = trim($input['qyteti'] ?? '');
+    $rruga             = trim($input['rruga'] ?? '');
+    $perfaqesuesi      = trim($input['perfaqesuesi'] ?? '');
+    $nrTelefonit       = trim($input['nr_telefonit'] ?? '');
+    $email             = trim($input['email'] ?? '');
+    $bashkepunim       = trim($input['bashkepunim'] ?? 'Po');
+    $koment            = trim($input['koment'] ?? '');
+
+    // At least one name field is required
+    if ($biznesi === '' && $nameFromDb === '') {
+        echo json_encode(['status' => '0', 'message' => 'biznesi or name_from_database is required']);
+        return;
+    }
+
+    // If one is empty, use the other
+    if ($nameFromDb === '') $nameFromDb = $biznesi;
+    if ($biznesi === '') $biznesi = $nameFromDb;
+
+    $db->beginTransaction();
+
+    try {
+        // 1. INSERT into kontrata
+        $stmt = $db->prepare("
+            INSERT INTO kontrata
+                (biznesi, name_from_database, numri_unik, qyteti, rruga,
+                 perfaqesuesi, nr_telefonit, email, bashkepunim, koment, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+        ");
+        $stmt->execute([
+            $biznesi, $nameFromDb, $numriUnik, $qyteti, $rruga,
+            $perfaqesuesi, $nrTelefonit, $email, $bashkepunim, $koment,
+        ]);
+        $contractId = $db->lastInsertId();
+
+        // 2. SMART UPSERT into klientet — only fill empty/NULL fields, never overwrite existing data
+        $adresa = trim($qyteti . ($rruga ? ', ' . $rruga : ''));
+
+        // Check if client already exists
+        $checkStmt = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?))");
+        $checkStmt->execute([$nameFromDb]);
+        $existingClient = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existingClient) {
+            // UPDATE only NULL or empty fields — never overwrite existing data
+            $updateStmt = $db->prepare("
+                UPDATE klientet SET
+                    numri_unik_identifikues = CASE WHEN (numri_unik_identifikues IS NULL OR TRIM(numri_unik_identifikues) = '') THEN ? ELSE numri_unik_identifikues END,
+                    adresa                  = CASE WHEN (adresa IS NULL OR TRIM(adresa) = '') THEN ? ELSE adresa END,
+                    telefoni                = CASE WHEN (telefoni IS NULL OR TRIM(telefoni) = '') THEN ? ELSE telefoni END,
+                    email                   = CASE WHEN (email IS NULL OR TRIM(email) = '') THEN ? ELSE email END,
+                    kontakti                = CASE WHEN (kontakti IS NULL OR TRIM(kontakti) = '') THEN ? ELSE kontakti END,
+                    bashkepunim             = CASE WHEN (bashkepunim IS NULL OR TRIM(bashkepunim) = '') THEN ? ELSE bashkepunim END,
+                    i_regjistruar_ne_emer   = CASE WHEN (i_regjistruar_ne_emer IS NULL OR TRIM(i_regjistruar_ne_emer) = '') THEN ? ELSE i_regjistruar_ne_emer END,
+                    data_e_kontrates        = CASE WHEN data_e_kontrates IS NULL THEN CURDATE() ELSE data_e_kontrates END
+                WHERE id = ?
+            ");
+            $updateStmt->execute([
+                $numriUnik, $adresa, $nrTelefonit, $email,
+                $perfaqesuesi, $bashkepunim, $biznesi,
+                $existingClient['id'],
+            ]);
+        } else {
+            // INSERT new client
+            $insertStmt = $db->prepare("
+                INSERT INTO klientet
+                    (emri, numri_unik_identifikues, adresa, telefoni, email,
+                     kontakti, bashkepunim, i_regjistruar_ne_emer, data_e_kontrates)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+            ");
+            $insertStmt->execute([
+                $nameFromDb, $numriUnik, $adresa, $nrTelefonit, $email,
+                $perfaqesuesi, $bashkepunim, $biznesi,
+            ]);
+        }
+
+        $db->commit();
+
+        echo json_encode([
+            'status'      => '1',
+            'message'     => 'Contract registered successfully',
+            'contract_id' => (string)$contractId,
+        ]);
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        error_log('RegisterContract error: ' . $e->getMessage());
+        echo json_encode(['status' => '0', 'message' => 'Failed to register contract: ' . $e->getMessage()]);
+    }
 }
