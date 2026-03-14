@@ -59,6 +59,8 @@ try {
         handleGetPendingBorxh($db);
     } elseif (strpos($query, 'ApproveBorxh') !== false) {
         handleApproveBorxh($db);
+    } elseif (strpos($query, 'GetBocaPerKlient') !== false) {
+        handleGetBocaPerKlient($db);
     } elseif (strpos($query, 'InsertProductSale') !== false) {
         handleInsertProductSale($db);
     } elseif (strpos($query, 'getSalesLastReport') !== false) {
@@ -1073,4 +1075,69 @@ function handleInsertProductSale($db) {
         'message' => 'Product sale inserted successfully',
         'id'      => (string)$newId,
     ]);
+}
+
+/**
+ * GetBocaPerKlient — Cylinders in the field per client (READ-ONLY)
+ *
+ * Calculates: SUM(sasia) - SUM(boca_te_kthyera) per client from distribuimi table.
+ * Same formula used on dashboard homepage, distribuimi page, and kontrata page.
+ *
+ * Params (GET, all optional):
+ *   client — partial match filter on client name
+ *
+ * Response: { status, message, totals: { boca_total_ne_terren, total_clients }, data: [{ klienti, boca }] }
+ */
+function handleGetBocaPerKlient($db) {
+    $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
+
+    // Build WHERE clause for optional client filter
+    $where = [];
+    $params = [];
+
+    if ($client !== '') {
+        $where[] = 'LOWER(TRIM(klienti)) LIKE ?';
+        $params[] = '%' . strtolower(trim($client)) . '%';
+    }
+
+    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    // Per-client cylinder count (READ-ONLY)
+    $sql = "
+        SELECT
+            MIN(klienti) AS klienti,
+            SUM(sasia) - SUM(boca_te_kthyera) AS boca
+        FROM distribuimi
+        {$whereSQL}
+        GROUP BY LOWER(klienti)
+        HAVING boca != 0
+        ORDER BY MIN(klienti)
+    ";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Global total — same formula as dashboard index.php
+    $globalStmt = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi");
+    $bocaTotalNeTerren = (int)$globalStmt->fetchColumn();
+
+    // Build response
+    $data = [];
+    foreach ($rows as $r) {
+        $data[] = [
+            'klienti' => $r['klienti'],
+            'boca'    => (string)(int)$r['boca'],
+        ];
+    }
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => count($data) . ' kliente me boca ne terren',
+        'totals'  => [
+            'boca_total_ne_terren' => (string)$bocaTotalNeTerren,
+            'total_clients'        => (string)count($data),
+        ],
+        'data' => $data,
+    ], JSON_UNESCAPED_UNICODE);
 }
