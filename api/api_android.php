@@ -61,6 +61,8 @@ try {
         handleApproveBorxh($db);
     } elseif (strpos($query, 'GetBocaPerKlient') !== false) {
         handleGetBocaPerKlient($db);
+    } elseif (strpos($query, 'GetNxemesePerKlient') !== false) {
+        handleGetNxemesePerKlient($db);
     } elseif (strpos($query, 'InsertProductSale') !== false) {
         handleInsertProductSale($db);
     } elseif (strpos($query, 'getSalesLastReport') !== false) {
@@ -1137,6 +1139,69 @@ function handleGetBocaPerKlient($db) {
         'totals'  => [
             'boca_total_ne_terren' => (string)$bocaTotalNeTerren,
             'total_clients'        => (string)count($data),
+        ],
+        'data' => $data,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * GetNxemesePerKlient — Heaters in the field per client (READ-ONLY)
+ *
+ * Same logic as GetBocaPerKlient but from nxemese table.
+ * Calculates: SUM(te_dhena) - SUM(te_marra) per client.
+ *
+ * Params (GET, all optional):
+ *   client — partial match filter on client name
+ *
+ * Response: { status, message, totals: { nxemese_total_ne_terren, total_clients }, data: [{ klienti, ne_terren }] }
+ */
+function handleGetNxemesePerKlient($db) {
+    $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
+
+    $where = [];
+    $params = [];
+
+    if ($client !== '') {
+        $where[] = 'LOWER(TRIM(klienti)) LIKE ?';
+        $params[] = '%' . strtolower(trim($client)) . '%';
+    }
+
+    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    // Per-client heater count (READ-ONLY)
+    $sql = "
+        SELECT
+            MIN(klienti) AS klienti,
+            SUM(te_dhena) - SUM(te_marra) AS ne_terren
+        FROM nxemese
+        {$whereSQL}
+        GROUP BY LOWER(klienti)
+        HAVING ne_terren != 0
+        ORDER BY MIN(klienti)
+    ";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Global total — same formula as nxemese.php
+    $globalStmt = $db->query("SELECT COALESCE(SUM(te_dhena) - SUM(te_marra), 0) FROM nxemese");
+    $nxemeseTotalNeTerren = (int)$globalStmt->fetchColumn();
+
+    $data = [];
+    foreach ($rows as $r) {
+        $data[] = [
+            'klienti'   => $r['klienti'],
+            'ne_terren' => (string)(int)$r['ne_terren'],
+        ];
+    }
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => count($data) . ' kliente me nxemese ne terren',
+        'totals'  => [
+            'nxemese_total_ne_terren' => (string)$nxemeseTotalNeTerren,
+            'total_clients'           => (string)count($data),
         ],
         'data' => $data,
     ], JSON_UNESCAPED_UNICODE);
