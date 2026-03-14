@@ -20,6 +20,9 @@ GMAIL_APP_PASSWORD=
 # Android API Key (must match RailwayClient.java)
 ANDROID_API_KEY=darn-android-2026-secure-key
 
+# ARBK Business Registry API (arbk.micro-devs.com)
+ARBK_API_KEY=arbk_nMNlAR8dh7JGcbVHSUmeEJc5VtnILla1wdDMKx5OBzD4ndioutghSK9vwLsc
+
 # GoDaddy Sync API
 GODADDY_API_URL=http://adaptive.darn-group.com/dashboard_export.php
 GODADDY_API_KEY=darn-dashboard-2026-secure-key
