@@ -1281,33 +1281,49 @@ function handleSearchARBK() {
         return;
     }
 
-    // Debug: if _debug param is set, return raw response to inspect field names
-    if (isset($_GET['_debug'])) {
-        echo json_encode(['status' => '1', 'message' => 'DEBUG: raw ARBK response', 'raw' => $arbkData], JSON_UNESCAPED_UNICODE);
-        return;
-    }
-
-    // Normalize: the micro-devs API may return data in various formats
-    // We standardize to our expected field names
+    // Normalize: micro-devs API response structure:
+    //   { success, count, data: [{ business_name, trade_name, unique_identification_number,
+    //     fiscal_number, status (bool), data: { teDhenatBiznesit: { NUI, Komuna, Adresa,
+    //     Telefoni, Email, LlojiBiznesit, StatusiARBK, ... }, perfaqesuesit: [...] } }] }
     $results = [];
-    $items = $arbkData['data'] ?? $arbkData['results'] ?? $arbkData;
-    if (!is_array($items)) {
-        $items = [];
-    }
-    // If it's a single result (e.g., search by NUI), wrap in array
-    if (!empty($items) && !isset($items[0])) {
-        $items = [$items];
-    }
+    $items = $arbkData['data'] ?? [];
+    if (!is_array($items)) $items = [];
+    // If single result, wrap in array
+    if (!empty($items) && !isset($items[0])) $items = [$items];
 
     foreach ($items as $item) {
         if (!is_array($item)) continue;
+
+        $details = $item['data']['teDhenatBiznesit'] ?? [];
+        $reps    = $item['data']['perfaqesuesit'] ?? [];
+
+        // Get representative name (first one)
+        $repName = '';
+        if (!empty($reps) && is_array($reps[0])) {
+            $repName = trim(($reps[0]['Emri'] ?? '') . ' ' . ($reps[0]['Mbiemri'] ?? ''));
+        }
+
+        // Get NUI from nested data (more reliable) or top-level
+        $nui = $details['NUI'] ?? $item['unique_identification_number'] ?? '';
+
+        // Get status text from nested data (e.g., "Regjistruar", "Shuar-05/03/2018")
+        $statusText = $details['StatusiARBK'] ?? '';
+        if ($statusText === '' && isset($item['status'])) {
+            $statusText = $item['status'] ? 'Aktiv' : 'Joaktiv';
+        }
+
         $results[] = [
-            'emri'            => $item['emri'] ?? $item['name'] ?? $item['Emri'] ?? '',
-            'emri_tregtar'    => $item['emri_tregtar'] ?? $item['tradeName'] ?? $item['Emri tregtar'] ?? '',
-            'nui'             => $item['nui'] ?? $item['NUI'] ?? $item['uniqueNumber'] ?? '',
-            'komuna'          => $item['komuna'] ?? $item['municipality'] ?? $item['Komuna'] ?? '',
-            'lloji_biznesit'  => $item['lloji_biznesit'] ?? $item['businessType'] ?? $item['Lloji biznesit'] ?? '',
-            'statusi'         => $item['statusi'] ?? $item['status'] ?? $item['Statusi'] ?? '',
+            'emri'            => $item['business_name'] ?? $details['EmriBiznesit'] ?? '',
+            'emri_tregtar'    => $item['trade_name'] ?? $details['EmriTregtar'] ?? '',
+            'nui'             => $nui,
+            'komuna'          => $details['Komuna'] ?? '',
+            'lloji_biznesit'  => $details['LlojiBiznesit'] ?? '',
+            'statusi'         => $statusText,
+            'adresa'          => $details['Adresa'] ?? '',
+            'telefoni'        => $details['Telefoni'] ?? '',
+            'email'           => $details['Email'] ?? '',
+            'numri_fiskal'    => $details['NumriFiskal'] ?? $item['fiscal_number'] ?? '',
+            'perfaqesuesi'    => $repName,
         ];
     }
 
