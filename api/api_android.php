@@ -1281,6 +1281,12 @@ function handleSearchARBK() {
         return;
     }
 
+    // Debug: if _debug param is set, return raw response to inspect field names
+    if (isset($_GET['_debug'])) {
+        echo json_encode(['status' => '1', 'message' => 'DEBUG: raw ARBK response', 'raw' => $arbkData], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
     // Normalize: the micro-devs API may return data in various formats
     // We standardize to our expected field names
     $results = [];
