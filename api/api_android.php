@@ -504,15 +504,37 @@ function handleGetBorxhet($db) {
 
     // Calculate borxhi_mbledhur (collected debts) from changelog
     // These are transactions that were changed from BANK → CASH via collect_borxh
-    $borxhiMbledhurStmt = $db->query("
+    // Only count non-reverted entries, and respect same date/client filters as main query
+    $borxhiWhere = [
+        "c.table_name = 'distribuimi'",
+        "c.field_name = 'menyra_e_pageses'",
+        "LOWER(TRIM(c.old_value)) = 'bank'",
+        "LOWER(TRIM(c.new_value)) = 'cash'",
+        "c.reverted = 0"
+    ];
+    $borxhiParams = [];
+
+    // Respect date filters (filter by the distribuimi row's date, same as main query)
+    if ($dateFrom !== '') {
+        $borxhiWhere[] = 'd.data >= ?';
+        $borxhiParams[] = $dateFrom;
+    }
+    // date_to: main query doesn't filter by date_to on distribuimi, so we don't either
+
+    // Respect client filter
+    if ($client !== '') {
+        $borxhiWhere[] = 'LOWER(TRIM(d.klienti)) = LOWER(TRIM(?))';
+        $borxhiParams[] = $client;
+    }
+
+    $borxhiWhereSQL = 'WHERE ' . implode(' AND ', $borxhiWhere);
+    $borxhiMbledhurStmt = $db->prepare("
         SELECT COALESCE(SUM(d.pagesa), 0)
         FROM changelog c
         JOIN distribuimi d ON d.id = c.row_id
-        WHERE c.table_name = 'distribuimi'
-        AND c.field_name = 'menyra_e_pageses'
-        AND LOWER(TRIM(c.old_value)) = 'bank'
-        AND LOWER(TRIM(c.new_value)) = 'cash'
+        {$borxhiWhereSQL}
     ");
+    $borxhiMbledhurStmt->execute($borxhiParams);
     $borxhiMbledhur = (float)$borxhiMbledhurStmt->fetchColumn();
     $formattedTotals['borxhi_mbledhur'] = number_format($borxhiMbledhur, 2, '.', '');
 
@@ -676,8 +698,8 @@ function handleUpdateBorxhiStatus($db) {
 
         // State validation (same as before — catch invalid actions early)
         if ($action === 'register_borxh') {
-            if ($currentPayment === 'bank') {
-                echo json_encode(['status' => '0', 'message' => 'Transaction is already marked as bank (debt). Cannot register again.']);
+            if ($currentPayment !== 'cash') {
+                echo json_encode(['status' => '0', 'message' => 'Vetem transaksionet CASH mund te regjistrohen si borxh. Aktuale: ' . $row['menyra_e_pageses']]);
                 return;
             }
             $newPayment = 'bank';
@@ -1473,7 +1495,8 @@ function handleGetBorxhCollections($db) {
     $limit       = isset($_GET['limit']) ? min((int)$_GET['limit'], 500) : 200;
     if ($limit <= 0) $limit = 200;
 
-    $where  = ["pb.status = 'approved'", "pb.new_menyra_e_pageses = 'cash'"];
+    // Only show collections where the distribuimi row is STILL cash (exclude reversed entries)
+    $where  = ["pb.status = 'approved'", "pb.new_menyra_e_pageses = 'cash'", "LOWER(TRIM(d.menyra_e_pageses)) = 'cash'"];
     $params = [];
 
     // Filter by collector (seller) name
@@ -1506,6 +1529,7 @@ function handleGetBorxhCollections($db) {
                 pb.approved_at,
                 pb.koment
             FROM pending_borxh pb
+            JOIN distribuimi d ON d.id = pb.distribuimi_id
             {$whereSQL}
             ORDER BY pb.approved_at DESC
             LIMIT {$limit}";
