@@ -320,6 +320,13 @@ if ($action === 'import_rows') {
             }
         }
 
+        // Auto-calculate litrat columns for distribuimi if they came in empty
+        // (Excel formula columns may not export values via SheetJS)
+        if ($tableName === 'distribuimi') {
+            $db->exec("UPDATE distribuimi SET litrat_total = sasia * litra WHERE (litrat_total IS NULL OR litrat_total = 0) AND sasia IS NOT NULL AND litra IS NOT NULL AND sasia > 0");
+            $db->exec("UPDATE distribuimi SET litrat_e_konvertuara = litra WHERE (litrat_e_konvertuara IS NULL OR litrat_e_konvertuara = 0) AND litra IS NOT NULL AND litra > 0");
+        }
+
         // Recalculate bilanci for gjendja_bankare
         if ($tableName === 'gjendja_bankare') {
             $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
@@ -336,6 +343,65 @@ if ($action === 'import_rows') {
 
         $db->commit();
 
+        // --- Post-import validation: catch silent data issues ---
+        $validationWarnings = [];
+
+        // Define expected non-empty numeric columns per table
+        $expectedColumns = [
+            'distribuimi' => [
+                'pagesa' => 'Pagesa (shitjet)',
+                'sasia' => 'Sasia (boca)',
+                'litra' => 'Litra',
+                'litrat_total' => 'Litrat total (sasia × litra)',
+                'litrat_e_konvertuara' => 'Litrat e konvertuara',
+            ],
+            'shpenzimet' => [
+                'shuma' => 'Shuma (shpenzimet)',
+            ],
+            'plini_depo' => [
+                'sasia_ne_litra' => 'Sasia ne litra',
+                'faturat_e_pranuara' => 'Faturat e pranuara',
+            ],
+            'gjendja_bankare' => [
+                'bilanci' => 'Bilanci',
+            ],
+        ];
+
+        if (isset($expectedColumns[$tableName])) {
+            $totalRows = (int)$db->query("SELECT COUNT(*) FROM `{$tableName}`")->fetchColumn();
+
+            foreach ($expectedColumns[$tableName] as $col => $label) {
+                // Check if column exists
+                try {
+                    $nonZero = (int)$db->query("SELECT COUNT(*) FROM `{$tableName}` WHERE `{$col}` IS NOT NULL AND `{$col}` != 0 AND `{$col}` != ''")->fetchColumn();
+                } catch (PDOException $e) {
+                    continue; // Column doesn't exist, skip
+                }
+
+                if ($nonZero === 0 && $totalRows > 0) {
+                    $validationWarnings[] = "⚠ '{$label}' ({$col}) ka 0 vlera — kolona mund të mos jetë importuar nga Excel!";
+                } elseif ($totalRows > 100 && $nonZero < ($totalRows * 0.05)) {
+                    $pct = round($nonZero / $totalRows * 100, 1);
+                    $validationWarnings[] = "⚠ '{$label}' ({$col}) ka vetëm {$nonZero}/{$totalRows} vlera ({$pct}%) — kontrollo nëse ka problem.";
+                }
+            }
+
+            // Table-specific cross-checks
+            if ($tableName === 'distribuimi' && $totalRows > 0) {
+                // Check payment method distribution isn't lopsided
+                $paymentMethods = $db->query("SELECT COUNT(DISTINCT LOWER(TRIM(menyra_e_pageses))) FROM distribuimi WHERE menyra_e_pageses IS NOT NULL AND menyra_e_pageses != ''")->fetchColumn();
+                if ((int)$paymentMethods < 2) {
+                    $validationWarnings[] = "⚠ Vetëm {$paymentMethods} mënyrë pagese u gjet — kontrollo kolonën 'menyra_e_pageses'.";
+                }
+
+                // Verify litrat totals are reasonable (not all same value)
+                $distinctLitra = (int)$db->query("SELECT COUNT(DISTINCT litrat_total) FROM distribuimi WHERE litrat_total > 0")->fetchColumn();
+                if ($distinctLitra === 1 && $totalRows > 100) {
+                    $validationWarnings[] = "⚠ 'litrat_total' ka vetëm 1 vlerë unike — mund të ketë problem me llogaritjen.";
+                }
+            }
+        }
+
         $response = ['success' => true, 'imported' => $imported, 'deleted' => $deleted];
         if (!empty($addedCols)) {
             $response['added_columns'] = $addedCols;
@@ -344,6 +410,9 @@ if ($action === 'import_rows') {
         if ($errors) {
             $response['errors'] = $errors;
             $response['warning'] = count($errors) . ' rreshta me gabime';
+        }
+        if (!empty($validationWarnings)) {
+            $response['validation_warnings'] = $validationWarnings;
         }
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
 

@@ -149,9 +149,9 @@ const TABLE_COUNTS = <?= json_encode($tableCounts) ?>;
 const SHEET_CONFIG = {
     'Distribuimi': {
         table: 'distribuimi', headerRow: 5,
-        columns: { 2:'klienti', 3:'data', 4:'sasia', 5:'boca_te_kthyera', 8:'litra', 9:'cmimi', 10:'pagesa', 11:'menyra_e_pageses', 12:'fatura_e_derguar', 13:'data_e_fletepageses', 14:'koment' },
+        columns: { 2:'klienti', 3:'data', 4:'sasia', 5:'boca_te_kthyera', 8:'litra', 9:'cmimi', 10:'pagesa', 11:'menyra_e_pageses', 12:'fatura_e_derguar', 13:'data_e_fletepageses', 14:'koment', 23:'litrat_total', 25:'litrat_e_konvertuara' },
         dateFields: ['data','data_e_fletepageses'],
-        numFields: ['sasia','boca_te_kthyera','litra','cmimi','pagesa']
+        numFields: ['sasia','boca_te_kthyera','litra','cmimi','pagesa','litrat_total','litrat_e_konvertuara']
     },
     'Shpenzimet': {
         table: 'shpenzimet', headerRow: 2,
@@ -495,6 +495,9 @@ async function startImport() {
                 totalImported += data.imported;
                 if (data.deleted) totalDeleted += data.deleted;
                 if (data.errors) totalErrors = totalErrors.concat(data.errors);
+                if (data.validation_warnings) {
+                    data.validation_warnings.forEach(w => addLog(`  ${w}`, 'error'));
+                }
 
                 if (chunks > 1) {
                     const pct = Math.round(((c + 1) / chunks) * 100);
