@@ -582,6 +582,8 @@ function handleGetClientTransactions($db) {
     // Status filter
     if ($statusFilter === 'bank') {
         $where[] = "LOWER(TRIM(menyra_e_pageses)) = 'bank'";
+    } elseif ($statusFilter === 'cash') {
+        $where[] = "LOWER(TRIM(menyra_e_pageses)) = 'cash'";
     } elseif ($statusFilter === 'not_bank') {
         $where[] = "LOWER(TRIM(menyra_e_pageses)) != 'bank'";
     }
