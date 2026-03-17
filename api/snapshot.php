@@ -3,6 +3,7 @@
  * Database Snapshot API
  * Creates and restores database snapshots (stored IN the database, not filesystem)
  * This ensures snapshots survive Railway deployments (ephemeral filesystem).
+ * Snapshot data is gzip-compressed to stay under max_allowed_packet / proxy limits.
  */
 ini_set('memory_limit', '1024M');
 require_once __DIR__ . '/../config/database.php';
@@ -22,14 +23,17 @@ $tables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata
 try {
     $db = getDB();
 
-    // Auto-create snapshots table if it doesn't exist
+    // Auto-create snapshots table if it doesn't exist (LONGBLOB for compressed data)
     $db->exec("CREATE TABLE IF NOT EXISTS snapshots (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         created_at DATETIME NOT NULL,
-        snapshot_data LONGTEXT NOT NULL,
+        snapshot_data LONGBLOB NOT NULL,
         size_bytes INT NOT NULL DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Migrate existing LONGTEXT column to LONGBLOB if needed
+    $db->exec("ALTER TABLE snapshots MODIFY COLUMN snapshot_data LONGBLOB NOT NULL");
 
     if ($action === 'create') {
         $name = $input['name'] ?? date('Y-m-d_H-i-s');
@@ -49,11 +53,15 @@ try {
         $sizeBytes = strlen($jsonData);
         $sizeMB = round($sizeBytes / 1048576, 2);
 
+        // Compress before storing to stay under packet limits
+        $compressed = gzencode($jsonData, 6);
+        $compressedMB = round(strlen($compressed) / 1048576, 2);
+
         // Insert or replace existing snapshot with same name
         $stmt = $db->prepare("REPLACE INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, NOW(), ?, ?)");
-        $stmt->execute([$name, $jsonData, $sizeBytes]);
+        $stmt->execute([$name, $compressed, $sizeBytes]);
 
-        echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u krijua ({$sizeMB} MB)"]);
+        echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u krijua ({$sizeMB} MB, compressed {$compressedMB} MB)"]);
 
     } elseif ($action === 'restore') {
         $name = $input['name'] ?? '';
@@ -61,11 +69,17 @@ try {
 
         $stmt = $db->prepare("SELECT snapshot_data FROM snapshots WHERE name = ?");
         $stmt->execute([$name]);
-        $jsonData = $stmt->fetchColumn();
+        $rawData = $stmt->fetchColumn();
 
-        if (!$jsonData) {
+        if (!$rawData) {
             echo json_encode(['success' => false, 'error' => 'Snapshot nuk u gjet']);
             exit;
+        }
+
+        // Decompress (handle both compressed and legacy uncompressed)
+        $jsonData = @gzdecode($rawData);
+        if ($jsonData === false) {
+            $jsonData = $rawData; // Legacy uncompressed snapshot
         }
 
         $snapshot = json_decode($jsonData, true);
@@ -148,8 +162,11 @@ try {
         $createdAt = $snapshot['created_at'] ?? date('Y-m-d H:i:s');
         $sizeBytes = strlen($jsonData);
 
+        // Compress before storing
+        $compressed = gzencode($jsonData, 6);
+
         $stmt = $db->prepare("REPLACE INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$name, $createdAt, $jsonData, $sizeBytes]);
+        $stmt->execute([$name, $createdAt, $compressed, $sizeBytes]);
 
         $sizeMB = round($sizeBytes / 1048576, 2);
         echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u importua ({$sizeMB} MB)"]);
@@ -190,8 +207,11 @@ try {
                 continue;
             }
 
+            // Compress before storing
+            $compressed = gzencode($jsonData, 6);
+
             $stmt = $db->prepare("INSERT INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$name, $createdAt, $jsonData, $sizeBytes]);
+            $stmt->execute([$name, $createdAt, $compressed, $sizeBytes]);
             $imported[] = ['name' => $name, 'size' => round($sizeBytes / 1048576, 2) . ' MB'];
         }
 
@@ -210,11 +230,17 @@ try {
 
         $stmt = $db->prepare("SELECT snapshot_data FROM snapshots WHERE name = ?");
         $stmt->execute([$name]);
-        $jsonData = $stmt->fetchColumn();
+        $rawData = $stmt->fetchColumn();
 
-        if (!$jsonData) {
+        if (!$rawData) {
             echo json_encode(['success' => false, 'error' => 'Snapshot nuk u gjet']);
             exit;
+        }
+
+        // Decompress (handle both compressed and legacy uncompressed)
+        $jsonData = @gzdecode($rawData);
+        if ($jsonData === false) {
+            $jsonData = $rawData;
         }
 
         if ($table) {
