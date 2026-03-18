@@ -595,7 +595,7 @@ function handleGetClientTransactions($db) {
 
     // Date filters
     if ($dateFrom !== '') {
-        $where[] = 'data >= ?';
+        $where[] = 'data > ?';
         $params[] = $dateFrom;
     }
     if ($dateTo !== '') {
