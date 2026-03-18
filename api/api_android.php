@@ -87,12 +87,40 @@ try {
 /**
  * GetAllClients — Returns client list matching GoDaddy's Get_Client_List_POJO format
  *
+ * Fetches client details (business name, address, fiscal number, email) from GoDaddy's
+ * api_product.php?GetAllClients. Falls back to local klientet table if GoDaddy is unreachable.
+ *
  * Expected by Android:
  * { "status": "1", "data": [{ "Name": "...", "Bussiness": "...", "Email": "...", ... }] }
  */
 function handleGetAllClients($db) {
-    // Get real client names from distribuimi (primary source — always clean)
-    // Then LEFT JOIN klientet for business info (email, address, fiscal number, etc.)
+    // Try fetching client details from GoDaddy (primary source for business info)
+    $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
+    $gdUrl = $gdBaseUrl . 'api_product.php?GetAllClients';
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $gdUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_USERAGENT      => 'DARN-Dashboard/1.0',
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response !== false && $httpCode === 200) {
+        $gdData = json_decode($response, true);
+        if ($gdData && isset($gdData['status']) && $gdData['status'] === '1' && !empty($gdData['data'])) {
+            // GoDaddy returned valid client data — pass it through directly
+            echo json_encode($gdData, JSON_UNESCAPED_UNICODE);
+            return;
+        }
+    }
+
+    // Fallback: use local klientet table if GoDaddy is unreachable
     $stmt = $db->query("
         SELECT
             d.klienti,
