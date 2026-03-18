@@ -179,7 +179,7 @@ const SHEET_CONFIG = {
     },
     'Gjendja bankare': {
         table: 'gjendja_bankare', headerRow: 12,
-        columns: { 0:'data', 1:'data_valutes', 2:'ora', 3:'shpjegim', 4:'valuta', 5:'debia', 6:'kredi', 7:'bilanci', 8:'deftesa', 9:'lloji' },
+        columns: { 0:'data', 1:'data_valutes', 2:'ora', 3:'shpjegim', 4:'valuta', 5:'debia', 6:'kredi', 7:'bilanci', 8:'deftesa', 9:'lloji', 10:'klienti' },
         dateFields: ['data','data_valutes'],
         numFields: ['debia','kredi','bilanci']
     },
