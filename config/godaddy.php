@@ -9,8 +9,9 @@
  *   GODADDY_API_KEY = darn-dashboard-2026-secure-key
  */
 
-define('GD_API_URL', getenv('GODADDY_API_URL') ?: 'http://testing.darn-group.com/dashboard_export.php');
-define('GD_API_KEY', getenv('GODADDY_API_KEY') ?: 'darn-dashboard-2026-secure-key');
+// Hardcoded to testing environment — no env var override
+define('GD_API_URL', 'http://testing.darn-group.com/dashboard_export.php');
+define('GD_API_KEY', 'darn-dashboard-2026-secure-key');
 
 /**
  * Call the GoDaddy export API using curl
