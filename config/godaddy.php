@@ -1,15 +1,15 @@
 <?php
 /**
  * GoDaddy HTTP API Connection
- * Fetches data from adaptive.darn-group.com/dashboard_export.php
+ * Fetches data from GoDaddy via dashboard_export.php proxy
  * (GoDaddy blocks remote MySQL, so we use an HTTP proxy instead)
  *
  * Set these in Railway dashboard → Variables:
- *   GODADDY_API_URL = http://adaptive.darn-group.com/dashboard_export.php
+ *   GODADDY_API_URL = http://testing.darn-group.com/dashboard_export.php
  *   GODADDY_API_KEY = darn-dashboard-2026-secure-key
  */
 
-define('GD_API_URL', getenv('GODADDY_API_URL') ?: 'http://adaptive.darn-group.com/dashboard_export.php');
+define('GD_API_URL', getenv('GODADDY_API_URL') ?: 'http://testing.darn-group.com/dashboard_export.php');
 define('GD_API_KEY', getenv('GODADDY_API_KEY') ?: 'darn-dashboard-2026-secure-key');
 
 /**
