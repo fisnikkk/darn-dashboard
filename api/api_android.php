@@ -95,6 +95,7 @@ try {
  */
 function handleGetAllClients($db) {
     // Try fetching client details from GoDaddy (primary source for business info)
+    require_once __DIR__ . '/../config/godaddy.php';
     $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
     $gdUrl = $gdBaseUrl . 'api_product.php?GetAllClients';
 
