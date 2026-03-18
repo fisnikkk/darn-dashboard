@@ -37,7 +37,7 @@ $filterDateTo = $_GET['date_to'] ?? '';
 // Multi-select column filters
 $fGbLloji = getFilterParam('f_lloji');
 $fGbValuta = getFilterParam('f_valuta');
-$fGbShpjegim = getFilterParam('f_shpjegim');
+$fGbShpjegimText = trim($_GET['f_shpjegim_text'] ?? '');
 $fGbDeftesa = getFilterParam('f_deftesa');
 $fGbKlienti = getFilterParam('f_klienti');
 
@@ -47,7 +47,7 @@ if ($filterDateFrom) { $gbWhere[] = "data >= ?"; $gbParams[] = $filterDateFrom; 
 if ($filterDateTo) { $gbWhere[] = "data <= ?"; $gbParams[] = $filterDateTo; }
 if ($fGbLloji) { $fin = buildFilterIn($fGbLloji, 'lloji'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbValuta) { $fin = buildFilterIn($fGbValuta, 'valuta'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
-if ($fGbShpjegim) { $fin = buildFilterIn($fGbShpjegim, 'shpjegim'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
+if ($fGbShpjegimText) { $gbWhere[] = "LOWER(shpjegim) LIKE CONCAT('%', LOWER(?), '%')"; $gbParams[] = $fGbShpjegimText; }
 if ($fGbDeftesa) { $fin = buildFilterIn($fGbDeftesa, 'deftesa'); $gbWhere[] = $fin['sql']; $gbParams = array_merge($gbParams, $fin['params']); }
 if ($fGbKlienti) {
     // Smart search: split search term into words and match ALL words against shpjegim.
@@ -113,8 +113,7 @@ $llojetFilter = $llojet;
 if (!in_array('', $llojetFilter)) array_unshift($llojetFilter, '');
 $gbValutat = $db->query("SELECT DISTINCT valuta FROM gjendja_bankare WHERE valuta IS NOT NULL AND valuta != '' ORDER BY valuta")->fetchAll(PDO::FETCH_COLUMN);
 if (!in_array('', $gbValutat)) array_unshift($gbValutat, '');
-$gbShpjegimVals = $db->query("SELECT DISTINCT shpjegim FROM gjendja_bankare WHERE shpjegim IS NOT NULL AND shpjegim != '' ORDER BY shpjegim LIMIT 3000")->fetchAll(PDO::FETCH_COLUMN);
-if (!in_array('', $gbShpjegimVals)) array_unshift($gbShpjegimVals, '');
+// Shpjegim uses text search filter (too many unique values for dropdown)
 $gbDeftesaVals = $db->query("SELECT DISTINCT deftesa FROM gjendja_bankare WHERE deftesa IS NOT NULL AND deftesa != '' ORDER BY deftesa LIMIT 3000")->fetchAll(PDO::FETCH_COLUMN);
 if (!in_array('', $gbDeftesaVals)) array_unshift($gbDeftesaVals, '');
 $gbKlientetVals = $db->query("SELECT DISTINCT klienti FROM gjendja_bankare WHERE klienti IS NOT NULL AND klienti != '' ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
@@ -205,7 +204,15 @@ ob_start();
                         <?= sortThGB('data', 'Data', $sortCol, $sortDir) ?>
                         <?= sortThGB('data_valutes', 'Data Valutës', $sortCol, $sortDir) ?>
                         <?= sortThGB('ora', 'Ora', $sortCol, $sortDir) ?>
-                        <?= withFilter(sortThGB('shpjegim', 'Shpjegim', $sortCol, $sortDir), 'f_shpjegim', $gbShpjegimVals) ?>
+                        <th class="server-sort" style="cursor:pointer;user-select:none;<?= $sortCol==='shpjegim' ? 'color:var(--primary);font-weight:600;' : '' ?>" onclick="if(event.target===this||event.target.tagName==='I'){window.location.href='?<?= http_build_query(array_merge($_GET, ['sort'=>'shpjegim','dir'=>($sortCol==='shpjegim'&&$sortDir==='ASC'?'DESC':'ASC'),'page'=>1])) ?>';}">
+                            Shpjegim <i class="fas <?= $sortCol==='shpjegim' ? ($sortDir==='ASC'?'fa-sort-up':'fa-sort-down') : 'fa-sort' ?>"></i>
+                            <div style="margin-top:4px;" onclick="event.stopPropagation();">
+                                <input type="text" id="shpjegimSearchInput" placeholder="Kerko..." autocomplete="off"
+                                    value="<?= e($fGbShpjegimText) ?>"
+                                    style="width:100%;padding:3px 6px;font-size:0.75rem;border:1px solid <?= $fGbShpjegimText ? 'var(--primary)' : 'var(--border)' ?>;border-radius:4px;<?= $fGbShpjegimText ? 'background:#eff6ff;font-weight:600;' : '' ?>"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();var p=new URLSearchParams(window.location.search);p.set('f_shpjegim_text',this.value.trim());p.set('page','1');window.location.search=p.toString();}">
+                            </div>
+                        </th>
                         <?= withFilter(sortThGB('valuta', 'Valuta', $sortCol, $sortDir), 'f_valuta', $gbValutat) ?>
                         <?= sortThGB('debia', 'Debi', $sortCol, $sortDir, 'num') ?>
                         <?= sortThGB('kredi', 'Kredi', $sortCol, $sortDir, 'num') ?>

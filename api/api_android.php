@@ -1163,15 +1163,16 @@ function handleApproveBorxh($db) {
             $newKoment = trim($newKoment);
         }
 
-        // Append the original requester's comment
+        // Store the requester's comment in borxh_koment (separate column)
         $reqComment = $pending['koment'] ?? '';
+        $borxhKoment = '';
         if ($reqComment !== '') {
-            $newKoment .= ($newKoment !== '' ? ' | ' : '') . $reqComment;
+            $borxhKoment = ($pending['requested_by'] ?? '') . ': ' . $reqComment;
         }
 
         // UPDATE distribuimi
-        $updateStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ?, koment = ? WHERE id = ?");
-        $updateStmt->execute([$newPayment, $newKoment, $distId]);
+        $updateStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ?, koment = ?, borxh_koment = ? WHERE id = ?");
+        $updateStmt->execute([$newPayment, $newKoment, $borxhKoment ?: null, $distId]);
 
         // Log to changelog — payment method change
         $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', ?, ?)");

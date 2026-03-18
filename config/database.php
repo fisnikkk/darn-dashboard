@@ -441,6 +441,14 @@ function runMigrations($pdo) {
             }
         } catch (PDOException $e) {}
 
+        // Add borxh_koment column to distribuimi for borxh approval comments
+        try {
+            $cols = $pdo->query("SHOW COLUMNS FROM distribuimi LIKE 'borxh_koment'")->fetchAll();
+            if (empty($cols)) {
+                $pdo->exec("ALTER TABLE distribuimi ADD COLUMN borxh_koment TEXT NULL AFTER koment");
+            }
+        } catch (PDOException $e) {}
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }

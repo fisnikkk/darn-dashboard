@@ -126,7 +126,7 @@ $sql = "
     )
     SELECT d.id, d.row_nr, d.klienti, d.data, d.sasia, d.boca_te_kthyera,
         d.litra, d.cmimi, d.pagesa, d.menyra_e_pageses,
-        d.data_e_fletepageses, d.fatura_e_derguar, d.litrat_total,
+        d.data_e_fletepageses, d.fatura_e_derguar, d.borxh_koment, d.litrat_total,
         t.boca_running, t.boca_total
     FROM distribuimi d
     JOIN totals t ON t.id = d.id
@@ -289,6 +289,7 @@ ob_start();
                         <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
                         <?= withFilter(sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir), 'f_data_fp', $distDataFpVals) ?>
                         <?= withFilter(sortTh('fatura_e_derguar', 'Komentet', $sortCol, $sortDir), 'f_komentet', $distKomentVals) ?>
+                        <?= sortTh('borxh_koment', 'Borxh Koment', $sortCol, $sortDir) ?>
                         <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
                         <th></th>
                     </tr>
@@ -326,6 +327,7 @@ ob_start();
                         </td>
                         <td class="editable" data-field="data_e_fletepageses" data-type="date"><?= $r['data_e_fletepageses'] ?></td>
                         <td class="editable truncate" data-field="fatura_e_derguar" title="<?= e($r['fatura_e_derguar']) ?>"><?= e($r['fatura_e_derguar']) ?></td>
+                        <td class="truncate" title="<?= e($r['borxh_koment'] ?? '') ?>" style="<?= ($r['borxh_koment'] ?? '') ? 'color:var(--primary);font-weight:500;' : '' ?>"><?= e($r['borxh_koment'] ?? '') ?></td>
                         <td class="num"><?= eur($r['litrat_total']) ?></td>
                         <td>
                             <button class="btn btn-danger btn-sm" onclick="deleteRow('distribuimi', <?= $r['id'] ?>)" title="Fshij">
