@@ -431,6 +431,16 @@ function runMigrations($pdo) {
             $pdo->exec("ALTER TABLE pending_borxh MODIFY COLUMN pagesa DECIMAL(12,2) DEFAULT 0");
         } catch (PDOException $e) {}
 
+        // Add source_table column to pending_borxh to distinguish delivery_report vs distribuimi IDs
+        // For Leje Borxhin: source_table='delivery_report', distribuimi_id stores delivery_report.ID
+        // For Merr Borxhin: source_table='distribuimi' (default), distribuimi_id stores distribuimi.id
+        try {
+            $cols = $pdo->query("SHOW COLUMNS FROM pending_borxh LIKE 'source_table'")->fetchAll();
+            if (empty($cols)) {
+                $pdo->exec("ALTER TABLE pending_borxh ADD COLUMN source_table VARCHAR(50) DEFAULT 'distribuimi' AFTER distribuimi_id");
+            }
+        } catch (PDOException $e) {}
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }

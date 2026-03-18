@@ -576,19 +576,20 @@ function handleGetClientTransactions($db) {
         return;
     }
 
-    // Auto-sync: pull latest delivery data from GoDaddy before querying
-    if ($dateFrom !== '' && $dateTo !== '') {
-        autoSyncFromGoDaddy($db, $dateFrom, $dateTo);
+    // LEJE BORXHIN: status_filter="cash" → query GoDaddy's delivery_report directly
+    // (No auto-sync — Lena's requirement #3: nothing gets synced automatically)
+    if ($statusFilter === 'cash') {
+        handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo);
+        return;
     }
 
+    // MERR BORXHIN and others: query distribuimi (unchanged)
     $where = ['LOWER(TRIM(klienti)) = ?'];
     $params = [strtolower(trim($clientName))];
 
     // Status filter
     if ($statusFilter === 'bank') {
         $where[] = "LOWER(TRIM(menyra_e_pageses)) = 'bank'";
-    } elseif ($statusFilter === 'cash') {
-        $where[] = "LOWER(TRIM(menyra_e_pageses)) = 'cash'";
     } elseif ($statusFilter === 'not_bank') {
         $where[] = "LOWER(TRIM(menyra_e_pageses)) != 'bank'";
     }
@@ -646,6 +647,91 @@ function handleGetClientTransactions($db) {
     ], JSON_UNESCAPED_UNICODE);
 }
 
+/**
+ * Helper: Fetch client transactions from GoDaddy's delivery_report for Leje Borxhin.
+ * Queries GoDaddy API (action=fetch) and filters by client name + PaymentMethod=CASH.
+ * Maps delivery_report columns to the same JSON format as the distribuimi query,
+ * so the Android app needs zero changes.
+ */
+function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo) {
+    require_once __DIR__ . '/../config/godaddy.php';
+
+    // Need dates for the GoDaddy fetch API
+    if ($dateTo === '') {
+        $dateTo = date('Y-m-d');
+    }
+    if ($dateFrom === '') {
+        $dateFrom = $dateTo;
+    }
+
+    $result = callGoDaddyAPI([
+        'action'    => 'fetch',
+        'date_from' => $dateFrom,
+        'date_to'   => $dateTo,
+    ]);
+
+    if (!$result || !($result['success'] ?? false)) {
+        echo json_encode([
+            'status'     => '0',
+            'message'    => 'Could not reach GoDaddy server. Try again later.',
+            'bank_total' => '0.00',
+            'data'       => [],
+        ]);
+        return;
+    }
+
+    $rows = $result['rows'] ?? [];
+    $data = [];
+
+    foreach ($rows as $row) {
+        // Filter by client name (case-insensitive)
+        if (strtolower(trim($row['Client'] ?? '')) !== strtolower(trim($clientName))) {
+            continue;
+        }
+
+        // Only show CASH transactions (these are the ones that can be registered as borxh)
+        $payment = strtoupper(trim($row['PaymentMethod'] ?? ''));
+        if ($payment !== 'CASH') {
+            continue;
+        }
+
+        // Date filter: data > dateFrom (same logic as distribuimi query)
+        $rowDate = $row['Date'] ?? '';
+        if ($dateFrom !== '' && $rowDate <= $dateFrom) {
+            continue;
+        }
+
+        // Map delivery_report columns to the expected response format
+        // (same field names as distribuimi query so Android app needs no changes)
+        $data[] = [
+            'id'                => (int)$row['ID'],
+            'data'              => $rowDate,
+            'sasia'             => (int)($row['DeliveredCylinders'] ?? 0),
+            'litra'             => number_format((float)($row['Volume'] ?? 0), 2, '.', ''),
+            'cmimi'             => number_format((float)($row['PricePer1L'] ?? 0), 4, '.', ''),
+            'pagesa'            => number_format((float)($row['TotalPrice'] ?? 0), 2, '.', ''),
+            'menyra_e_pageses'  => $row['PaymentMethod'] ?? '',
+            'koment'            => trim($row['Comment'] ?? ''),
+        ];
+    }
+
+    // Sort by date DESC, ID DESC (matching distribuimi behavior)
+    usort($data, function($a, $b) {
+        $cmp = strcmp($b['data'], $a['data']);
+        return $cmp !== 0 ? $cmp : ($b['id'] - $a['id']);
+    });
+
+    // Limit to 200
+    $data = array_slice($data, 0, 200);
+
+    echo json_encode([
+        'status'     => '1',
+        'message'    => count($data) . ' transactions found',
+        'bank_total' => '0.00',
+        'data'       => $data,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
 
 /**
  * UpdateBorxhiStatus — Change payment status on a specific distribuimi transaction.
@@ -691,71 +777,128 @@ function handleUpdateBorxhiStatus($db) {
     }
 
     try {
-        // Fetch current row to validate state and get info for pending record
-        $stmt = $db->prepare("SELECT id, klienti, data, menyra_e_pageses, koment, pagesa FROM distribuimi WHERE id = ?");
-        $stmt->execute([$id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$row) {
-            echo json_encode(['status' => '0', 'message' => 'Transaction not found (ID: ' . $id . ')']);
-            return;
-        }
-
-        $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
-
-        // State validation (same as before — catch invalid actions early)
-        if ($action === 'register_borxh') {
-            if ($currentPayment !== 'cash') {
-                echo json_encode(['status' => '0', 'message' => 'Vetem transaksionet CASH mund te regjistrohen si borxh. Aktuale: ' . $row['menyra_e_pageses']]);
-                return;
-            }
-            $newPayment = 'bank';
-        } elseif ($action === 'collect_borxh') {
-            if ($currentPayment !== 'bank') {
-                echo json_encode(['status' => '0', 'message' => 'Transaction is not bank (debt). Cannot collect. Current status: ' . $row['menyra_e_pageses']]);
-                return;
-            }
-            $newPayment = 'cash';
-        }
-
-        // Check if there's already a pending request for this distribuimi row
-        $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND status = 'pending'");
-        $pendingCheck->execute([$id]);
-        if ($pendingCheck->fetch()) {
-            echo json_encode(['status' => '0', 'message' => 'Ka nje kerkese ne pritje per kete transaksion. Prisni miratimin.']);
-            return;
-        }
-
         // Build the comment that would be applied (for display in approval screen)
         $komentForPending = $userComment;
         if ($userName !== '') {
             $komentForPending .= ($komentForPending !== '' ? ' ' : '') . '(nga: ' . $userName . ')';
         }
 
-        // INSERT into pending_borxh instead of directly updating distribuimi
-        $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $insertStmt->execute([
-            $id,
-            $row['klienti'],
-            $row['menyra_e_pageses'],
-            $newPayment,
-            $row['pagesa'],
-            $row['data'],
-            $komentForPending,
-            $userName
-        ]);
+        if ($action === 'register_borxh') {
+            // ═══════════════════════════════════════════════════════════════
+            // LEJE BORXHIN — validate against GoDaddy's delivery_report
+            // The ID coming from the client app is a delivery_report.ID
+            // ═══════════════════════════════════════════════════════════════
+            require_once __DIR__ . '/../config/godaddy.php';
 
-        echo json_encode([
-            'status'  => '1',
-            'message' => 'Kerkesa u dergua per miratim. Prisni aprovimin nga admini.',
-            'data'    => [
-                'id'                    => $id,
-                'klienti'               => $row['klienti'],
-                'old_menyra_e_pageses'  => $row['menyra_e_pageses'],
-                'new_menyra_e_pageses'  => $newPayment,
-                'pending'               => true,
-            ],
-        ], JSON_UNESCAPED_UNICODE);
+            $gdResult = callGoDaddyAPI([
+                'action' => 'fetch_by_id',
+                'id'     => $id,
+            ]);
+
+            if (!$gdResult || !($gdResult['success'] ?? false)) {
+                echo json_encode(['status' => '0', 'message' => 'Could not verify record on GoDaddy. Try again later.']);
+                return;
+            }
+
+            $gdRow = $gdResult['row'];
+            $currentPayment = strtoupper(trim($gdRow['PaymentMethod'] ?? ''));
+
+            if ($currentPayment !== 'CASH') {
+                echo json_encode(['status' => '0', 'message' => 'Vetem transaksionet CASH mund te regjistrohen si borxh. Aktuale: ' . $gdRow['PaymentMethod']]);
+                return;
+            }
+
+            // Check for existing pending request (source_table-aware)
+            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'delivery_report' AND status = 'pending'");
+            $pendingCheck->execute([$id]);
+            if ($pendingCheck->fetch()) {
+                echo json_encode(['status' => '0', 'message' => 'Ka nje kerkese ne pritje per kete transaksion. Prisni miratimin.']);
+                return;
+            }
+
+            $newPayment = 'BANK';
+
+            // INSERT into pending_borxh with source_table='delivery_report'
+            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by) VALUES (?, 'delivery_report', ?, ?, ?, ?, ?, ?, ?)");
+            $insertStmt->execute([
+                $id,
+                $gdRow['Client'],
+                $gdRow['PaymentMethod'],
+                $newPayment,
+                (float)($gdRow['TotalPrice'] ?? 0),
+                $gdRow['Date'],
+                $komentForPending,
+                $userName
+            ]);
+
+            echo json_encode([
+                'status'  => '1',
+                'message' => 'Kerkesa u dergua per miratim. Prisni aprovimin nga admini.',
+                'data'    => [
+                    'id'                    => $id,
+                    'klienti'               => $gdRow['Client'],
+                    'old_menyra_e_pageses'  => $gdRow['PaymentMethod'],
+                    'new_menyra_e_pageses'  => $newPayment,
+                    'pending'               => true,
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+
+        } elseif ($action === 'collect_borxh') {
+            // ═══════════════════════════════════════════════════════════════
+            // MERR BORXHIN — validate against distribuimi (UNCHANGED logic)
+            // The ID coming from the client app is a distribuimi.id
+            // ═══════════════════════════════════════════════════════════════
+            $stmt = $db->prepare("SELECT id, klienti, data, menyra_e_pageses, koment, pagesa FROM distribuimi WHERE id = ?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                echo json_encode(['status' => '0', 'message' => 'Transaction not found (ID: ' . $id . ')']);
+                return;
+            }
+
+            $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
+
+            if ($currentPayment !== 'bank') {
+                echo json_encode(['status' => '0', 'message' => 'Transaction is not bank (debt). Cannot collect. Current status: ' . $row['menyra_e_pageses']]);
+                return;
+            }
+
+            $newPayment = 'cash';
+
+            // Check if there's already a pending request for this distribuimi row
+            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'distribuimi' AND status = 'pending'");
+            $pendingCheck->execute([$id]);
+            if ($pendingCheck->fetch()) {
+                echo json_encode(['status' => '0', 'message' => 'Ka nje kerkese ne pritje per kete transaksion. Prisni miratimin.']);
+                return;
+            }
+
+            // INSERT into pending_borxh with source_table='distribuimi'
+            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by) VALUES (?, 'distribuimi', ?, ?, ?, ?, ?, ?, ?)");
+            $insertStmt->execute([
+                $id,
+                $row['klienti'],
+                $row['menyra_e_pageses'],
+                $newPayment,
+                $row['pagesa'],
+                $row['data'],
+                $komentForPending,
+                $userName
+            ]);
+
+            echo json_encode([
+                'status'  => '1',
+                'message' => 'Kerkesa u dergua per miratim. Prisni aprovimin nga admini.',
+                'data'    => [
+                    'id'                    => $id,
+                    'klienti'               => $row['klienti'],
+                    'old_menyra_e_pageses'  => $row['menyra_e_pageses'],
+                    'new_menyra_e_pageses'  => $newPayment,
+                    'pending'               => true,
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+        }
 
     } catch (Exception $e) {
         error_log('UpdateBorxhiStatus error: ' . $e->getMessage());
@@ -779,7 +922,7 @@ function handleGetPendingBorxh($db) {
 
     $sql = "SELECT p.*, d.sasia, d.litra, d.cmimi, d.menyra_e_pageses AS current_payment
             FROM pending_borxh p
-            LEFT JOIN distribuimi d ON d.id = p.distribuimi_id";
+            LEFT JOIN distribuimi d ON d.id = p.distribuimi_id AND p.source_table = 'distribuimi'";
 
     $params = [];
     if ($status !== 'all') {
@@ -872,8 +1015,79 @@ function handleApproveBorxh($db) {
             return;
         }
 
-        // APPROVE — perform the actual distribuimi update (same logic as old direct update)
-        $distId = (int)$pending['distribuimi_id'];
+        // APPROVE — branch based on source_table
+        $distId      = (int)$pending['distribuimi_id'];
+        $sourceTable = $pending['source_table'] ?? 'distribuimi';
+        $newPayment  = $pending['new_menyra_e_pageses'];
+
+        if ($sourceTable === 'delivery_report') {
+            // ═══════════════════════════════════════════════════════════════
+            // LEJE BORXHIN APPROVAL — update GoDaddy's delivery_report
+            // ═══════════════════════════════════════════════════════════════
+            require_once __DIR__ . '/../config/godaddy.php';
+
+            // Re-validate current state from GoDaddy
+            $gdResult = callGoDaddyAPI(['action' => 'fetch_by_id', 'id' => $distId]);
+            if (!$gdResult || !($gdResult['success'] ?? false)) {
+                $db->rollBack();
+                echo json_encode(['status' => '0', 'message' => 'Cannot reach GoDaddy to verify record. Try again later.']);
+                return;
+            }
+
+            $gdRow = $gdResult['row'];
+            $currentPayment = strtoupper(trim($gdRow['PaymentMethod'] ?? ''));
+
+            if ($currentPayment === 'BANK') {
+                $db->rollBack();
+                echo json_encode(['status' => '0', 'message' => 'Record is already BANK on GoDaddy. State has changed since request.']);
+                return;
+            }
+
+            // Call GoDaddy to update PaymentMethod
+            $updateResult = callGoDaddyAPI([
+                'action'      => 'update_payment',
+                'id'          => $distId,
+                'new_payment' => $newPayment,
+            ]);
+
+            if (!$updateResult || !($updateResult['success'] ?? false)) {
+                $db->rollBack();
+                $error = $updateResult['error'] ?? 'Unknown error';
+                echo json_encode(['status' => '0', 'message' => 'GoDaddy update failed: ' . $error]);
+                return;
+            }
+
+            // Log to changelog (table_name = 'delivery_report' for audit trail)
+            $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'PaymentMethod', ?, ?)");
+            $logStmt->execute([$distId, $gdRow['PaymentMethod'], $newPayment]);
+
+            // Log approval action
+            $approvalLog = 'Approved by ' . $adminUser . ', requested by ' . ($pending['requested_by'] ?? 'unknown');
+            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'borxh_approval', ?, ?)");
+            $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
+
+            // Mark pending request as approved
+            $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+            $approveStmt->execute([$adminUser, $pendingId]);
+
+            $db->commit();
+
+            echo json_encode([
+                'status'  => '1',
+                'message' => 'Borxhi u miratua — PaymentMethod u ndryshua ne GoDaddy',
+                'data'    => [
+                    'id'                    => $distId,
+                    'klienti'               => $pending['klienti'],
+                    'old_menyra_e_pageses'  => $gdRow['PaymentMethod'],
+                    'new_menyra_e_pageses'  => $newPayment,
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // MERR BORXHIN APPROVAL — update distribuimi (UNCHANGED logic)
+        // ═══════════════════════════════════════════════════════════════
 
         // Fetch current distribuimi row (locked)
         $dStmt = $db->prepare("SELECT id, klienti, menyra_e_pageses, koment FROM distribuimi WHERE id = ? FOR UPDATE");
@@ -888,7 +1102,6 @@ function handleApproveBorxh($db) {
 
         $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
         $currentKoment  = $row['koment'] ?? '';
-        $newPayment     = $pending['new_menyra_e_pageses'];
         $action         = ($newPayment === 'bank') ? 'register_borxh' : 'collect_borxh';
 
         // Re-validate state (row may have changed since the request was made)
@@ -1536,7 +1749,7 @@ function handleGetBorxhCollections($db) {
                 pb.approved_at,
                 pb.koment
             FROM pending_borxh pb
-            JOIN distribuimi d ON d.id = pb.distribuimi_id
+            JOIN distribuimi d ON d.id = pb.distribuimi_id AND pb.source_table = 'distribuimi'
             {$whereSQL}
             ORDER BY pb.approved_at DESC
             LIMIT {$limit}";
