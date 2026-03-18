@@ -1086,6 +1086,16 @@ function handleApproveBorxh($db) {
                 return;
             }
 
+            // Store row context for the log page (delivery_report doesn't exist in local DB)
+            $contextJson = json_encode([
+                'klienti'           => $gdRow['Client'] ?? $pending['klienti'],
+                'data'              => $gdRow['Date'] ?? '',
+                'pagesa'            => $gdRow['TotalPrice'] ?? '',
+                'menyra_e_pageses'  => $newPayment,
+            ], JSON_UNESCAPED_UNICODE);
+            $ctxStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, '_row_context', NULL, ?)");
+            $ctxStmt->execute([$distId, $contextJson]);
+
             // Log to changelog (table_name = 'delivery_report' for audit trail)
             $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'PaymentMethod', ?, ?)");
             $logStmt->execute([$distId, $gdRow['PaymentMethod'], $newPayment]);

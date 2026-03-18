@@ -89,6 +89,7 @@ $keyFields = [
     'klientet' => ['klienti'],
     'stoku_zyrtar' => ['produkti', 'sasia'],
     'depo' => ['produkti', 'sasia'],
+    'delivery_report' => ['klienti', 'data', 'pagesa', 'menyra_e_pageses'],
 ];
 
 // Human-friendly value formatting for specific fields
@@ -119,7 +120,7 @@ $valueFormatters = [
 ];
 
 // Fields to completely hide from changelog (noise)
-$hiddenFields = ['e_kontrolluar'];
+$hiddenFields = ['e_kontrolluar', '_row_context'];
 
 // Helper to format a value for display
 function formatFieldValue($fieldName, $value, $valueFormatters) {
@@ -232,7 +233,22 @@ foreach ($contextNeeded as $tbl => $ids) {
     foreach (array_keys($ids) as $rid) {
         $ctxKey = "{$tbl}:{$rid}";
         if (isset($rowContext[$ctxKey])) continue; // already found in DB
-        // Look for an insert or delete changelog entry that has JSON for this row
+
+        // Step 2a: Look for _row_context entries (used for delivery_report and other remote tables)
+        try {
+            $ctxStmt = $db->prepare("SELECT new_value FROM changelog WHERE table_name = ? AND row_id = ? AND field_name = '_row_context' ORDER BY created_at DESC LIMIT 1");
+            $ctxStmt->execute([$tbl, $rid]);
+            $ctxRow = $ctxStmt->fetch();
+            if ($ctxRow) {
+                $data = json_decode($ctxRow['new_value'] ?? '{}', true);
+                if ($data && is_array($data)) {
+                    $rowContext[$ctxKey] = $data;
+                    continue;
+                }
+            }
+        } catch (PDOException $e) {}
+
+        // Step 2b: Look for an insert or delete changelog entry that has JSON for this row
         try {
             $fbStmt = $db->prepare("SELECT action_type, old_value, new_value FROM changelog WHERE table_name = ? AND row_id = ? AND action_type IN ('insert','delete') ORDER BY created_at DESC LIMIT 1");
             $fbStmt->execute([$tbl, $rid]);
