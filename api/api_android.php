@@ -576,6 +576,11 @@ function handleGetClientTransactions($db) {
         return;
     }
 
+    // Auto-sync: pull latest delivery data from GoDaddy before querying
+    if ($dateFrom !== '' && $dateTo !== '') {
+        autoSyncFromGoDaddy($db, $dateFrom, $dateTo);
+    }
+
     $where = ['LOWER(TRIM(klienti)) = ?'];
     $params = [strtolower(trim($clientName))];
 
