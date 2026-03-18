@@ -1509,7 +1509,7 @@ function handleGetBorxhCollections($db) {
 
     // Date filters on approval date
     if ($dateFrom !== '') {
-        $where[]  = 'DATE(pb.approved_at) >= ?';
+        $where[]  = 'DATE(pb.approved_at) > ?';
         $params[] = $dateFrom;
     }
     if ($dateTo !== '') {
