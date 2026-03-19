@@ -101,19 +101,23 @@ function handlePreview($db, $input) {
 
     $gdRows = fetchGoDaddyRows($dateFrom, $dateTo);
 
-    // Check which ones already exist in distribuimi (by matching key fields)
+    // Check which ones already exist in distribuimi (by GoDaddy's unique row ID)
     $mapped = [];
     $duplicates = 0;
     foreach ($gdRows as $row) {
         $m = mapRow($row);
+        $gdId = (int)($row['ID'] ?? 0);
 
-        // Check for duplicate: same klienti + data + sasia + pagesa
-        $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
-        $dup->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
-        $exists = (int)$dup->fetchColumn() > 0;
+        // Check for duplicate using GoDaddy's unique row ID (bulletproof)
+        $exists = false;
+        if ($gdId > 0) {
+            $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
+            $dup->execute([$gdId]);
+            $exists = (int)$dup->fetchColumn() > 0;
+        }
 
         $m['_duplicate'] = $exists;
-        $m['_godaddy_id'] = (int)($row['ID'] ?? 0);
+        $m['_godaddy_id'] = $gdId;
         if ($exists) $duplicates++;
         $mapped[] = $m;
     }
@@ -152,18 +156,21 @@ function handleImport($db, $input) {
     $inserted = 0;
     $skipped = 0;
 
-    $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara, isCylinder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara, isCylinder, godaddy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     $insertStmt = $db->prepare($insertSQL);
 
     foreach ($gdRows as $row) {
         $m = mapRow($row);
+        $gdId = (int)($row['ID'] ?? 0);
 
-        // Skip duplicates: same klienti + data + sasia + pagesa
-        $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
-        $dup->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
-        if ((int)$dup->fetchColumn() > 0) {
-            $skipped++;
-            continue;
+        // Skip duplicates: check by GoDaddy's unique row ID (bulletproof — never skips legitimate separate deliveries)
+        if ($gdId > 0) {
+            $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
+            $dup->execute([$gdId]);
+            if ((int)$dup->fetchColumn() > 0) {
+                $skipped++;
+                continue;
+            }
         }
 
         $insertStmt->execute([
@@ -179,10 +186,12 @@ function handleImport($db, $input) {
             $m['litrat_total'],
             $m['litrat_e_konvertuara'],
             $m['isCylinder'],
+            $gdId > 0 ? $gdId : null,
         ]);
         $newId = $db->lastInsertId();
 
         // Log to changelog with batch_id
+        $m['_godaddy_id'] = $gdId;
         $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?, ?)")
             ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE), $batchId]);
 

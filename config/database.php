@@ -449,6 +449,16 @@ function runMigrations($pdo) {
             }
         } catch (PDOException $e) {}
 
+        // Add godaddy_id column to distribuimi for bulletproof GoDaddy sync deduplication
+        // Each GoDaddy delivery_report row has a unique ID — we store it to prevent duplicate imports
+        try {
+            $cols = $pdo->query("SHOW COLUMNS FROM distribuimi LIKE 'godaddy_id'")->fetchAll();
+            if (empty($cols)) {
+                $pdo->exec("ALTER TABLE distribuimi ADD COLUMN godaddy_id INT NULL");
+                $pdo->exec("CREATE UNIQUE INDEX idx_godaddy_id ON distribuimi (godaddy_id)");
+            }
+        } catch (PDOException $e) {}
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
     }

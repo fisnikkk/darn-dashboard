@@ -30,12 +30,15 @@ CREATE TABLE distribuimi (
     -- Col V (Month) = CALCULATED: DATE_FORMAT(data, '%b%Y')
     litrat_total DECIMAL(10,2) DEFAULT 0,    -- Col X: Litrat total (stored from Excel, originally sasia * litra)
     litrat_e_konvertuara DECIMAL(10,2) NULL, -- Col Z: Litrat e konvertuara (may differ from litrat_total)
+    isCylinder VARCHAR(10) DEFAULT '0',     -- 0=Cylinder, 1=Product, 2=Heater (from GoDaddy sync)
+    godaddy_id INT NULL,                     -- Unique row ID from GoDaddy delivery_report (for dedup)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_klienti (klienti),
     INDEX idx_data (data),
     INDEX idx_menyra (menyra_e_pageses),
-    INDEX idx_klienti_data (klienti, data)
+    INDEX idx_klienti_data (klienti, data),
+    UNIQUE INDEX idx_godaddy_id (godaddy_id)
 ) ENGINE=InnoDB;
 
 -- ============================================================
