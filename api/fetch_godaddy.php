@@ -108,12 +108,19 @@ function handlePreview($db, $input) {
         $m = mapRow($row);
         $gdId = (int)($row['ID'] ?? 0);
 
-        // Check for duplicate using GoDaddy's unique row ID (bulletproof)
+        // Check for duplicate: first by godaddy_id (exact match), then fallback to field match
+        // (catches rows imported from Excel before godaddy_id existed)
         $exists = false;
         if ($gdId > 0) {
             $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
             $dup->execute([$gdId]);
             $exists = (int)$dup->fetchColumn() > 0;
+        }
+        if (!$exists) {
+            // Fallback: check old-style match for Excel-imported rows (godaddy_id IS NULL)
+            $dup2 = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
+            $dup2->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
+            $exists = (int)$dup2->fetchColumn() > 0;
         }
 
         $m['_duplicate'] = $exists;
@@ -163,14 +170,22 @@ function handleImport($db, $input) {
         $m = mapRow($row);
         $gdId = (int)($row['ID'] ?? 0);
 
-        // Skip duplicates: check by GoDaddy's unique row ID (bulletproof — never skips legitimate separate deliveries)
+        // Skip duplicates: first by godaddy_id, then fallback for Excel-imported rows
+        $isDup = false;
         if ($gdId > 0) {
             $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
             $dup->execute([$gdId]);
-            if ((int)$dup->fetchColumn() > 0) {
-                $skipped++;
-                continue;
-            }
+            $isDup = (int)$dup->fetchColumn() > 0;
+        }
+        if (!$isDup) {
+            // Fallback: check old-style match for rows imported from Excel (godaddy_id IS NULL)
+            $dup2 = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
+            $dup2->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
+            $isDup = (int)$dup2->fetchColumn() > 0;
+        }
+        if ($isDup) {
+            $skipped++;
+            continue;
         }
 
         $insertStmt->execute([
