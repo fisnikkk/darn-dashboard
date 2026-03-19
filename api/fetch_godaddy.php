@@ -102,14 +102,16 @@ function handlePreview($db, $input) {
     $gdRows = fetchGoDaddyRows($dateFrom, $dateTo);
 
     // Check which ones already exist in distribuimi (by GoDaddy's unique row ID)
+    // For the fallback (Excel rows without godaddy_id), track how many we've "virtually claimed"
+    // so that two identical GoDaddy rows don't both match against one Excel row
     $mapped = [];
     $duplicates = 0;
+    $fallbackClaimed = []; // key => count of Excel rows already "used" by earlier GoDaddy rows in this batch
     foreach ($gdRows as $row) {
         $m = mapRow($row);
         $gdId = (int)($row['ID'] ?? 0);
 
-        // Check for duplicate: first by godaddy_id (exact match), then fallback to field match
-        // (catches rows imported from Excel before godaddy_id existed)
+        // Check for duplicate: first by godaddy_id (exact match)
         $exists = false;
         if ($gdId > 0) {
             $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
@@ -117,10 +119,16 @@ function handlePreview($db, $input) {
             $exists = (int)$dup->fetchColumn() > 0;
         }
         if (!$exists) {
-            // Fallback: check old-style match for Excel-imported rows (godaddy_id IS NULL)
+            // Fallback: compare count of unclaimed Excel rows vs GoDaddy rows already matched in this batch
+            $fallbackKey = $m['klienti'] . '|' . $m['data'] . '|' . $m['sasia'] . '|' . $m['pagesa'];
             $dup2 = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
             $dup2->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
-            $exists = (int)$dup2->fetchColumn() > 0;
+            $excelCount = (int)$dup2->fetchColumn();
+            $alreadyClaimed = $fallbackClaimed[$fallbackKey] ?? 0;
+            if ($alreadyClaimed < $excelCount) {
+                $exists = true;
+                $fallbackClaimed[$fallbackKey] = $alreadyClaimed + 1;
+            }
         }
 
         $m['_duplicate'] = $exists;
@@ -177,11 +185,18 @@ function handleImport($db, $input) {
             $dup->execute([$gdId]);
             $isDup = (int)$dup->fetchColumn() > 0;
         }
-        if (!$isDup) {
-            // Fallback: check old-style match for rows imported from Excel (godaddy_id IS NULL)
-            $dup2 = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
+        if (!$isDup && $gdId > 0) {
+            // Fallback: find ONE Excel-imported row (godaddy_id IS NULL) with matching fields
+            // If found, "claim" it by setting its godaddy_id so the same Excel row can't match twice
+            // (prevents skipping a second identical GoDaddy delivery against the same single Excel row)
+            $dup2 = $db->prepare("SELECT id FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ? LIMIT 1");
             $dup2->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
-            $isDup = (int)$dup2->fetchColumn() > 0;
+            $excelRowId = $dup2->fetchColumn();
+            if ($excelRowId) {
+                // Claim this Excel row — set its godaddy_id so it won't match again
+                $db->prepare("UPDATE distribuimi SET godaddy_id = ? WHERE id = ?")->execute([$gdId, (int)$excelRowId]);
+                $isDup = true;
+            }
         }
         if ($isDup) {
             $skipped++;
