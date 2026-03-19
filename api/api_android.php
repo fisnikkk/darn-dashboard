@@ -189,8 +189,8 @@ function handleGetInvoiceFromToDate($db) {
         return;
     }
 
-    // Auto-sync: fetch latest data from GoDaddy for this date range before querying
-    autoSyncFromGoDaddy($db, $startDate, $endDate);
+    // Auto-sync DISABLED — was causing duplicate rows in distribuimi after Excel imports
+    // autoSyncFromGoDaddy($db, $startDate, $endDate);
 
     // Build query with isType filter
     // isType: 0=Cylinder (isCylinder=0), 1=Product (isCylinder=1), 2=All, 3=Heater (isCylinder=2)
