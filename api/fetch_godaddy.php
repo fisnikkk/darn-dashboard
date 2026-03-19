@@ -152,7 +152,7 @@ function handleImport($db, $input) {
     $inserted = 0;
     $skipped = 0;
 
-    $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara, isCylinder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     $insertStmt = $db->prepare($insertSQL);
 
     foreach ($gdRows as $row) {
@@ -178,6 +178,7 @@ function handleImport($db, $input) {
             $m['fatura_e_derguar'],
             $m['litrat_total'],
             $m['litrat_e_konvertuara'],
+            $m['isCylinder'],
         ]);
         $newId = $db->lastInsertId();
 
@@ -326,5 +327,6 @@ function mapRow($row) {
         'fatura_e_derguar'     => trim($row['Comment'] ?? ''),
         'litrat_total'         => round($sasia * $litra, 2),
         'litrat_e_konvertuara' => $litra,
+        'isCylinder'           => $row['isCylinder'] ?? '0',
     ];
 }

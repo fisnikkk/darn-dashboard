@@ -182,7 +182,7 @@ function handleGetInvoiceFromToDate($db) {
     $clientName = $_GET['clientName'] ?? '';
     $startDate  = $_GET['start_date'] ?? '';
     $endDate    = $_GET['end_date'] ?? '';
-    $isType     = $_GET['isType'] ?? '0'; // 0=Cylinder, 1=Product, 2=Both
+    $isType     = $_GET['isType'] ?? '0'; // 0=Cylinder, 1=Product, 2=Both/All, 3=Heater(Nxemese)
 
     if (empty($clientName) || empty($startDate) || empty($endDate)) {
         echo json_encode(['status' => '0', 'message' => 'Missing parameters']);
@@ -192,17 +192,34 @@ function handleGetInvoiceFromToDate($db) {
     // Auto-sync: fetch latest data from GoDaddy for this date range before querying
     autoSyncFromGoDaddy($db, $startDate, $endDate);
 
-    // Query distribuimi for this client and date range
-    $stmt = $db->prepare("
+    // Build query with isType filter
+    // isType: 0=Cylinder (isCylinder=0), 1=Product (isCylinder=1), 2=All, 3=Heater (isCylinder=2)
+    $sql = "
         SELECT id, klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa,
-               menyra_e_pageses, fatura_e_derguar, created_at
+               menyra_e_pageses, fatura_e_derguar, created_at, IFNULL(isCylinder, '0') AS isCylinder
         FROM distribuimi
         WHERE LOWER(TRIM(klienti)) = LOWER(TRIM(?))
           AND data >= ?
           AND data <= ?
-        ORDER BY data ASC, id ASC
-    ");
-    $stmt->execute([$clientName, $startDate, $endDate]);
+    ";
+    $params = [$clientName, $startDate, $endDate];
+
+    if ($isType === '0') {
+        // Cylinders only — isCylinder=0 or NULL (all existing data before the column was added)
+        $sql .= " AND (isCylinder = '0' OR isCylinder IS NULL)";
+    } elseif ($isType === '1') {
+        // Products only
+        $sql .= " AND isCylinder = '1'";
+    } elseif ($isType === '3') {
+        // Heaters (Nxemese) only
+        $sql .= " AND isCylinder = '2'";
+    }
+    // isType=2 means "All" — no filter needed
+
+    $sql .= " ORDER BY data ASC, id ASC";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($rows)) {
@@ -246,10 +263,18 @@ function handleGetInvoiceFromToDate($db) {
             $paymentMethod = $r['menyra_e_pageses'] ?? '';
         }
 
+        // Set product name based on isCylinder value
+        $rowIsCylinder = (int)($r['isCylinder'] ?? 0);
+        $proName = match ($rowIsCylinder) {
+            2 => 'NXEMESE',
+            1 => 'PRODUKT',
+            default => 'GAS I LENGET (L)',
+        };
+
         $data[] = [
             'Timestamp'          => $r['created_at'] ?? $r['data'] ?? '',
             'Client'             => $r['klienti'] ?? '',
-            'pro_name'           => 'GAS I LENGET (L)',
+            'pro_name'           => $proName,
             'Date'               => $r['data'] ?? '',
             'DeliveredCylinders' => (string)(int)$sasia,
             'ReturnedCylinders'  => (string)(int)$returned,
@@ -260,7 +285,7 @@ function handleGetInvoiceFromToDate($db) {
             'Comment'            => $r['fatura_e_derguar'] ?? '',
             'Distributor'        => '',
             'ID'                 => (int)$r['id'],
-            'isCylinder'         => 0,
+            'isCylinder'         => $rowIsCylinder,
         ];
     }
 
@@ -298,7 +323,7 @@ function autoSyncFromGoDaddy($db, $dateFrom, $dateTo) {
         $rows = $result['rows'] ?? [];
         if (empty($rows)) return;
 
-        $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara, isCylinder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $insertStmt = $db->prepare($insertSQL);
         $dupCheck = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE klienti = ? AND data = ? AND sasia = ? AND pagesa = ?");
 
@@ -313,6 +338,7 @@ function autoSyncFromGoDaddy($db, $dateFrom, $dateTo) {
                 $m['klienti'], $m['data'], $m['sasia'], $m['boca_te_kthyera'],
                 $m['litra'], $m['cmimi'], $m['pagesa'], $m['menyra_e_pageses'],
                 $m['fatura_e_derguar'], $m['litrat_total'], $m['litrat_e_konvertuara'],
+                $m['isCylinder'],
             ]);
         }
     } catch (Exception $e) {
@@ -355,6 +381,7 @@ function mapGoDaddyRow($row) {
         'fatura_e_derguar'     => trim($row['Comment'] ?? ''),
         'litrat_total'         => round($sasia * $litra, 2),
         'litrat_e_konvertuara' => $litra,
+        'isCylinder'           => $row['isCylinder'] ?? '0',
     ];
 }
 
