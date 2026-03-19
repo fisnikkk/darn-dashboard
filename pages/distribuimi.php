@@ -54,6 +54,7 @@ $fPagesa = getFilterParam('f_pagesa');
 $fDataFp = getFilterParam('f_data_fp');
 $fKoment = getFilterParam('f_komentet');
 $fLitratTot = getFilterParam('f_litrat_tot');
+$fBorxhKom = getFilterParam('f_borxh_kom');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
 if (!in_array($perPage, [100, 500, 1000, 5000])) $perPage = 100;
@@ -62,7 +63,7 @@ $offset = ($page - 1) * $perPage;
 // Server-side sorting
 $sortCol = $_GET['sort'] ?? 'data';
 $sortDir = strtoupper($_GET['dir'] ?? 'DESC');
-$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','data_e_fletepageses','fatura_e_derguar','litrat_total','updated_at','created_at','boca_running','boca_total'];
+$allowedSorts = ['row_nr','klienti','data','sasia','boca_te_kthyera','litra','cmimi','pagesa','menyra_e_pageses','data_e_fletepageses','fatura_e_derguar','borxh_koment','litrat_total','updated_at','created_at','boca_running','boca_total'];
 if (!in_array($sortCol, $allowedSorts)) $sortCol = 'data';
 if (!in_array($sortDir, ['ASC','DESC'])) $sortDir = 'DESC';
 
@@ -98,6 +99,7 @@ if ($fPagesa) { $fin = buildFilterIn($fPagesa, 'pagesa', 'd'); $where[] = $fin['
 if ($fDataFp) { $fin = buildFilterIn($fDataFp, 'data_e_fletepageses', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fKoment) { $fin = buildFilterIn($fKoment, 'fatura_e_derguar', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fLitratTot) { $fin = buildFilterIn($fLitratTot, 'litrat_total', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
+if ($fBorxhKom) { $fin = buildFilterIn($fBorxhKom, 'borxh_koment', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // Count total rows
@@ -165,6 +167,7 @@ $distPagesaVals = $db->query("SELECT DISTINCT CAST(pagesa AS CHAR) FROM distribu
 $distDataFpVals = $db->query("SELECT DISTINCT CAST(data_e_fletepageses AS CHAR) AS d FROM distribuimi WHERE data_e_fletepageses IS NOT NULL AND data_e_fletepageses > '0000-00-00' ORDER BY d")->fetchAll(PDO::FETCH_COLUMN);
 $distKomentVals = $db->query("SELECT DISTINCT fatura_e_derguar FROM distribuimi WHERE fatura_e_derguar IS NOT NULL AND fatura_e_derguar != '' ORDER BY fatura_e_derguar")->fetchAll(PDO::FETCH_COLUMN);
 $distLitratTotVals = $db->query("SELECT DISTINCT CAST(litrat_total AS CHAR) FROM distribuimi WHERE litrat_total IS NOT NULL ORDER BY litrat_total")->fetchAll(PDO::FETCH_COLUMN);
+$distBorxhKomVals = $db->query("SELECT DISTINCT borxh_koment FROM distribuimi WHERE borxh_koment IS NOT NULL AND borxh_koment != '' ORDER BY borxh_koment")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
 ?>
@@ -289,7 +292,7 @@ ob_start();
                         <?= withFilter(sortTh('menyra_e_pageses', 'Mënyra e pagesës', $sortCol, $sortDir), 'f_menyra', $distMenyraVals) ?>
                         <?= withFilter(sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir), 'f_data_fp', $distDataFpVals) ?>
                         <?= withFilter(sortTh('fatura_e_derguar', 'Komentet', $sortCol, $sortDir), 'f_komentet', $distKomentVals) ?>
-                        <?= sortTh('borxh_koment', 'Borxh Koment', $sortCol, $sortDir) ?>
+                        <?= withFilter(sortTh('borxh_koment', 'Borxh Koment', $sortCol, $sortDir), 'f_borxh_kom', $distBorxhKomVals) ?>
                         <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
                         <th></th>
                     </tr>
