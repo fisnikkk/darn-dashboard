@@ -294,7 +294,7 @@ ob_start();
                         <?= withFilter(sortTh('fatura_e_derguar', 'Komentet', $sortCol, $sortDir), 'f_komentet', $distKomentVals) ?>
                         <?= withFilter(sortTh('borxh_koment', 'Borxh Koment', $sortCol, $sortDir), 'f_borxh_kom', $distBorxhKomVals) ?>
                         <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
-                        <th></th>
+                        <th style="min-width:90px;"></th>
                     </tr>
                 </thead>
                 <tbody>

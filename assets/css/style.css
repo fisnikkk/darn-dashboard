@@ -273,7 +273,7 @@ tr.editing td.editable select:focus {
 td:last-child { white-space: nowrap; }
 
 /* Number alignment */
-td.num, th.num { text-align: right; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.amount { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Summary tables (Pasqyra overview) - center-aligned headers + values */
