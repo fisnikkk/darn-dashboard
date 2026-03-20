@@ -335,14 +335,18 @@ function handleUndo($db, $input) {
  * Map a GoDaddy delivery_report row to distribuimi columns
  */
 function mapRow($row) {
-    // Parse Volume: "120.0L" → 120.0
-    $litra = 0;
+    // Parse Volume: "120.0L" → 120.0 (this is TOTAL liters, not per-unit)
+    $volumeTotal = 0;
     $volume = trim($row['Volume'] ?? '');
     if ($volume !== '') {
-        $litra = (float)preg_replace('/[^0-9.\-]/', '', $volume);
+        $volumeTotal = (float)preg_replace('/[^0-9.\-]/', '', $volume);
     }
 
     $sasia = (float)($row['DeliveredCylinders'] ?? 0);
+
+    // Convert total volume to per-unit litra (dashboard expects per-unit)
+    // e.g. Volume=90.0L with 3 cylinders → litra=30 per cylinder
+    $litra = ($sasia > 0) ? round($volumeTotal / $sasia, 2) : $volumeTotal;
 
     // Map payment method
     $payment = strtoupper(trim($row['PaymentMethod'] ?? ''));
@@ -364,7 +368,7 @@ function mapRow($row) {
         'pagesa'               => (float)($row['TotalPrice'] ?? 0),
         'menyra_e_pageses'     => $menyra,
         'fatura_e_derguar'     => trim($row['Comment'] ?? ''),
-        'litrat_total'         => round($sasia * $litra, 2),
+        'litrat_total'         => round($volumeTotal, 2),
         'litrat_e_konvertuara' => $litra,
         'isCylinder'           => $row['isCylinder'] ?? '0',
     ];
