@@ -1132,6 +1132,10 @@ function handleApproveBorxh($db) {
             $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'borxh_approval', ?, ?)");
             $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
 
+            // Sync local distribuimi row if it was already imported (godaddy_id = delivery_report ID)
+            $localSync = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ? WHERE godaddy_id = ?");
+            $localSync->execute([$newPayment, $distId]);
+
             // Mark pending request as approved
             $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
             $approveStmt->execute([$adminUser, $pendingId]);
@@ -1190,11 +1194,12 @@ function handleApproveBorxh($db) {
             $newKoment = trim($newKoment);
         }
 
-        // Store the requester's comment in borxh_koment (separate column)
+        // Store the requester's comment + approver in borxh_koment (separate column)
         $reqComment = $pending['koment'] ?? '';
         $borxhKoment = '';
         if ($reqComment !== '') {
-            $borxhKoment = ($pending['requested_by'] ?? '') . ': ' . $reqComment;
+            $borxhKoment = ($pending['requested_by'] ?? '') . ': ' . $reqComment
+                         . ' (aprovuar nga ' . $adminUser . ')';
         }
 
         // UPDATE distribuimi
