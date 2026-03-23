@@ -663,7 +663,7 @@ function handleGetClientTransactions($db) {
     $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
     // READ-ONLY SELECT — no data modification
-    $sql = "SELECT id, data, sasia, litra, cmimi, pagesa, menyra_e_pageses, koment
+    $sql = "SELECT id, data, sasia, litra, cmimi, pagesa, menyra_e_pageses, koment, IFNULL(isCylinder, '0') AS isCylinder
             FROM distribuimi
             {$whereSQL}
             ORDER BY data DESC, id DESC
@@ -685,6 +685,7 @@ function handleGetClientTransactions($db) {
             'pagesa'            => number_format((float)$r['pagesa'], 2, '.', ''),
             'menyra_e_pageses'  => $r['menyra_e_pageses'] ?? '',
             'koment'            => $r['koment'] ?? '',
+            'isCylinder'        => $r['isCylinder'] ?? '0',
         ];
     }
 
@@ -768,6 +769,7 @@ function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $da
             'pagesa'            => number_format((float)($row['TotalPrice'] ?? 0), 2, '.', ''),
             'menyra_e_pageses'  => $row['PaymentMethod'] ?? '',
             'koment'            => trim($row['Comment'] ?? ''),
+            'isCylinder'        => $row['isCylinder'] ?? '0',
         ];
     }
 
