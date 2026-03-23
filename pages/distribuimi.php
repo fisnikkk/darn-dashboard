@@ -53,7 +53,6 @@ $fCmimi = getFilterParam('f_cmimi');
 $fPagesa = getFilterParam('f_pagesa');
 $fDataFp = getFilterParam('f_data_fp');
 $fKoment = getFilterParam('f_komentet');
-$fLitratTot = getFilterParam('f_litrat_tot');
 $fBorxhKom = getFilterParam('f_borxh_kom');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = (int)($_GET['per_page'] ?? 100);
@@ -98,7 +97,6 @@ if ($fCmimi) { $fin = buildFilterIn($fCmimi, 'cmimi', 'd'); $where[] = $fin['sql
 if ($fPagesa) { $fin = buildFilterIn($fPagesa, 'pagesa', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fDataFp) { $fin = buildFilterIn($fDataFp, 'data_e_fletepageses', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fKoment) { $fin = buildFilterIn($fKoment, 'fatura_e_derguar', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
-if ($fLitratTot) { $fin = buildFilterIn($fLitratTot, 'litrat_total', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fBorxhKom) { $fin = buildFilterIn($fBorxhKom, 'borxh_koment', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -166,7 +164,6 @@ $distCmimiVals = $db->query("SELECT DISTINCT CAST(cmimi AS CHAR) FROM distribuim
 $distPagesaVals = $db->query("SELECT DISTINCT CAST(pagesa AS CHAR) FROM distribuimi WHERE pagesa IS NOT NULL ORDER BY pagesa")->fetchAll(PDO::FETCH_COLUMN);
 $distDataFpVals = $db->query("SELECT DISTINCT CAST(data_e_fletepageses AS CHAR) AS d FROM distribuimi WHERE data_e_fletepageses IS NOT NULL AND data_e_fletepageses > '0000-00-00' ORDER BY d")->fetchAll(PDO::FETCH_COLUMN);
 $distKomentVals = $db->query("SELECT DISTINCT fatura_e_derguar FROM distribuimi WHERE fatura_e_derguar IS NOT NULL AND fatura_e_derguar != '' ORDER BY fatura_e_derguar")->fetchAll(PDO::FETCH_COLUMN);
-$distLitratTotVals = $db->query("SELECT DISTINCT CAST(litrat_total AS CHAR) FROM distribuimi WHERE litrat_total IS NOT NULL ORDER BY litrat_total")->fetchAll(PDO::FETCH_COLUMN);
 $distBorxhKomVals = $db->query("SELECT DISTINCT borxh_koment FROM distribuimi WHERE borxh_koment IS NOT NULL AND borxh_koment != '' ORDER BY borxh_koment")->fetchAll(PDO::FETCH_COLUMN);
 
 ob_start();
@@ -293,7 +290,6 @@ ob_start();
                         <?= withFilter(sortTh('data_e_fletepageses', 'Data fletëpagesës', $sortCol, $sortDir), 'f_data_fp', $distDataFpVals) ?>
                         <?= withFilter(sortTh('fatura_e_derguar', 'Komentet', $sortCol, $sortDir), 'f_komentet', $distKomentVals) ?>
                         <?= withFilter(sortTh('borxh_koment', 'Borxh Koment', $sortCol, $sortDir), 'f_borxh_kom', $distBorxhKomVals) ?>
-                        <?= withFilter(sortTh('litrat_total', 'Litrat total', $sortCol, $sortDir, 'num'), 'f_litrat_tot', $distLitratTotVals) ?>
                         <th style="min-width:90px;"></th>
                     </tr>
                 </thead>
@@ -331,7 +327,6 @@ ob_start();
                         <td class="editable" data-field="data_e_fletepageses" data-type="date"><?= $r['data_e_fletepageses'] ?></td>
                         <td class="editable truncate" data-field="fatura_e_derguar" title="<?= e($r['fatura_e_derguar']) ?>"><?= e($r['fatura_e_derguar']) ?></td>
                         <td class="truncate" title="<?= e($r['borxh_koment'] ?? '') ?>" style="<?= ($r['borxh_koment'] ?? '') ? 'color:var(--primary);font-weight:500;' : '' ?>"><?= e($r['borxh_koment'] ?? '') ?></td>
-                        <td class="num"><?= eur($r['litrat_total']) ?></td>
                         <td>
                             <button class="btn btn-danger btn-sm" onclick="deleteRow('distribuimi', <?= $r['id'] ?>)" title="Fshij">
                                 <i class="fas fa-trash"></i>
@@ -423,11 +418,7 @@ ob_start();
                         <label>Pagesa (€) <small style="color:var(--text-muted);">auto: sasia × litra × çmimi</small></label>
                         <input type="number" name="pagesa" id="dist_pagesa" step="0.01" value="0">
                     </div>
-                    <div class="form-group">
-                        <label>Litrat total <small style="color:var(--text-muted);">auto: sasia × litra</small></label>
-                        <input type="number" name="litrat_total" id="dist_litrat_total" step="0.01" value="0">
                     </div>
-                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Mënyra e pagesës *</label>
@@ -457,13 +448,11 @@ ob_start();
     const litra = form.querySelector('[name="litra"]');
     const cmimi = form.querySelector('[name="cmimi"]');
     const pagesa = form.querySelector('[name="pagesa"]');
-    const litratTotal = form.querySelector('[name="litrat_total"]');
     function recalc() {
         const s = parseFloat(sasia.value) || 0;
         const l = parseFloat(litra.value) || 0;
         const c = parseFloat(cmimi.value) || 0;
         pagesa.value = (s * l * c).toFixed(2);
-        litratTotal.value = (s * l).toFixed(2);
     }
     [sasia, litra, cmimi].forEach(el => el.addEventListener('input', recalc));
     recalc();
@@ -557,10 +546,8 @@ function submitPastedDistData() {
         const data_e_fletepageses = parseDateDist(cols[8]);
         const fatura_e_derguar = (cols[9] || '').trim();
 
-        // Auto-calculate litrat_total = sasia * litra
         const s = sasia ?? 0;
         const l = litra ?? 0;
-        const litrat_total = s * l;
         const litrat_e_konvertuara = l;
 
         // If pagesa is empty, auto-calculate: pagesa = sasia * litra * cmimi
@@ -580,7 +567,6 @@ function submitPastedDistData() {
             menyra_e_pageses: menyra_e_pageses || null,
             data_e_fletepageses: data_e_fletepageses,
             fatura_e_derguar: fatura_e_derguar || null,
-            litrat_total: litrat_total,
             litrat_e_konvertuara: litrat_e_konvertuara
         });
     }
