@@ -19,8 +19,8 @@ $db = getDB();
 
 // The 21 expense subcategories matching Excel columns H-AB
 $expenseCategories = [
-    'nafte_kombit'       => ['label' => 'Nafte kombit',       'keys' => ['nafte kombit', 'nafte e kombit', 'alba petrol', 'dea gas', 'veda oil']],
-    'nafte_mercedes'     => ['label' => 'Nafte Mercedes',     'keys' => ['nafte mercedes', 'nafte kombit mercedes']],
+    'nafte_kombit'       => ['label' => 'Nafte kombit',       'keys' => ['nafte kombit']],
+    'nafte_mercedes'     => ['label' => 'Nafte Mercedes',     'keys' => ['nafte kombit mercedes']],
     'paga'               => ['label' => 'Paga',               'keys' => ['paga']],
     'taksa'              => ['label' => 'Taksa',              'keys' => ['taksa', 'regjistrim per ta barazuar']],
     'investim_firme'     => ['label' => 'Investim ne firme',  'keys' => ['investim ne firme', 'investime ne firme', 'deponim i pazarit']],
