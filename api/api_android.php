@@ -71,6 +71,8 @@ try {
         handleGetBorxhCollections($db);
     } elseif (strpos($query, 'GetBorxhet') !== false) {
         handleGetBorxhet($db);
+    } elseif (strpos($query, 'SyncDeliveryToDistribuimi') !== false) {
+        handleSyncDeliveryToDistribuimi($db);
     } elseif (strpos($query, 'SearchARBK') !== false) {
         handleSearchARBK();
     } elseif (strpos($query, 'RegisterContract') !== false) {
@@ -1858,6 +1860,109 @@ function handleGetBorxhCollections($db) {
         'message'         => count($data) . ' borxh collections found',
         'total_collected'  => number_format($totalCollected, 2, '.', ''),
         'data'            => $data,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * SyncDeliveryToDistribuimi — Auto-sync a delivery from GoDaddy to distribuimi.
+ *
+ * Called by GoDaddy PHP (new_api_action.php) after InsertDeliveryReport succeeds.
+ * Inserts a row into distribuimi with godaddy_id for deduplication.
+ * Skips heaters (isCylinder=2).
+ *
+ * POST body (JSON):
+ *   godaddy_id, Client, Date, DeliveredCylinders, ReturnedCylinders,
+ *   Volume, PricePer1L, TotalPrice, PaymentMethod, Comment, isCylinder
+ */
+function handleSyncDeliveryToDistribuimi($db) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => '0', 'message' => 'POST method required']);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!$body) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid JSON body']);
+        return;
+    }
+
+    $godaddyId   = (int)($body['godaddy_id'] ?? 0);
+    $isCylinder  = trim($body['isCylinder'] ?? '0');
+
+    // Skip heaters
+    if ($isCylinder === '2') {
+        echo json_encode(['status' => '1', 'message' => 'Skipped heater (isCylinder=2)']);
+        return;
+    }
+
+    if ($godaddyId <= 0) {
+        echo json_encode(['status' => '0', 'message' => 'godaddy_id required']);
+        return;
+    }
+
+    // Map GoDaddy fields to distribuimi columns (same logic as fetch_godaddy.php mapRow)
+    $klienti   = trim($body['Client'] ?? '');
+    $data      = trim($body['Date'] ?? date('Y-m-d'));
+    $sasia     = (float)($body['DeliveredCylinders'] ?? 0);
+    $kthyera   = (float)($body['ReturnedCylinders'] ?? 0);
+    $cmimi     = (float)($body['PricePer1L'] ?? 0);
+    $pagesa    = (float)($body['TotalPrice'] ?? 0);
+    $comment   = trim($body['Comment'] ?? '');
+
+    // Parse Volume: "120.0L" → 120.0 (total liters)
+    $volumeTotal = 0;
+    $volume = trim($body['Volume'] ?? '');
+    if ($volume !== '') {
+        $volumeTotal = (float)preg_replace('/[^0-9.\-]/', '', $volume);
+    }
+
+    // Convert total volume to per-unit litra (dashboard expects per-unit)
+    $litra = ($sasia > 0) ? round($volumeTotal / $sasia, 2) : $volumeTotal;
+
+    // Map payment method
+    $payment = strtoupper(trim($body['PaymentMethod'] ?? ''));
+    $paymentMap = [
+        'CASH' => 'CASH',
+        'BANK' => 'BANK',
+        'NOPAYMENT' => 'NO PAYMENT',
+        'NO PAYMENT' => 'NO PAYMENT',
+        'GIFT' => 'DHURATE',
+        'DHURATE' => 'DHURATE',
+    ];
+    $menyra = $paymentMap[$payment] ?? $payment;
+
+    // INSERT with ON DUPLICATE KEY UPDATE (godaddy_id is UNIQUE)
+    $stmt = $db->prepare("
+        INSERT INTO distribuimi
+            (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa,
+             menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara,
+             isCylinder, godaddy_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            klienti = VALUES(klienti),
+            data = VALUES(data),
+            sasia = VALUES(sasia),
+            boca_te_kthyera = VALUES(boca_te_kthyera),
+            litra = VALUES(litra),
+            cmimi = VALUES(cmimi),
+            pagesa = VALUES(pagesa),
+            menyra_e_pageses = VALUES(menyra_e_pageses),
+            fatura_e_derguar = VALUES(fatura_e_derguar),
+            isCylinder = VALUES(isCylinder)
+    ");
+
+    $litratTotal = round($volumeTotal, 2);
+    $litratKonv  = $litra;
+
+    $stmt->execute([
+        $klienti, $data, $sasia, $kthyera, $litra, $cmimi, $pagesa,
+        $menyra, $comment, $litratTotal, $litratKonv,
+        $isCylinder, $godaddyId
+    ]);
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => 'Synced delivery to distribuimi (godaddy_id=' . $godaddyId . ')',
     ], JSON_UNESCAPED_UNICODE);
 }
 
