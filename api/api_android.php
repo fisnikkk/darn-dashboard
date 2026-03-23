@@ -752,9 +752,10 @@ function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $da
             continue;
         }
 
-        // Date filter: data > dateFrom (same logic as distribuimi query)
-        $rowDate = $row['Date'] ?? '';
-        if ($dateFrom !== '' && $rowDate <= $dateFrom) {
+        // Date filter: use Timestamp (with time) so deliveries after day closure still show
+        // Day closure passes exact datetime, so we compare against Timestamp not just Date
+        $rowTimestamp = $row['Timestamp'] ?? '';
+        if ($dateFrom !== '' && $rowTimestamp !== '' && $rowTimestamp <= $dateFrom) {
             continue;
         }
 
@@ -1859,3 +1860,4 @@ function handleGetBorxhCollections($db) {
         'data'            => $data,
     ], JSON_UNESCAPED_UNICODE);
 }
+
