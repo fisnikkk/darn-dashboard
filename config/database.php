@@ -39,6 +39,11 @@ function getDB() {
             // MySQL 8 strict mode breaks GROUP BY and zero-date queries
             $pdo->exec("SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''), 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')");
 
+            // Match GoDaddy timezone (Europe/Belgrade = UTC+1 / UTC+2 DST)
+            // GoDaddy stores day closure timestamps in this timezone,
+            // so Railway must use the same for correct datetime comparisons
+            $pdo->exec("SET SESSION time_zone = '+01:00'");
+
             // Auto-run migrations (safe to run multiple times)
             runMigrations($pdo);
         } catch (PDOException $e) {
