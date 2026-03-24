@@ -643,13 +643,7 @@ function handleGetClientTransactions($db) {
         return;
     }
 
-    // MERR BORXHIN: also check GoDaddy for heater borxh (heaters aren't in distribuimi)
-    if ($statusFilter === 'bank') {
-        handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo, 'bank');
-        return;
-    }
-
-    // Other filters: query distribuimi (unchanged)
+    // MERR BORXHIN + other filters: query distribuimi (heaters now synced there too)
     $where = ['LOWER(TRIM(klienti)) = ?'];
     $params = [strtolower(trim($clientName))];
 
@@ -1902,12 +1896,6 @@ function handleSyncDeliveryToDistribuimi($db) {
 
     $godaddyId   = (int)($body['godaddy_id'] ?? 0);
     $isCylinder  = trim($body['isCylinder'] ?? '0');
-
-    // Skip heaters
-    if ($isCylinder === '2') {
-        echo json_encode(['status' => '1', 'message' => 'Skipped heater (isCylinder=2)']);
-        return;
-    }
 
     if ($godaddyId <= 0) {
         echo json_encode(['status' => '0', 'message' => 'godaddy_id required']);
