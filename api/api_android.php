@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Europe/Belgrade'); // Match GoDaddy timezone
+
 /**
  * Android App API — Compatible with GoDaddy's api_product.php response format
  *
@@ -1073,8 +1075,9 @@ function handleApproveBorxh($db) {
 
         if ($decision === 'reject') {
             // Just mark as rejected
-            $rejectStmt = $db->prepare("UPDATE pending_borxh SET status = 'rejected', approved_by = ?, approved_at = NOW(), reject_reason = ? WHERE id = ?");
-            $rejectStmt->execute([$adminUser, $reason, $pendingId]);
+            $nowBelgrade = date('Y-m-d H:i:s');
+            $rejectStmt = $db->prepare("UPDATE pending_borxh SET status = 'rejected', approved_by = ?, approved_at = ?, reject_reason = ? WHERE id = ?");
+            $rejectStmt->execute([$adminUser, $nowBelgrade, $reason, $pendingId]);
             $db->commit();
 
             echo json_encode([
@@ -1149,9 +1152,10 @@ function handleApproveBorxh($db) {
             $localSync = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ? WHERE godaddy_id = ?");
             $localSync->execute([$newPayment, $distId]);
 
-            // Mark pending request as approved
-            $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
-            $approveStmt->execute([$adminUser, $pendingId]);
+            // Mark pending request as approved (use PHP date, not MySQL NOW(), to match Belgrade timezone)
+            $nowBelgrade = date('Y-m-d H:i:s');
+            $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = ? WHERE id = ?");
+            $approveStmt->execute([$adminUser, $nowBelgrade, $pendingId]);
 
             $db->commit();
 
@@ -1232,9 +1236,10 @@ function handleApproveBorxh($db) {
         $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_approval', ?, ?)");
         $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
 
-        // Mark pending request as approved
-        $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
-        $approveStmt->execute([$adminUser, $pendingId]);
+        // Mark pending request as approved (use PHP date, not MySQL NOW(), to match Belgrade timezone)
+        $nowBelgrade = date('Y-m-d H:i:s');
+        $approveStmt = $db->prepare("UPDATE pending_borxh SET status = 'approved', approved_by = ?, approved_at = ? WHERE id = ?");
+        $approveStmt->execute([$adminUser, $nowBelgrade, $pendingId]);
 
         $db->commit();
 
