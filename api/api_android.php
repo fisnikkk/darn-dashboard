@@ -773,7 +773,7 @@ function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $da
         // (same field names as distribuimi query so Android app needs no changes)
         $data[] = [
             'id'                => (int)$row['ID'],
-            'data'              => $rowDate,
+            'data'              => $row['Date'] ?? '',
             'sasia'             => (int)($row['DeliveredCylinders'] ?? 0),
             'litra'             => number_format((float)($row['Volume'] ?? 0), 2, '.', ''),
             'cmimi'             => number_format((float)($row['PricePer1L'] ?? 0), 4, '.', ''),
@@ -790,13 +790,19 @@ function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $da
         return $cmp !== 0 ? $cmp : ($b['id'] - $a['id']);
     });
 
+    // Calculate bank_total from filtered data
+    $bankTotal = 0.0;
+    foreach ($data as $item) {
+        $bankTotal += (float)$item['pagesa'];
+    }
+
     // Limit to 200
     $data = array_slice($data, 0, 200);
 
     echo json_encode([
         'status'     => '1',
         'message'    => count($data) . ' transactions found',
-        'bank_total' => '0.00',
+        'bank_total' => number_format($bankTotal, 2, '.', ''),
         'data'       => $data,
     ], JSON_UNESCAPED_UNICODE);
 }
