@@ -73,6 +73,8 @@ try {
         handleGetBorxhet($db);
     } elseif (strpos($query, 'SyncDeliveryToDistribuimi') !== false) {
         handleSyncDeliveryToDistribuimi($db);
+    } elseif (strpos($query, 'UpdateNxemeseStock') !== false) {
+        handleUpdateNxemeseStock($db);
     } elseif (strpos($query, 'SearchARBK') !== false) {
         handleSearchARBK();
     } elseif (strpos($query, 'RegisterContract') !== false) {
@@ -1963,6 +1965,54 @@ function handleSyncDeliveryToDistribuimi($db) {
     echo json_encode([
         'status'  => '1',
         'message' => 'Synced delivery to distribuimi (godaddy_id=' . $godaddyId . ')',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * UpdateNxemeseStock — Sync heater delivery/return to nxemese table.
+ * Called by GoDaddy PHP after heater delivery or return via Kthe ne Magazine.
+ *
+ * POST body (JSON):
+ *   action:    "deliver" or "return"
+ *   klienti:   Client name
+ *   sasia:     Quantity (default 1)
+ */
+function handleUpdateNxemeseStock($db) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => '0', 'message' => 'POST method required']);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!$body) {
+        echo json_encode(['status' => '0', 'message' => 'Invalid JSON body']);
+        return;
+    }
+
+    $action  = $body['action'] ?? '';
+    $klienti = trim($body['klienti'] ?? '');
+    $sasia   = (int)($body['sasia'] ?? 1);
+
+    if ($klienti === '' || !in_array($action, ['deliver', 'return'])) {
+        echo json_encode(['status' => '0', 'message' => 'klienti and action (deliver/return) required']);
+        return;
+    }
+
+    $today = date('Y-m-d');
+
+    if ($action === 'deliver') {
+        // Heater given to client
+        $stmt = $db->prepare("INSERT INTO nxemese (klienti, data, te_dhena, te_marra, koment) VALUES (?, ?, ?, 0, 'Auto-sync nga app')");
+        $stmt->execute([$klienti, $today, $sasia]);
+    } else {
+        // Heater returned from client
+        $stmt = $db->prepare("INSERT INTO nxemese (klienti, data, te_dhena, te_marra, koment) VALUES (?, ?, 0, ?, 'Auto-sync nga app')");
+        $stmt->execute([$klienti, $today, $sasia]);
+    }
+
+    echo json_encode([
+        'status'  => '1',
+        'message' => 'Nxemese stock updated: ' . $action . ' ' . $sasia . ' for ' . $klienti,
     ], JSON_UNESCAPED_UNICODE);
 }
 
