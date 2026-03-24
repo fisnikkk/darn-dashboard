@@ -643,7 +643,13 @@ function handleGetClientTransactions($db) {
         return;
     }
 
-    // MERR BORXHIN and others: query distribuimi (unchanged)
+    // MERR BORXHIN: also check GoDaddy for heater borxh (heaters aren't in distribuimi)
+    if ($statusFilter === 'bank') {
+        handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo, 'bank');
+        return;
+    }
+
+    // Other filters: query distribuimi (unchanged)
     $where = ['LOWER(TRIM(klienti)) = ?'];
     $params = [strtolower(trim($clientName))];
 
@@ -714,7 +720,7 @@ function handleGetClientTransactions($db) {
  * Maps delivery_report columns to the same JSON format as the distribuimi query,
  * so the Android app needs zero changes.
  */
-function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo) {
+function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo, $paymentFilter = 'cash') {
     require_once __DIR__ . '/../config/godaddy.php';
 
     // Need dates for the GoDaddy fetch API
@@ -750,9 +756,9 @@ function handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $da
             continue;
         }
 
-        // Only show CASH transactions (these are the ones that can be registered as borxh)
+        // Filter by payment method (CASH for Leje Borxhin, BANK for Merr Borxhin)
         $payment = strtoupper(trim($row['PaymentMethod'] ?? ''));
-        if ($payment !== 'CASH') {
+        if ($payment !== strtoupper($paymentFilter)) {
             continue;
         }
 
