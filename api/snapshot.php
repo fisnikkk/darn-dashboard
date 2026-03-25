@@ -249,9 +249,13 @@ try {
             if ($tableData === null) {
                 echo json_encode(['success' => false, 'error' => "Table '{$table}' not in snapshot"]);
             } else {
-                echo json_encode($tableData, JSON_UNESCAPED_UNICODE);
+                header('Content-Type: application/json; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $name . '_' . $table . '.json"');
+                echo json_encode($tableData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             }
         } else {
+            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $name . '.json"');
             echo $jsonData;
         }
 

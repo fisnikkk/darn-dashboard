@@ -112,6 +112,9 @@ async function loadSnapshots() {
                     <button class="btn btn-primary btn-sm" onclick="restoreSnapshot('${escH(s.name)}')" title="Rikthe">
                         <i class="fas fa-undo"></i> Rikthe
                     </button>
+                    <button class="btn btn-sm" style="background:#059669;color:#fff;" onclick="downloadSnapshot('${escH(s.name)}')" title="Shkarko">
+                        <i class="fas fa-download"></i> Shkarko
+                    </button>
                     <button class="btn btn-danger btn-sm" onclick="deleteSnapshot('${escH(s.name)}')" title="Fshi">
                         <i class="fas fa-trash"></i> Fshi
                     </button>
@@ -205,6 +208,29 @@ async function deleteSnapshot(name) {
         if (!data.success) throw new Error(data.error);
         loadSnapshots();
         showToast(data.message, 'success');
+    } catch (err) {
+        showToast('Gabim: ' + err.message, 'error');
+    }
+}
+
+async function downloadSnapshot(name) {
+    try {
+        showToast('Duke shkarkuar...', 'success');
+        const res = await fetch('/api/snapshot.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'download', name: name})
+        });
+        if (!res.ok) throw new Error('Server error: ' + res.status);
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     } catch (err) {
         showToast('Gabim: ' + err.message, 'error');
     }
