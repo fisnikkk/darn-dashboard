@@ -254,9 +254,18 @@ try {
                 echo json_encode($tableData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             }
         } else {
+            // Send compressed data directly — browser decompresses automatically
+            // This is much faster: ~3-5MB transfer instead of ~19MB
+            $isCompressed = (@gzdecode($rawData) !== false);
             header('Content-Type: application/json; charset=utf-8');
             header('Content-Disposition: attachment; filename="' . $name . '.json"');
-            echo $jsonData;
+            if ($isCompressed) {
+                header('Content-Encoding: gzip');
+                header('Content-Length: ' . strlen($rawData));
+                echo $rawData;
+            } else {
+                echo $rawData; // legacy uncompressed — send as-is
+            }
         }
 
     } else {
