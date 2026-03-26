@@ -858,7 +858,7 @@ ob_start();
                 <?php endif; ?>
                 </div>
 
-                <!-- Footer: undo/restore buttons -->
+                <!-- Footer: undo/redo buttons -->
                 <?php if ($canUndoUpdate || $canUndoDelete || $canUndoInsert): ?>
                 <div class="log-footer">
                     <?php if ($canUndoUpdate): ?>
@@ -874,6 +874,17 @@ ob_start();
                         <i class="fas fa-undo"></i> Kthe (fshi)
                     </button>
                     <?php endif; ?>
+                </div>
+                <?php elseif ($isReverted && $type === 'update'): ?>
+                <div class="log-footer" style="justify-content:flex-end;">
+                    <span class="log-reverted-tag"><i class="fas fa-check"></i> u rikthye</span>
+                    <button class="log-undo" style="color:#059669;margin-left:8px;" onclick="redoChange('<?= e($r['table_name']) ?>', <?= (int)$r['row_id'] ?>, <?= isset($r['_grouped_fields']) ? e(json_encode(array_map(fn($gf) => (int)$gf['id'], $r['_grouped_fields']))) : '[' . (int)$r['id'] . ']' ?>, this)" title="Ri-apliko ndryshimin">
+                        <i class="fas fa-redo"></i> Ri-apliko
+                    </button>
+                </div>
+                <?php elseif ($isReverted): ?>
+                <div class="log-footer" style="justify-content:flex-end;">
+                    <span class="log-reverted-tag"><i class="fas fa-check"></i> u rikthye</span>
                 </div>
                 <?php endif; ?>
             </div>
@@ -1003,6 +1014,34 @@ function revertInsert(table, rowId, changelogId, btn) {
         showToast('Gabim rrjeti', 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-undo"></i> Kthe (fshi)';
+    });
+}
+
+function redoChange(table, rowId, changelogIds, btn) {
+    if (!confirm('Ri-apliko ndryshimin? Kjo do te ri-vendose vlerat e reja.')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    fetch('/api/revert.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: table, id: rowId, action: 'redo', changelog_ids: changelogIds })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            btn.closest('.log-entry').classList.remove('reverted');
+            btn.closest('.log-footer').innerHTML = '<button class="log-undo" onclick="revertChange(\'' + table + '\', ' + rowId + ', this)" title="Kthe ndryshimin"><i class="fas fa-undo"></i> Kthe</button>';
+            showToast(data.message || 'U ri-aplikua me sukses', 'success');
+        } else {
+            showToast(data.error || 'Gabim', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo"></i> Ri-apliko';
+        }
+    })
+    .catch(() => {
+        showToast('Gabim rrjeti', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-redo"></i> Ri-apliko';
     });
 }
 </script>

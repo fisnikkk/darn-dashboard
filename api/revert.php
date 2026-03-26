@@ -28,6 +28,62 @@ if (!in_array($table, $allowedTables)) {
 try {
     $db = getDB();
 
+    // ---- Redo: re-apply a reverted update ----
+    if ($action === 'redo') {
+        $changelogIds = $input['changelog_ids'] ?? [];
+        if (empty($changelogIds)) {
+            echo json_encode(['success' => false, 'error' => 'Missing changelog_ids']);
+            exit;
+        }
+
+        $db->beginTransaction();
+        $redone = [];
+
+        foreach ($changelogIds as $cid) {
+            $cid = (int)$cid;
+            $entry = $db->prepare("SELECT * FROM changelog WHERE id = ? AND action_type = 'update' AND reverted = 1");
+            $entry->execute([$cid]);
+            $logEntry = $entry->fetch();
+            if (!$logEntry) continue;
+
+            $field = $logEntry['field_name'];
+            $newVal = $logEntry['new_value'];
+            $rowId = (int)$logEntry['row_id'];
+            $tbl = $logEntry['table_name'];
+
+            // Re-apply the change
+            $db->prepare("UPDATE `{$tbl}` SET `{$field}` = ? WHERE id = ?")->execute([$newVal, $rowId]);
+            // Mark as no longer reverted
+            $db->prepare("UPDATE changelog SET reverted = 0 WHERE id = ?")->execute([$cid]);
+            $redone[] = $field;
+        }
+
+        // Recalculate derived columns if needed
+        if ($table === 'gjendja_bankare') {
+            $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+            $running = 0;
+            foreach ($all as $r) {
+                $running = round($running + (float)$r['kredi'] + (float)$r['debia'], 2);
+                $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
+            }
+        }
+        if ($table === 'distribuimi' && $id) {
+            $row = $db->prepare("SELECT sasia, litra, cmimi FROM distribuimi WHERE id = ?");
+            $row->execute([$id]);
+            $r = $row->fetch();
+            if ($r) {
+                $s = (float)$r['sasia']; $l = (float)$r['litra']; $c = (float)$r['cmimi'];
+                $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")
+                    ->execute([round($s * $l * $c, 2), round($s * $l, 2), $l, $id]);
+            }
+        }
+
+        $db->commit();
+        echo json_encode(['success' => true, 'redone' => $redone,
+            'message' => 'U ri-aplikuan ' . count($redone) . ' ndryshime']);
+        exit;
+    }
+
     // ---- Revert an insert (delete the inserted row) ----
     if ($action === 'revert_insert') {
         $changelogId = (int)($input['changelog_id'] ?? 0);
