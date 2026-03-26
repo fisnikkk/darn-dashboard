@@ -1500,11 +1500,11 @@ function handleGetNxemesePerKlient($db) {
     $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
 
     // Connect to GoDaddy's cylinder database (same MySQL server, different DB)
-    $godaddyDb = getenv('GODADDY_DB') ?: 'adaptive_cylinder_test';
-    $godaddyHost = getenv('GODADDY_HOST') ?: DB_HOST;
-    $godaddyUser = getenv('GODADDY_USER') ?: DB_USER;
-    $godaddyPass = getenv('GODADDY_PASS') ?: DB_PASS;
-    $godaddyPort = getenv('GODADDY_PORT') ?: DB_PORT;
+    $godaddyDb = getenv('GODADDY_DB_NAME') ?: (getenv('GODADDY_DB') ?: 'adaptive_cylinder_test');
+    $godaddyHost = getenv('GODADDY_DB_HOST') ?: (getenv('GODADDY_HOST') ?: DB_HOST);
+    $godaddyUser = getenv('GODADDY_DB_USER') ?: (getenv('GODADDY_USER') ?: DB_USER);
+    $godaddyPass = getenv('GODADDY_DB_PASS') ?: (getenv('GODADDY_PASS') ?: DB_PASS);
+    $godaddyPort = getenv('GODADDY_DB_PORT') ?: (getenv('GODADDY_PORT') ?: DB_PORT);
 
     try {
         $dsn = "mysql:host={$godaddyHost};port={$godaddyPort};dbname={$godaddyDb};charset=utf8mb4";
