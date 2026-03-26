@@ -77,25 +77,6 @@ if ($runCheck > 0) {
     }
 }
 
-// Group rows by client for collapsed view
-$groupedByClient = [];
-foreach ($rows as $r) {
-    $key = strtolower(trim($r['klienti']));
-    if (!isset($groupedByClient[$key])) {
-        $groupedByClient[$key] = [
-            'klienti' => $r['klienti'],
-            'total_dhena' => 0,
-            'total_marra' => 0,
-            'rows' => [],
-        ];
-    }
-    $groupedByClient[$key]['total_dhena'] += (int)$r['te_dhena'];
-    $groupedByClient[$key]['total_marra'] += (int)$r['te_marra'];
-    $groupedByClient[$key]['rows'][] = $r;
-}
-// Sort by client name
-ksort($groupedByClient);
-
 // Distinct values for filters & dropdowns
 $klientet = $db->query("SELECT DISTINCT klienti FROM nxemese ORDER BY klienti")->fetchAll(PDO::FETCH_COLUMN);
 $llojet = $db->query("SELECT DISTINCT lloji_i_nxemjes FROM nxemese WHERE lloji_i_nxemjes IS NOT NULL ORDER BY lloji_i_nxemjes")->fetchAll(PDO::FETCH_COLUMN);
@@ -169,40 +150,39 @@ ob_start();
         </form>
     </div>
 
-    <!-- Simple per-client totals -->
+    <!-- Main table (Excel Nxemese1 layout) -->
     <div class="card-body">
         <div class="table-wrapper">
-            <table class="data-table">
+            <table class="data-table" data-table="nxemese" data-server-sort="true">
                 <thead><tr>
-                    <th style="width:5%;">#</th>
-                    <th style="width:55%;">Klienti</th>
-                    <th class="num" style="width:20%;text-align:center;">Ne stok</th>
+                    <?= withFilter(sortThNx('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $klientet) ?>
+                    <?= sortThNx('data', 'Data', $sortCol, $sortDir) ?>
+                    <?= withFilter(sortThNx('te_dhena', 'Te dhena', $sortCol, $sortDir, 'num'), 'f_dhena', $nxDhenaVals) ?>
+                    <?= withFilter(sortThNx('te_marra', 'Te marra', $sortCol, $sortDir, 'num'), 'f_marra', $nxMarraVals) ?>
+                    <th class="num server-sort" onclick="clientSortColumn(this, 4)" style="cursor:pointer;user-select:none;">Ne stok <i class="fas fa-sort"></i></th>
+                    <th class="num server-sort" onclick="clientSortColumn(this, 5)" style="cursor:pointer;user-select:none;">Boca total ne terren <i class="fas fa-sort"></i></th>
+                    <?= withFilter(sortThNx('lloji_i_nxemjes', 'Lloji i nxemjes', $sortCol, $sortDir), 'f_lloji', $llojet) ?>
+                    <?= withFilter(sortThNx('koment', 'Koment', $sortCol, $sortDir), 'f_koment', $nxKomentVals) ?>
+                    <th></th>
                 </tr></thead>
                 <tbody>
-                    <?php
-                    $rowNum = 0;
-                    $grandTotal = 0;
-                    foreach ($groupedByClient as $key => $group):
-                        $neStok = $group['total_dhena'] - $group['total_marra'];
-                        if ($neStok == 0 && !$filterClient) continue; // Hide zero-stock unless searching
-                        $rowNum++;
-                        $grandTotal += $neStok;
-                        $stokStyle = $neStok == 0 ? 'color:var(--danger);' : 'color:var(--primary);';
+                    <?php foreach ($rows as $r):
+                        $neStok = $nxRunningPerClient[$r['id']] ?? null;
+                        $rowStyle = ($neStok !== null && $neStok == 0) ? 'color:var(--danger);' : '';
                     ?>
-                    <tr>
-                        <td style="color:var(--text-muted);"><?= $rowNum ?></td>
-                        <td><strong><?= e($group['klienti']) ?></strong></td>
-                        <td class="num" style="text-align:center;font-weight:700;font-size:1.1rem;<?= $stokStyle ?>"><?= $neStok ?></td>
+                    <tr data-id="<?= $r['id'] ?>" style="<?= $rowStyle ?>">
+                        <td class="editable" data-field="klienti"><?= e($r['klienti']) ?></td>
+                        <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
+                        <td class="num editable" data-field="te_dhena" data-type="number"><?= (int)$r['te_dhena'] ?></td>
+                        <td class="num editable" data-field="te_marra" data-type="number"><?= (int)$r['te_marra'] ?></td>
+                        <td class="num" style="font-weight:600;<?= ($neStok !== null && $neStok == 0) ? 'color:var(--danger);' : 'color:var(--primary);' ?>"><?= $neStok ?? '-' ?></td>
+                        <td class="num" style="color:var(--text-muted);"><?= $nxRunningTotal[$r['id']] ?? '-' ?></td>
+                        <td class="editable" data-field="lloji_i_nxemjes" data-type="select" data-options="<?= e(json_encode($llojet)) ?>"><?= e($r['lloji_i_nxemjes']) ?></td>
+                        <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>"><?= e($r['koment']) ?></td>
+                        <td><button class="btn btn-danger btn-sm" onclick="deleteRow('nxemese',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
-                <tfoot>
-                    <tr style="border-top:2px solid var(--border,#e5e7eb);font-weight:700;font-size:1.1rem;">
-                        <td></td>
-                        <td>Total</td>
-                        <td class="num" style="text-align:center;color:var(--primary);"><?= $grandTotal ?></td>
-                    </tr>
-                </tfoot>
             </table>
         </div>
     </div>
