@@ -1485,8 +1485,11 @@ function handleGetBocaPerKlient($db) {
 /**
  * GetNxemesePerKlient — Heaters in the field per client (READ-ONLY)
  *
- * Same logic as GetBocaPerKlient but from nxemese table.
- * Calculates: SUM(te_dhena) - SUM(te_marra) per client.
+ * Calculates heater stock per client directly from GoDaddy's delivery_report
+ * (isCylinder=2). This is the single source of truth — no separate nxemese
+ * table needed, and data stays consistent with GoDaddy DB imports.
+ *
+ * Formula: SUM(DeliveredCylinders) - SUM(ReturnedCylinders) per Client
  *
  * Params (GET, all optional):
  *   client — partial match filter on client name
@@ -1496,34 +1499,53 @@ function handleGetBocaPerKlient($db) {
 function handleGetNxemesePerKlient($db) {
     $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
 
-    $where = [];
+    // Connect to GoDaddy's cylinder database (same MySQL server, different DB)
+    $godaddyDb = getenv('GODADDY_DB') ?: 'adaptive_cylinder_test';
+    $godaddyHost = getenv('GODADDY_HOST') ?: DB_HOST;
+    $godaddyUser = getenv('GODADDY_USER') ?: DB_USER;
+    $godaddyPass = getenv('GODADDY_PASS') ?: DB_PASS;
+    $godaddyPort = getenv('GODADDY_PORT') ?: DB_PORT;
+
+    try {
+        $dsn = "mysql:host={$godaddyHost};port={$godaddyPort};dbname={$godaddyDb};charset=utf8mb4";
+        $gdb = new PDO($dsn, $godaddyUser, $godaddyPass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+    } catch (PDOException $e) {
+        // Fallback to local nxemese table if GoDaddy connection fails
+        handleGetNxemesePerKlientFallback($db, $client);
+        return;
+    }
+
+    $where = ["isCylinder = '2'"];
     $params = [];
 
     if ($client !== '') {
-        $where[] = 'LOWER(TRIM(klienti)) LIKE ?';
+        $where[] = 'LOWER(TRIM(Client)) LIKE ?';
         $params[] = '%' . strtolower(trim($client)) . '%';
     }
 
-    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
-    // Per-client heater count (READ-ONLY)
+    // Per-client heater count from delivery_report
     $sql = "
         SELECT
-            MIN(klienti) AS klienti,
-            SUM(te_dhena) - SUM(te_marra) AS ne_terren
-        FROM nxemese
+            MIN(Client) AS klienti,
+            COALESCE(SUM(DeliveredCylinders), 0) - COALESCE(SUM(ReturnedCylinders), 0) AS ne_terren
+        FROM delivery_report
         {$whereSQL}
-        GROUP BY LOWER(klienti)
+        GROUP BY LOWER(Client)
         HAVING ne_terren != 0
-        ORDER BY MIN(klienti)
+        ORDER BY MIN(Client)
     ";
 
-    $stmt = $db->prepare($sql);
+    $stmt = $gdb->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Global total — same formula as nxemese.php
-    $globalStmt = $db->query("SELECT COALESCE(SUM(te_dhena) - SUM(te_marra), 0) FROM nxemese");
+    // Global total
+    $globalStmt = $gdb->query("SELECT COALESCE(SUM(DeliveredCylinders) - SUM(ReturnedCylinders), 0) FROM delivery_report WHERE isCylinder = '2'");
     $nxemeseTotalNeTerren = (int)$globalStmt->fetchColumn();
 
     $data = [];
@@ -1545,6 +1567,34 @@ function handleGetNxemesePerKlient($db) {
     ], JSON_UNESCAPED_UNICODE);
 }
 
+
+/**
+ * Fallback: read from local nxemese table if GoDaddy DB connection fails
+ */
+function handleGetNxemesePerKlientFallback($db, $client) {
+    $where = [];
+    $params = [];
+    if ($client !== '') {
+        $where[] = 'LOWER(TRIM(klienti)) LIKE ?';
+        $params[] = '%' . strtolower(trim($client)) . '%';
+    }
+    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $sql = "SELECT MIN(klienti) AS klienti, SUM(te_dhena) - SUM(te_marra) AS ne_terren FROM nxemese {$whereSQL} GROUP BY LOWER(klienti) HAVING ne_terren != 0 ORDER BY MIN(klienti)";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $globalStmt = $db->query("SELECT COALESCE(SUM(te_dhena) - SUM(te_marra), 0) FROM nxemese");
+    $nxemeseTotalNeTerren = (int)$globalStmt->fetchColumn();
+    $data = [];
+    foreach ($rows as $r) {
+        $data[] = ['klienti' => $r['klienti'], 'ne_terren' => (string)(int)$r['ne_terren']];
+    }
+    echo json_encode([
+        'status' => '1', 'message' => count($data) . ' kliente (fallback nga nxemese tabela)',
+        'totals' => ['nxemese_total_ne_terren' => (string)$nxemeseTotalNeTerren, 'total_clients' => (string)count($data)],
+        'data' => $data,
+    ], JSON_UNESCAPED_UNICODE);
+}
 
 /**
  * SearchARBK — Proxy for ARBK business lookup via arbk.micro-devs.com
