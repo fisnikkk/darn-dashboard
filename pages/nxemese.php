@@ -169,65 +169,40 @@ ob_start();
         </form>
     </div>
 
-    <!-- Grouped view: one row per client, click to expand -->
+    <!-- Simple per-client totals -->
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table">
                 <thead><tr>
-                    <th style="width:30px;"></th>
-                    <th style="width:20%;">Klienti</th>
-                    <th class="num" style="width:15%;text-align:center;">Te dhena</th>
-                    <th class="num" style="width:15%;text-align:center;">Te marra</th>
-                    <th class="num" style="width:15%;text-align:center;">Ne stok</th>
-                    <th style="width:20%;">Levizja e fundit</th>
-                    <th style="width:40px;"></th>
+                    <th style="width:5%;">#</th>
+                    <th style="width:55%;">Klienti</th>
+                    <th class="num" style="width:20%;text-align:center;">Ne stok</th>
                 </tr></thead>
                 <tbody>
-                    <?php foreach ($groupedByClient as $key => $group):
+                    <?php
+                    $rowNum = 0;
+                    $grandTotal = 0;
+                    foreach ($groupedByClient as $key => $group):
                         $neStok = $group['total_dhena'] - $group['total_marra'];
+                        if ($neStok == 0 && !$filterClient) continue; // Hide zero-stock unless searching
+                        $rowNum++;
+                        $grandTotal += $neStok;
                         $stokStyle = $neStok == 0 ? 'color:var(--danger);' : 'color:var(--primary);';
-                        $lastRow = $group['rows'][0]; // Most recent (already sorted DESC)
-                        $groupId = 'nxg_' . md5($key);
                     ?>
-                    <tr class="nx-group-row" style="cursor:pointer;font-weight:500;" onclick="document.getElementById('<?= $groupId ?>').classList.toggle('hidden');this.querySelector('.nx-arrow i').classList.toggle('fa-chevron-down');this.querySelector('.nx-arrow i').classList.toggle('fa-chevron-up');">
-                        <td class="nx-arrow"><i class="fas fa-chevron-down" style="font-size:0.75rem;color:var(--text-muted);"></i></td>
-                        <td><?= e($group['klienti']) ?></td>
-                        <td class="num" style="text-align:center;"><?= $group['total_dhena'] ?></td>
-                        <td class="num" style="text-align:center;"><?= $group['total_marra'] ?></td>
-                        <td class="num" style="text-align:center;font-weight:700;<?= $stokStyle ?>"><?= $neStok ?></td>
-                        <td style="color:var(--text-muted);font-size:0.85rem;"><?= $lastRow['data'] ?></td>
-                        <td></td>
-                    </tr>
-                    <tr id="<?= $groupId ?>" class="hidden">
-                        <td colspan="7" style="padding:0;background:var(--bg-subtle,#f8fafc);">
-                            <table style="width:100%;border-collapse:collapse;">
-                                <thead><tr style="font-size:0.8rem;color:var(--text-muted);">
-                                    <th style="padding:6px 12px;width:15%;">Data</th>
-                                    <th class="num" style="padding:6px 12px;width:15%;text-align:center;">Te dhena</th>
-                                    <th class="num" style="padding:6px 12px;width:15%;text-align:center;">Te marra</th>
-                                    <th style="padding:6px 12px;width:20%;">Lloji</th>
-                                    <th style="padding:6px 12px;width:25%;">Koment</th>
-                                    <th style="padding:6px 12px;width:80px;"></th>
-                                </tr></thead>
-                                <tbody>
-                                <?php foreach ($group['rows'] as $r): ?>
-                                    <tr data-id="<?= $r['id'] ?>" style="font-size:0.85rem;border-top:1px solid var(--border,#e5e7eb);">
-                                        <td class="editable" data-field="data" data-type="date" style="padding:6px 12px;"><?= $r['data'] ?></td>
-                                        <td class="num editable" data-field="te_dhena" data-type="number" style="padding:6px 12px;text-align:center;"><?= (int)$r['te_dhena'] ?></td>
-                                        <td class="num editable" data-field="te_marra" data-type="number" style="padding:6px 12px;text-align:center;"><?= (int)$r['te_marra'] ?></td>
-                                        <td class="editable" data-field="lloji_i_nxemjes" data-type="select" data-options="<?= e(json_encode($llojet)) ?>" style="padding:6px 12px;"><?= e($r['lloji_i_nxemjes']) ?></td>
-                                        <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>" style="padding:6px 12px;"><?= e($r['koment']) ?></td>
-                                        <td style="padding:6px 12px;">
-                                            <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:0.75rem;" onclick="event.stopPropagation();deleteRow('nxemese',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </td>
+                    <tr>
+                        <td style="color:var(--text-muted);"><?= $rowNum ?></td>
+                        <td><strong><?= e($group['klienti']) ?></strong></td>
+                        <td class="num" style="text-align:center;font-weight:700;font-size:1.1rem;<?= $stokStyle ?>"><?= $neStok ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
+                <tfoot>
+                    <tr style="border-top:2px solid var(--border,#e5e7eb);font-weight:700;font-size:1.1rem;">
+                        <td></td>
+                        <td>Total</td>
+                        <td class="num" style="text-align:center;color:var(--primary);"><?= $grandTotal ?></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
