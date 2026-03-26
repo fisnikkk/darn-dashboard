@@ -890,7 +890,8 @@ function handleUpdateBorxhiStatus($db) {
             $newPayment = 'BANK';
 
             // INSERT into pending_borxh with source_table='delivery_report'
-            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by) VALUES (?, 'delivery_report', ?, ?, ?, ?, ?, ?, ?)");
+            $isCylinder = $gdRow['isCylinder'] ?? '0';
+            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by, isCylinder) VALUES (?, 'delivery_report', ?, ?, ?, ?, ?, ?, ?, ?)");
             $insertStmt->execute([
                 $id,
                 $gdRow['Client'],
@@ -899,7 +900,8 @@ function handleUpdateBorxhiStatus($db) {
                 (float)($gdRow['TotalPrice'] ?? 0),
                 $gdRow['Date'],
                 $komentForPending,
-                $userName
+                $userName,
+                $isCylinder
             ]);
 
             echo json_encode([
@@ -919,7 +921,7 @@ function handleUpdateBorxhiStatus($db) {
             // MERR BORXHIN — validate against distribuimi (UNCHANGED logic)
             // The ID coming from the client app is a distribuimi.id
             // ═══════════════════════════════════════════════════════════════
-            $stmt = $db->prepare("SELECT id, klienti, data, menyra_e_pageses, koment, pagesa FROM distribuimi WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, klienti, data, menyra_e_pageses, koment, pagesa, IFNULL(isCylinder, '0') AS isCylinder FROM distribuimi WHERE id = ?");
             $stmt->execute([$id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -946,7 +948,8 @@ function handleUpdateBorxhiStatus($db) {
             }
 
             // INSERT into pending_borxh with source_table='distribuimi'
-            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by) VALUES (?, 'distribuimi', ?, ?, ?, ?, ?, ?, ?)");
+            $isCylinder = $row['isCylinder'] ?? '0';
+            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by, isCylinder) VALUES (?, 'distribuimi', ?, ?, ?, ?, ?, ?, ?, ?)");
             $insertStmt->execute([
                 $id,
                 $row['klienti'],
@@ -955,7 +958,8 @@ function handleUpdateBorxhiStatus($db) {
                 $row['pagesa'],
                 $row['data'],
                 $komentForPending,
-                $userName
+                $userName,
+                $isCylinder
             ]);
 
             echo json_encode([
@@ -1832,12 +1836,19 @@ function handleGetBorxhCollections($db) {
     $requestedBy = isset($_GET['requested_by']) ? trim($_GET['requested_by']) : '';
     $dateFrom    = !empty($_GET['date_from']) ? $_GET['date_from'] : '';
     $dateTo      = !empty($_GET['date_to'])   ? $_GET['date_to']   : '';
+    $isCylinderFilter = isset($_GET['isCylinder']) ? $_GET['isCylinder'] : '';
     $limit       = isset($_GET['limit']) ? min((int)$_GET['limit'], 500) : 200;
     if ($limit <= 0) $limit = 200;
 
     // Only show collections where the distribuimi row is STILL cash (exclude reversed entries)
     $where  = ["pb.status = 'approved'", "pb.new_menyra_e_pageses = 'cash'", "LOWER(TRIM(d.menyra_e_pageses)) = 'cash'"];
     $params = [];
+
+    // Filter by isCylinder type (0=cylinder, 2=heater)
+    if ($isCylinderFilter !== '') {
+        $where[]  = "IFNULL(pb.isCylinder, '0') = ?";
+        $params[] = $isCylinderFilter;
+    }
 
     // Filter by collector (seller) name
     if ($requestedBy !== '') {
