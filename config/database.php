@@ -356,6 +356,11 @@ function runMigrations($pdo) {
                    OR koment != TRIM(koment)");
         } catch (PDOException $e) {}
 
+        // Fix borxh_approval → borxh_koment in changelog (one-time data fix)
+        try {
+            $pdo->exec("UPDATE changelog SET field_name = 'borxh_koment' WHERE field_name = 'borxh_approval'");
+        } catch (PDOException $e) {}
+
         // Add batch_id column to changelog for grouping GoDaddy imports
         $cols = $pdo->query("SHOW COLUMNS FROM changelog LIKE 'batch_id'")->fetchAll();
         if (empty($cols)) {
