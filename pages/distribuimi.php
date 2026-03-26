@@ -43,6 +43,7 @@ $filterClient = $_GET['klienti'] ?? '';
 $filterDateFrom = $_GET['date_from'] ?? '';
 $filterDateTo = $_GET['date_to'] ?? '';
 $filterPayment = $_GET['payment'] ?? '';
+$filterLloji = $_GET['lloji'] ?? '';
 // Multi-select column filters
 $fKlienti = getFilterParam('f_klienti');
 $fMenyra = getFilterParam('f_menyra');
@@ -87,6 +88,7 @@ if ($filterClient) { $where[] = "d.klienti = ?"; $params[] = $filterClient; }
 if ($filterDateFrom) { $where[] = "d.data >= ?"; $params[] = $filterDateFrom; }
 if ($filterDateTo) { $where[] = "d.data <= ?"; $params[] = $filterDateTo; }
 if ($filterPayment) { $where[] = "LOWER(TRIM(d.menyra_e_pageses)) = LOWER(TRIM(?))"; $params[] = $filterPayment; }
+if ($filterLloji !== '') { $where[] = "IFNULL(d.isCylinder, '0') = ?"; $params[] = $filterLloji; }
 // Multi-select column filters
 if ($fKlienti) { $fin = buildFilterIn($fKlienti, 'klienti', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
 if ($fMenyra) { $fin = buildFilterIn($fMenyra, 'menyra_e_pageses', 'd'); $where[] = $fin['sql']; $params = array_merge($params, $fin['params']); }
@@ -127,7 +129,7 @@ $sql = "
     SELECT d.id, d.row_nr, d.klienti, d.data, d.sasia, d.boca_te_kthyera,
         d.litra, d.cmimi, d.pagesa, d.menyra_e_pageses,
         d.data_e_fletepageses, d.fatura_e_derguar, d.borxh_koment, d.litrat_total,
-        t.boca_running, t.boca_total
+        t.boca_running, t.boca_total, IFNULL(d.isCylinder, '0') AS isCylinder
     FROM distribuimi d
     JOIN totals t ON t.id = d.id
     {$whereSQL}
@@ -245,6 +247,14 @@ ob_start();
                 </select>
             </div>
             <div class="form-group" style="min-width:auto;">
+                <label>Lloji</label>
+                <select name="lloji" style="padding:6px 8px;">
+                    <option value="">Të gjitha</option>
+                    <option value="0" <?= $filterLloji === '0' ? 'selected' : '' ?>>Boca</option>
+                    <option value="2" <?= $filterLloji === '2' ? 'selected' : '' ?>>Nxemëse</option>
+                </select>
+            </div>
+            <div class="form-group" style="min-width:auto;">
                 <label>Rreshta</label>
                 <select name="per_page" style="width:70px;padding:6px 8px;">
                     <option value="100" <?= $perPage==100?'selected':'' ?>>100</option>
@@ -277,6 +287,7 @@ ob_start();
                     <tr>
                         <th style="width:30px;"><input type="checkbox" id="selectAll" title="Zgjidh te gjitha"></th>
                         <?= sortTh('row_nr', '#', $sortCol, $sortDir) ?>
+                        <th style="width:70px;">Lloji</th>
                         <?= withFilter(sortTh('klienti', 'Klienti', $sortCol, $sortDir), 'f_klienti', $distClientsAll) ?>
                         <?= sortTh('data', 'Data', $sortCol, $sortDir) ?>
                         <?= withFilter(sortTh('sasia', 'Sasia', $sortCol, $sortDir, 'num'), 'f_sasia', $distSasiaVals) ?>
@@ -295,9 +306,11 @@ ob_start();
                 </thead>
                 <tbody>
                     <?php foreach ($rows as $r): ?>
-                    <tr data-id="<?= $r['id'] ?>">
+                    <?php $isHeater = (($r['isCylinder'] ?? '0') == '2'); ?>
+                    <tr data-id="<?= $r['id'] ?>" <?= $isHeater ? 'style="background:#fff8f0;"' : '' ?>>
                         <td><input type="checkbox" class="row-select" value="<?= $r['id'] ?>"></td>
                         <td><?= $r['row_nr'] ?: $r['id'] ?></td>
+                        <td><?php if ($isHeater): ?><span class="badge" style="background:#e67e22;color:#fff;font-size:0.7rem;">NXEMËSE</span><?php else: ?><span class="badge" style="background:#3498db;color:#fff;font-size:0.7rem;">BOCA</span><?php endif; ?></td>
                         <td class="editable" data-field="klienti"><?= e($r['klienti']) ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="num editable" data-field="sasia" data-type="number"><?= (int)$r['sasia'] ?></td>
