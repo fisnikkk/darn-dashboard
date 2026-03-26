@@ -175,11 +175,11 @@ ob_start();
             <table class="data-table">
                 <thead><tr>
                     <th style="width:30px;"></th>
-                    <th>Klienti</th>
-                    <th class="num">Te dhena</th>
-                    <th class="num">Te marra</th>
-                    <th class="num">Ne stok</th>
-                    <th>Levizja e fundit</th>
+                    <th style="width:20%;">Klienti</th>
+                    <th class="num" style="width:15%;text-align:center;">Te dhena</th>
+                    <th class="num" style="width:15%;text-align:center;">Te marra</th>
+                    <th class="num" style="width:15%;text-align:center;">Ne stok</th>
+                    <th style="width:20%;">Levizja e fundit</th>
                     <th style="width:40px;"></th>
                 </tr></thead>
                 <tbody>
@@ -192,9 +192,9 @@ ob_start();
                     <tr class="nx-group-row" style="cursor:pointer;font-weight:500;" onclick="document.getElementById('<?= $groupId ?>').classList.toggle('hidden');this.querySelector('.nx-arrow i').classList.toggle('fa-chevron-down');this.querySelector('.nx-arrow i').classList.toggle('fa-chevron-up');">
                         <td class="nx-arrow"><i class="fas fa-chevron-down" style="font-size:0.75rem;color:var(--text-muted);"></i></td>
                         <td><?= e($group['klienti']) ?></td>
-                        <td class="num"><?= $group['total_dhena'] ?></td>
-                        <td class="num"><?= $group['total_marra'] ?></td>
-                        <td class="num" style="font-weight:700;<?= $stokStyle ?>"><?= $neStok ?></td>
+                        <td class="num" style="text-align:center;"><?= $group['total_dhena'] ?></td>
+                        <td class="num" style="text-align:center;"><?= $group['total_marra'] ?></td>
+                        <td class="num" style="text-align:center;font-weight:700;<?= $stokStyle ?>"><?= $neStok ?></td>
                         <td style="color:var(--text-muted);font-size:0.85rem;"><?= $lastRow['data'] ?></td>
                         <td></td>
                     </tr>
@@ -202,19 +202,19 @@ ob_start();
                         <td colspan="7" style="padding:0;background:var(--bg-subtle,#f8fafc);">
                             <table style="width:100%;border-collapse:collapse;">
                                 <thead><tr style="font-size:0.8rem;color:var(--text-muted);">
-                                    <th style="padding:6px 12px;">Data</th>
-                                    <th class="num" style="padding:6px 12px;">Te dhena</th>
-                                    <th class="num" style="padding:6px 12px;">Te marra</th>
-                                    <th style="padding:6px 12px;">Lloji</th>
-                                    <th style="padding:6px 12px;">Koment</th>
+                                    <th style="padding:6px 12px;width:15%;">Data</th>
+                                    <th class="num" style="padding:6px 12px;width:15%;text-align:center;">Te dhena</th>
+                                    <th class="num" style="padding:6px 12px;width:15%;text-align:center;">Te marra</th>
+                                    <th style="padding:6px 12px;width:20%;">Lloji</th>
+                                    <th style="padding:6px 12px;width:25%;">Koment</th>
                                     <th style="padding:6px 12px;width:80px;"></th>
                                 </tr></thead>
                                 <tbody>
                                 <?php foreach ($group['rows'] as $r): ?>
                                     <tr data-id="<?= $r['id'] ?>" style="font-size:0.85rem;border-top:1px solid var(--border,#e5e7eb);">
                                         <td class="editable" data-field="data" data-type="date" style="padding:6px 12px;"><?= $r['data'] ?></td>
-                                        <td class="num editable" data-field="te_dhena" data-type="number" style="padding:6px 12px;"><?= (int)$r['te_dhena'] ?></td>
-                                        <td class="num editable" data-field="te_marra" data-type="number" style="padding:6px 12px;"><?= (int)$r['te_marra'] ?></td>
+                                        <td class="num editable" data-field="te_dhena" data-type="number" style="padding:6px 12px;text-align:center;"><?= (int)$r['te_dhena'] ?></td>
+                                        <td class="num editable" data-field="te_marra" data-type="number" style="padding:6px 12px;text-align:center;"><?= (int)$r['te_marra'] ?></td>
                                         <td class="editable" data-field="lloji_i_nxemjes" data-type="select" data-options="<?= e(json_encode($llojet)) ?>" style="padding:6px 12px;"><?= e($r['lloji_i_nxemjes']) ?></td>
                                         <td class="editable truncate" data-field="koment" title="<?= e($r['koment']) ?>" style="padding:6px 12px;"><?= e($r['koment']) ?></td>
                                         <td style="padding:6px 12px;">
