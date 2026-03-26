@@ -1499,54 +1499,34 @@ function handleGetBocaPerKlient($db) {
 function handleGetNxemesePerKlient($db) {
     $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
 
-    // Connect to GoDaddy's cylinder database (same MySQL server, different DB)
-    $godaddyDb = getenv('GODADDY_DB_NAME') ?: (getenv('GODADDY_DB') ?: 'adaptive_cylinder_test');
-    $godaddyHost = getenv('GODADDY_DB_HOST') ?: (getenv('GODADDY_HOST') ?: DB_HOST);
-    $godaddyUser = getenv('GODADDY_DB_USER') ?: (getenv('GODADDY_USER') ?: DB_USER);
-    $godaddyPass = getenv('GODADDY_DB_PASS') ?: (getenv('GODADDY_PASS') ?: DB_PASS);
-    $godaddyPort = getenv('GODADDY_DB_PORT') ?: (getenv('GODADDY_PORT') ?: DB_PORT);
+    // Call GoDaddy API to get heater stock from delivery_report
+    // This avoids cross-database credential issues
+    $godaddyUrl = 'http://testing.darn-group.com/new_api_action.php?GetNxemeseStock';
+    if ($client !== '') {
+        $godaddyUrl .= '&client=' . urlencode($client);
+    }
 
-    try {
-        $dsn = "mysql:host={$godaddyHost};port={$godaddyPort};dbname={$godaddyDb};charset=utf8mb4";
-        $gdb = new PDO($dsn, $godaddyUser, $godaddyPass, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    } catch (PDOException $e) {
-        // Fallback to local nxemese table if GoDaddy connection fails
+    $ch = curl_init($godaddyUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $response = curl_exec($ch);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError || !$response) {
+        // Fallback to local nxemese table if GoDaddy API fails
         handleGetNxemesePerKlientFallback($db, $client);
         return;
     }
 
-    $where = ["isCylinder = '2'"];
-    $params = [];
-
-    if ($client !== '') {
-        $where[] = 'LOWER(TRIM(Client)) LIKE ?';
-        $params[] = '%' . strtolower(trim($client)) . '%';
+    $godaddyData = json_decode($response, true);
+    if (!$godaddyData || $godaddyData['status'] !== '1') {
+        handleGetNxemesePerKlientFallback($db, $client);
+        return;
     }
 
-    $whereSQL = 'WHERE ' . implode(' AND ', $where);
-
-    // Per-client heater count from delivery_report
-    $sql = "
-        SELECT
-            MIN(Client) AS klienti,
-            COALESCE(SUM(DeliveredCylinders), 0) - COALESCE(SUM(ReturnedCylinders), 0) AS ne_terren
-        FROM delivery_report
-        {$whereSQL}
-        GROUP BY LOWER(Client)
-        HAVING ne_terren != 0
-        ORDER BY MIN(Client)
-    ";
-
-    $stmt = $gdb->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Global total
-    $globalStmt = $gdb->query("SELECT COALESCE(SUM(DeliveredCylinders) - SUM(ReturnedCylinders), 0) FROM delivery_report WHERE isCylinder = '2'");
-    $nxemeseTotalNeTerren = (int)$globalStmt->fetchColumn();
+    $rows = $godaddyData['data'] ?? [];
+    $nxemeseTotalNeTerren = (int)($godaddyData['totals']['nxemese_total_ne_terren'] ?? 0);
 
     $data = [];
     foreach ($rows as $r) {
