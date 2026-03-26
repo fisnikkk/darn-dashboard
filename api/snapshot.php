@@ -222,6 +222,45 @@ try {
             'message' => count($imported) . ' snapshot(s) importuar, ' . count($skipped) . ' tashmë ekzistojnë'
         ], JSON_UNESCAPED_UNICODE);
 
+    } elseif ($action === 'upload') {
+        // Upload a snapshot JSON file from local machine
+        if (!isset($_FILES['snapshot_file']) || $_FILES['snapshot_file']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'error' => 'Skedari nuk u ngarkua']);
+            exit;
+        }
+
+        $file = $_FILES['snapshot_file'];
+        $jsonData = file_get_contents($file['tmp_name']);
+        if (!$jsonData) {
+            echo json_encode(['success' => false, 'error' => 'Skedari eshte bosh']);
+            exit;
+        }
+
+        $snapshot = json_decode($jsonData, true);
+        if (!$snapshot || !isset($snapshot['tables'])) {
+            echo json_encode(['success' => false, 'error' => 'Formati i skedarit eshte i gabuar (duhet JSON me strukturen e snapshot-it)']);
+            exit;
+        }
+
+        $name = $snapshot['name'] ?? pathinfo($file['name'], PATHINFO_FILENAME);
+        $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
+        $createdAt = $snapshot['created_at'] ?? date('Y-m-d H:i:s');
+        $sizeBytes = strlen($jsonData);
+
+        // Compress before storing
+        $compressed = gzencode($jsonData, 6);
+
+        // Use REPLACE to allow overwriting existing snapshot with same name
+        $stmt = $db->prepare("REPLACE INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$name, $createdAt, $compressed, $sizeBytes]);
+
+        $sizeMB = round($sizeBytes / 1048576, 2);
+        $tableCount = count($snapshot['tables']);
+        echo json_encode([
+            'success' => true,
+            'message' => "Snapshot '{$name}' u ngarkua ({$sizeMB} MB, {$tableCount} tabela)"
+        ], JSON_UNESCAPED_UNICODE);
+
     } elseif ($action === 'download') {
         // Download raw snapshot data (or just one table from it)
         $name = $input['name'] ?? '';

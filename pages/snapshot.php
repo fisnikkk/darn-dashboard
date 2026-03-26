@@ -34,6 +34,10 @@ ob_start();
                 <button type="submit" class="btn btn-primary" id="snapCreateBtn">
                     <i class="fas fa-camera"></i> Krijo Snapshot
                 </button>
+                <button type="button" class="btn" id="snapUploadBtn" onclick="document.getElementById('snapFileInput').click()" style="background:#f59e0b;color:#fff;">
+                    <i class="fas fa-upload"></i> Ngarko Snapshot
+                </button>
+                <input type="file" id="snapFileInput" accept=".json" style="display:none;" onchange="uploadSnapshot(this)">
                 <button type="button" class="btn" id="snapImportBtn" onclick="importFromFiles()" style="background:#6366f1;color:#fff;">
                     <i class="fas fa-file-import"></i> Import nga skedari
                 </button>
@@ -248,6 +252,35 @@ function showToast(msg, type) {
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+async function uploadSnapshot(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = ''; // Reset so same file can be re-selected
+
+    const btn = document.getElementById('snapUploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...';
+
+    try {
+        const formData = new FormData();
+        formData.append('snapshot_file', file);
+
+        const res = await fetch('/api/snapshot.php?action=upload', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        loadSnapshots();
+        showToast(data.message, 'success');
+    } catch (err) {
+        showToast('Gabim: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload"></i> Ngarko Snapshot';
+    }
 }
 
 async function importFromFiles() {
