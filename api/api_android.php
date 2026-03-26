@@ -1145,7 +1145,7 @@ function handleApproveBorxh($db) {
 
             // Log approval action
             $approvalLog = 'Approved by ' . $adminUser . ', requested by ' . ($pending['requested_by'] ?? 'unknown');
-            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'borxh_approval', ?, ?)");
+            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'borxh_koment', ?, ?)");
             $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
 
             // Sync local distribuimi row if it was already imported (godaddy_id = delivery_report ID)
@@ -1233,7 +1233,7 @@ function handleApproveBorxh($db) {
 
         // Log approval action
         $approvalLog = 'Approved by ' . $adminUser . ', requested by ' . ($pending['requested_by'] ?? 'unknown');
-        $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_approval', ?, ?)");
+        $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_koment', ?, ?)");
         $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
 
         // Mark pending request as approved (use PHP date, not MySQL NOW(), to match Belgrade timezone)
