@@ -1943,6 +1943,12 @@ function handleSyncDeliveryToDistribuimi($db) {
     $godaddyId   = (int)($body['godaddy_id'] ?? 0);
     $isCylinder  = trim($body['isCylinder'] ?? '0');
 
+    // Skip heaters — they use nxemese table, not distribuimi
+    if ($isCylinder === '2') {
+        echo json_encode(['status' => '1', 'message' => 'Heater skipped (uses nxemese table)']);
+        return;
+    }
+
     if ($godaddyId <= 0) {
         echo json_encode(['status' => '0', 'message' => 'godaddy_id required']);
         return;
