@@ -18,7 +18,7 @@ if (empty($input)) {
 }
 
 $tables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata',
-           'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo','borxhet_notes','notes'];
+           'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo','borxhet_notes','notes','pending_borxh'];
 
 try {
     $db = getDB();
