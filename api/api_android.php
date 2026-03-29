@@ -1142,9 +1142,12 @@ function handleApproveBorxh($db) {
             $gdRow = $gdResult['row'];
             $currentPayment = strtoupper(trim($gdRow['PaymentMethod'] ?? ''));
 
-            if ($currentPayment === 'BANK') {
+            // Validate current state matches expected direction
+            // Leje (CASH→BANK): current must be CASH, not already BANK
+            // Merr (BANK→CASH): current must be BANK, not already CASH
+            if ($currentPayment === strtoupper($newPayment)) {
                 $db->rollBack();
-                echo json_encode(['status' => '0', 'message' => 'Record is already BANK on GoDaddy. State has changed since request.']);
+                echo json_encode(['status' => '0', 'message' => 'Record is already ' . $currentPayment . ' on GoDaddy. No change needed.']);
                 return;
             }
 
