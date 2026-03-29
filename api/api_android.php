@@ -1876,8 +1876,11 @@ function handleGetBorxhCollections($db) {
     $limit       = isset($_GET['limit']) ? min((int)$_GET['limit'], 500) : 200;
     if ($limit <= 0) $limit = 200;
 
-    // Only show collections where the distribuimi row is STILL cash (exclude reversed entries)
-    $where  = ["pb.status = 'approved'", "pb.new_menyra_e_pageses = 'cash'", "LOWER(TRIM(d.menyra_e_pageses)) = 'cash'"];
+    // Only show collections (approved, new payment = cash)
+    // For distribuimi source: verify row is still cash (exclude reversed)
+    // For delivery_report source: include directly (no distribuimi row to check)
+    $where  = ["pb.status = 'approved'", "pb.new_menyra_e_pageses = 'cash'",
+               "(pb.source_table = 'delivery_report' OR LOWER(TRIM(d.menyra_e_pageses)) = 'cash')"];
     $params = [];
 
     // Filter by isCylinder type (0=cylinder, 2=heater)
@@ -1916,7 +1919,7 @@ function handleGetBorxhCollections($db) {
                 pb.approved_at,
                 pb.koment
             FROM pending_borxh pb
-            JOIN distribuimi d ON d.id = pb.distribuimi_id AND pb.source_table = 'distribuimi'
+            LEFT JOIN distribuimi d ON d.id = pb.distribuimi_id AND pb.source_table = 'distribuimi'
             {$whereSQL}
             ORDER BY pb.approved_at DESC
             LIMIT {$limit}";
