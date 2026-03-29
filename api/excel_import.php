@@ -204,6 +204,12 @@ if ($action === 'import_rows') {
             $deleted = (int)$db->query("SELECT COUNT(*) FROM `{$tableName}`")->fetchColumn();
             $db->exec("DELETE FROM `{$tableName}`");
             $db->exec("ALTER TABLE `{$tableName}` AUTO_INCREMENT = 1");
+
+            // When distribuimi is replaced, also clear pending_borxh
+            // (borxh records reference distribuimi IDs that no longer exist)
+            if ($tableName === 'distribuimi') {
+                try { $db->exec("DELETE FROM pending_borxh"); } catch (Exception $e) {}
+            }
         }
 
         // --- Insert rows ---
