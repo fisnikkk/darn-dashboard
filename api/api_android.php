@@ -645,7 +645,14 @@ function handleGetClientTransactions($db) {
         return;
     }
 
-    // MERR BORXHIN + other filters: query distribuimi (heaters now synced there too)
+    // MERR BORXHIN: status_filter="bank" → also query GoDaddy for BANK transactions
+    // (Leje Borxhin changes CASH→BANK on GoDaddy, so BANK records are there, not in distribuimi)
+    if ($statusFilter === 'bank') {
+        handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo, 'bank');
+        return;
+    }
+
+    // Other filters: query distribuimi
     $where = ['LOWER(TRIM(klienti)) = ?'];
     $params = [strtolower(trim($clientName))];
 
