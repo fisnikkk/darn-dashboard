@@ -1929,6 +1929,12 @@ function handleGetBorxhCollections($db) {
  *   Volume, PricePer1L, TotalPrice, PaymentMethod, Comment, isCylinder
  */
 function handleSyncDeliveryToDistribuimi($db) {
+    // Auto-sync DISABLED — Lena imports manually via "Merr nga GoDaddy" button.
+    // App deliveries should NOT auto-appear in dashboard distribuimi.
+    echo json_encode(['status' => '1', 'message' => 'Auto-sync disabled (manual import only)']);
+    return;
+
+    /* --- Original auto-sync code (disabled) ---
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         echo json_encode(['status' => '0', 'message' => 'POST method required']);
         return;
@@ -2018,6 +2024,7 @@ function handleSyncDeliveryToDistribuimi($db) {
         'status'  => '1',
         'message' => 'Synced delivery to distribuimi (godaddy_id=' . $godaddyId . ')',
     ], JSON_UNESCAPED_UNICODE);
+    --- End of disabled auto-sync code --- */
 }
 
 /**
