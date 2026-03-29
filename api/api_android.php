@@ -879,15 +879,14 @@ function handleUpdateBorxhiStatus($db) {
                 return;
             }
 
-            // Check for existing pending request (source_table-aware)
-            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'delivery_report' AND status = 'pending'");
-            $pendingCheck->execute([$id]);
+            // Check for existing request (pending OR approved) to prevent duplicates
+            $newPayment = 'BANK';
+            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'delivery_report' AND new_menyra_e_pageses = ? AND status IN ('pending', 'approved')");
+            $pendingCheck->execute([$id, $newPayment]);
             if ($pendingCheck->fetch()) {
-                echo json_encode(['status' => '0', 'message' => 'Ka nje kerkese ne pritje per kete transaksion. Prisni miratimin.']);
+                echo json_encode(['status' => '0', 'message' => 'Ky transaksion eshte regjistruar tashme si borxh.']);
                 return;
             }
-
-            $newPayment = 'BANK';
 
             // INSERT into pending_borxh with source_table='delivery_report'
             $isCylinder = $gdRow['isCylinder'] ?? '0';
@@ -939,11 +938,11 @@ function handleUpdateBorxhiStatus($db) {
 
             $newPayment = 'cash';
 
-            // Check if there's already a pending request for this distribuimi row
-            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'distribuimi' AND status = 'pending'");
-            $pendingCheck->execute([$id]);
+            // Check for existing request (pending OR approved) to prevent duplicates
+            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'distribuimi' AND new_menyra_e_pageses = ? AND status IN ('pending', 'approved')");
+            $pendingCheck->execute([$id, $newPayment]);
             if ($pendingCheck->fetch()) {
-                echo json_encode(['status' => '0', 'message' => 'Ka nje kerkese ne pritje per kete transaksion. Prisni miratimin.']);
+                echo json_encode(['status' => '0', 'message' => 'Ky transaksion eshte mbledhur tashme.']);
                 return;
             }
 
