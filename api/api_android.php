@@ -1502,8 +1502,12 @@ function handleGetBocaPerKlient($db) {
 function handleGetNxemesePerKlient($db) {
     $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
 
-    // Call GoDaddy API to get heater stock from delivery_report
-    // This avoids cross-database credential issues
+    // Always use local nxemese table (same source as web dashboard Nxemese page)
+    // Updated by UpdateNxemeseStock after every heater deliver/return from app
+    handleGetNxemesePerKlientFallback($db, $client);
+    return;
+
+    /* --- GoDaddy API call disabled — using local nxemese table for consistency ---
     $godaddyUrl = 'http://testing.darn-group.com/new_api_action.php?GetNxemeseStock';
     if ($client !== '') {
         $godaddyUrl .= '&client=' . urlencode($client);
@@ -1517,7 +1521,6 @@ function handleGetNxemesePerKlient($db) {
     curl_close($ch);
 
     if ($curlError || !$response) {
-        // Fallback to local nxemese table if GoDaddy API fails
         handleGetNxemesePerKlientFallback($db, $client);
         return;
     }
@@ -1538,6 +1541,7 @@ function handleGetNxemesePerKlient($db) {
             'ne_terren' => (string)(int)$r['ne_terren'],
         ];
     }
+    --- End disabled GoDaddy code --- */
 
     echo json_encode([
         'status'  => '1',
