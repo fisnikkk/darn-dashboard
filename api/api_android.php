@@ -924,12 +924,35 @@ function handleUpdateBorxhiStatus($db) {
 
         } elseif ($action === 'collect_borxh') {
             // ═══════════════════════════════════════════════════════════════
-            // MERR BORXHIN — validate against distribuimi (UNCHANGED logic)
-            // The ID coming from the client app is a distribuimi.id
+            // MERR BORXHIN — try distribuimi first, then GoDaddy delivery_report
             // ═══════════════════════════════════════════════════════════════
+            $sourceTable = 'distribuimi';
             $stmt = $db->prepare("SELECT id, klienti, data, menyra_e_pageses, koment, pagesa, IFNULL(isCylinder, '0') AS isCylinder FROM distribuimi WHERE id = ?");
             $stmt->execute([$id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row || strtolower(trim($row['menyra_e_pageses'] ?? '')) !== 'bank') {
+                // Not found in distribuimi or not BANK — try GoDaddy delivery_report
+                require_once __DIR__ . '/../config/godaddy.php';
+                $gdResult = callGoDaddyAPI(['action' => 'fetch_by_id', 'id' => $id]);
+
+                if ($gdResult && ($gdResult['success'] ?? false)) {
+                    $gdRow = $gdResult['row'];
+                    $gdPayment = strtoupper(trim($gdRow['PaymentMethod'] ?? ''));
+                    if ($gdPayment === 'BANK') {
+                        $sourceTable = 'delivery_report';
+                        $row = [
+                            'id'                => (int)$gdRow['ID'],
+                            'klienti'           => $gdRow['Client'],
+                            'data'              => $gdRow['Date'] ?? '',
+                            'menyra_e_pageses'  => $gdRow['PaymentMethod'],
+                            'koment'            => $gdRow['Comment'] ?? '',
+                            'pagesa'            => $gdRow['TotalPrice'] ?? '0',
+                            'isCylinder'        => $gdRow['isCylinder'] ?? '0',
+                        ];
+                    }
+                }
+            }
 
             if (!$row) {
                 echo json_encode(['status' => '0', 'message' => 'Transaction not found (ID: ' . $id . ')']);
@@ -937,7 +960,6 @@ function handleUpdateBorxhiStatus($db) {
             }
 
             $currentPayment = strtolower(trim($row['menyra_e_pageses'] ?? ''));
-
             if ($currentPayment !== 'bank') {
                 echo json_encode(['status' => '0', 'message' => 'Transaction is not bank (debt). Cannot collect. Current status: ' . $row['menyra_e_pageses']]);
                 return;
@@ -946,18 +968,19 @@ function handleUpdateBorxhiStatus($db) {
             $newPayment = 'cash';
 
             // Check for existing request (pending OR approved) to prevent duplicates
-            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = 'distribuimi' AND new_menyra_e_pageses = ? AND status IN ('pending', 'approved')");
-            $pendingCheck->execute([$id, $newPayment]);
+            $pendingCheck = $db->prepare("SELECT id FROM pending_borxh WHERE distribuimi_id = ? AND source_table = ? AND new_menyra_e_pageses = ? AND status IN ('pending', 'approved')");
+            $pendingCheck->execute([$id, $sourceTable, $newPayment]);
             if ($pendingCheck->fetch()) {
                 echo json_encode(['status' => '0', 'message' => 'Ky transaksion eshte mbledhur tashme.']);
                 return;
             }
 
-            // INSERT into pending_borxh with source_table='distribuimi'
+            // INSERT into pending_borxh
             $isCylinder = $row['isCylinder'] ?? '0';
-            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by, isCylinder) VALUES (?, 'distribuimi', ?, ?, ?, ?, ?, ?, ?, ?)");
+            $insertStmt = $db->prepare("INSERT INTO pending_borxh (distribuimi_id, source_table, klienti, old_menyra_e_pageses, new_menyra_e_pageses, pagesa, data_e_shitjes, koment, requested_by, isCylinder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $insertStmt->execute([
                 $id,
+                $sourceTable,
                 $row['klienti'],
                 $row['menyra_e_pageses'],
                 $newPayment,
