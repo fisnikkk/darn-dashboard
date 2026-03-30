@@ -282,6 +282,56 @@ function handleImport($db, $input) {
         }
     }
 
+    // ── Also fetch product SALES from GoDaddy's product_transaction_info ──
+    // These come from the "Sell Product" screen (different from delivery_report products)
+    if ($importShitje) {
+        $salesUrl = str_replace('dashboard_export.php', 'api.php', GD_API_URL) . '?getSalesLastReport';
+        $ch = curl_init($salesUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        $salesResponse = curl_exec($ch);
+        curl_close($ch);
+
+        if ($salesResponse) {
+            $salesData = json_decode($salesResponse, true);
+            if ($salesData && ($salesData['status'] ?? '') === '1' && !empty($salesData['data'])) {
+                $salesShitjeSQL = "INSERT INTO shitje_produkteve (data, cilindra_sasia, produkti, klienti, cmimi, totali, menyra_pageses, koment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $salesShitjeStmt = $db->prepare($salesShitjeSQL);
+
+                foreach ($salesData['data'] as $sale) {
+                    $saleDate = substr($sale['Time'] ?? $sale['Timestamp'] ?? '', 0, 10); // YYYY-MM-DD
+
+                    // Date range filter — only import sales within the selected period
+                    if ($saleDate < $dateFrom || $saleDate > $dateTo) continue;
+
+                    // Dedup: check if same product + client + date + price already exists
+                    $dupCheck = $db->prepare("SELECT COUNT(*) FROM shitje_produkteve WHERE data = ? AND LOWER(TRIM(klienti)) = ? AND LOWER(TRIM(produkti)) = ? AND cmimi = ?");
+                    $dupCheck->execute([
+                        $saleDate,
+                        strtolower(trim($sale['ClientName'] ?? '')),
+                        strtolower(trim($sale['pro_name'] ?? '')),
+                        (float)($sale['UnitPrice'] ?? 0),
+                    ]);
+                    if ((int)$dupCheck->fetchColumn() > 0) continue;
+
+                    $saleTotal = (float)($sale['UnitPrice'] ?? 0) * (int)($sale['initial_stock'] ?? 1);
+
+                    $salesShitjeStmt->execute([
+                        $saleDate,
+                        (int)($sale['initial_stock'] ?? 1),
+                        trim($sale['pro_name'] ?? ''),
+                        trim($sale['ClientName'] ?? ''),
+                        (float)($sale['UnitPrice'] ?? 0),
+                        $saleTotal,
+                        trim($sale['PaymentMethod'] ?? ''),
+                        trim($sale['Comment'] ?? ''),
+                    ]);
+                    $insertedShitje++;
+                }
+            }
+        }
+    }
+
     $db->commit();
 
     // Build response message with counts for each type
