@@ -169,71 +169,117 @@ function handleImport($db, $input) {
 
     $db->beginTransaction();
     $inserted = 0;
+    $insertedNxemese = 0;
+    $insertedShitje = 0;
     $skipped = 0;
 
+    // Distribuimi (cylinders, isCylinder=0)
     $insertSQL = "INSERT INTO distribuimi (klienti, data, sasia, boca_te_kthyera, litra, cmimi, pagesa, menyra_e_pageses, fatura_e_derguar, litrat_total, litrat_e_konvertuara, isCylinder, godaddy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     $insertStmt = $db->prepare($insertSQL);
+
+    // Nxemese (heaters, isCylinder=2)
+    $nxemeseSQL = "INSERT INTO nxemese (klienti, data, te_dhena, te_marra, koment) VALUES (?, ?, ?, ?, ?)";
+    $nxemeseStmt = $db->prepare($nxemeseSQL);
+
+    // Shitje produkteve (products, isCylinder=1)
+    $shitjeSQL = "INSERT INTO shitje_produkteve (data, cilindra_sasia, klienti, cmimi, totali, menyra_pageses, koment) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    $shitjeStmt = $db->prepare($shitjeSQL);
 
     foreach ($gdRows as $row) {
         $m = mapRow($row);
         $gdId = (int)($row['ID'] ?? 0);
+        $isCylinder = $m['isCylinder'] ?? '0';
 
-        // Skip duplicates: first by godaddy_id, then fallback for Excel-imported rows
-        $isDup = false;
-        if ($gdId > 0) {
-            $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
-            $dup->execute([$gdId]);
-            $isDup = (int)$dup->fetchColumn() > 0;
-        }
-        if (!$isDup && $gdId > 0) {
-            // Fallback: find ONE Excel-imported row (godaddy_id IS NULL) with matching fields
-            // If found, "claim" it by setting its godaddy_id so the same Excel row can't match twice
-            // (prevents skipping a second identical GoDaddy delivery against the same single Excel row)
-            $dup2 = $db->prepare("SELECT id FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ? LIMIT 1");
-            $dup2->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
-            $excelRowId = $dup2->fetchColumn();
-            if ($excelRowId) {
-                // Claim this Excel row — set its godaddy_id so it won't match again
-                $db->prepare("UPDATE distribuimi SET godaddy_id = ? WHERE id = ?")->execute([$gdId, (int)$excelRowId]);
-                $isDup = true;
+        if ($isCylinder === '2') {
+            // ── HEATER → nxemese table ──
+            $nxemeseStmt->execute([
+                $m['klienti'],
+                $m['data'],
+                (int)$m['sasia'],           // te_dhena (delivered)
+                (int)$m['boca_te_kthyera'], // te_marra (returned)
+                'Import nga GoDaddy',
+            ]);
+            $insertedNxemese++;
+
+        } elseif ($isCylinder === '1') {
+            // ── PRODUCT → shitje_produkteve table ──
+            $shitjeStmt->execute([
+                $m['data'],
+                (int)$m['sasia'],           // cilindra_sasia (quantity)
+                $m['klienti'],
+                $m['cmimi'],                // cmimi (price per unit)
+                $m['pagesa'],               // totali (total price)
+                $m['menyra_e_pageses'],     // menyra_pageses (payment method)
+                $m['fatura_e_derguar'],     // koment (comment)
+            ]);
+            $insertedShitje++;
+
+        } else {
+            // ── CYLINDER → distribuimi table (same as before) ──
+
+            // Skip duplicates: first by godaddy_id, then fallback for Excel-imported rows
+            $isDup = false;
+            if ($gdId > 0) {
+                $dup = $db->prepare("SELECT COUNT(*) FROM distribuimi WHERE godaddy_id = ?");
+                $dup->execute([$gdId]);
+                $isDup = (int)$dup->fetchColumn() > 0;
             }
+            if (!$isDup && $gdId > 0) {
+                $dup2 = $db->prepare("SELECT id FROM distribuimi WHERE godaddy_id IS NULL AND klienti = ? AND data = ? AND sasia = ? AND pagesa = ? LIMIT 1");
+                $dup2->execute([$m['klienti'], $m['data'], $m['sasia'], $m['pagesa']]);
+                $excelRowId = $dup2->fetchColumn();
+                if ($excelRowId) {
+                    $db->prepare("UPDATE distribuimi SET godaddy_id = ? WHERE id = ?")->execute([$gdId, (int)$excelRowId]);
+                    $isDup = true;
+                }
+            }
+            if ($isDup) {
+                $skipped++;
+                continue;
+            }
+
+            $insertStmt->execute([
+                $m['klienti'],
+                $m['data'],
+                $m['sasia'],
+                $m['boca_te_kthyera'],
+                $m['litra'],
+                $m['cmimi'],
+                $m['pagesa'],
+                $m['menyra_e_pageses'],
+                $m['fatura_e_derguar'],
+                $m['litrat_total'],
+                $m['litrat_e_konvertuara'],
+                $m['isCylinder'],
+                $gdId > 0 ? $gdId : null,
+            ]);
+            $newId = $db->lastInsertId();
+
+            // Log to changelog with batch_id
+            $m['_godaddy_id'] = $gdId;
+            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?, ?)")
+                ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE), $batchId]);
+
+            $inserted++;
         }
-        if ($isDup) {
-            $skipped++;
-            continue;
-        }
-
-        $insertStmt->execute([
-            $m['klienti'],
-            $m['data'],
-            $m['sasia'],
-            $m['boca_te_kthyera'],
-            $m['litra'],
-            $m['cmimi'],
-            $m['pagesa'],
-            $m['menyra_e_pageses'],
-            $m['fatura_e_derguar'],
-            $m['litrat_total'],
-            $m['litrat_e_konvertuara'],
-            $m['isCylinder'],
-            $gdId > 0 ? $gdId : null,
-        ]);
-        $newId = $db->lastInsertId();
-
-        // Log to changelog with batch_id
-        $m['_godaddy_id'] = $gdId;
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?, ?)")
-            ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE), $batchId]);
-
-        $inserted++;
     }
 
     $db->commit();
 
+    // Build response message with counts for each type
+    $parts = [];
+    if ($inserted > 0) $parts[] = "{$inserted} cilindra";
+    if ($insertedNxemese > 0) $parts[] = "{$insertedNxemese} nxemese";
+    if ($insertedShitje > 0) $parts[] = "{$insertedShitje} shitje";
+    $msg = $parts ? 'U importuan: ' . implode(', ', $parts) : 'Asgje e re nuk u gjet';
+    if ($skipped > 0) $msg .= " ({$skipped} cilindra ekzistonin tashme)";
+
     echo json_encode([
         'success' => true,
-        'message' => "U importuan {$inserted} rreshta te reja" . ($skipped ? " ({$skipped} ekzistonin tashme)" : ''),
+        'message' => $msg,
         'inserted' => $inserted,
+        'inserted_nxemese' => $insertedNxemese,
+        'inserted_shitje' => $insertedShitje,
         'skipped' => $skipped,
         'batch_id' => $batchId,
     ]);
