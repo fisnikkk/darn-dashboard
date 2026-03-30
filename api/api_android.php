@@ -1393,6 +1393,11 @@ function handleGetSalesLastReport($db) {
  * Returns: { "status": "1", "message": "Product sale inserted successfully", "id": "123" }
  */
 function handleInsertProductSale($db) {
+    // Auto-sync DISABLED — dashboard gets product sales via "Merr nga GoDaddy" only
+    echo json_encode(['status' => '1', 'message' => 'Product sale auto-sync disabled (manual import only)', 'id' => '0']);
+    return;
+
+    /* --- Original auto-sync code (disabled) ---
     $produkti         = $_GET['pro_name'] ?? '';
     $klienti          = $_GET['ClientName'] ?? '';
     $cilindra_sasia   = (int)($_GET['initial_stock'] ?? 0);
@@ -1455,6 +1460,7 @@ function handleInsertProductSale($db) {
         'message' => 'Product sale inserted successfully',
         'id'      => (string)$newId,
     ]);
+    --- End of disabled auto-sync code --- */
 }
 
 /**
@@ -1539,12 +1545,8 @@ function handleGetBocaPerKlient($db) {
 function handleGetNxemesePerKlient($db) {
     $client = !empty($_GET['client']) ? trim($_GET['client']) : '';
 
-    // Always use local nxemese table (same source as web dashboard Nxemese page)
-    // Updated by UpdateNxemeseStock after every heater deliver/return from app
-    handleGetNxemesePerKlientFallback($db, $client);
-    return;
-
-    /* --- GoDaddy API call disabled — using local nxemese table for consistency ---
+    // Primary: GoDaddy (always up to date from app deliveries)
+    // Fallback: local nxemese table (updated via "Merr nga GoDaddy")
     $godaddyUrl = 'http://testing.darn-group.com/new_api_action.php?GetNxemeseStock';
     if ($client !== '') {
         $godaddyUrl .= '&client=' . urlencode($client);
@@ -1578,8 +1580,6 @@ function handleGetNxemesePerKlient($db) {
             'ne_terren' => (string)(int)$r['ne_terren'],
         ];
     }
-    --- End disabled GoDaddy code --- */
-
     echo json_encode([
         'status'  => '1',
         'message' => count($data) . ' kliente me nxemese ne terren',
@@ -2080,6 +2080,11 @@ function handleSyncDeliveryToDistribuimi($db) {
  *   sasia:     Quantity (default 1)
  */
 function handleUpdateNxemeseStock($db) {
+    // Auto-sync DISABLED — dashboard gets nxemese data via "Merr nga GoDaddy" only
+    echo json_encode(['status' => '1', 'message' => 'Nxemese auto-sync disabled (manual import only)']);
+    return;
+
+    /* --- Original auto-sync code (disabled) ---
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         echo json_encode(['status' => '0', 'message' => 'POST method required']);
         return;
@@ -2116,5 +2121,6 @@ function handleUpdateNxemeseStock($db) {
         'status'  => '1',
         'message' => 'Nxemese stock updated: ' . $action . ' ' . $sasia . ' for ' . $klienti,
     ], JSON_UNESCAPED_UNICODE);
+    --- End of disabled auto-sync code --- */
 }
 
