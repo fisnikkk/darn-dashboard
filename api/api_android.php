@@ -645,12 +645,9 @@ function handleGetClientTransactions($db) {
         return;
     }
 
-    // MERR BORXHIN: status_filter="bank" → also query GoDaddy for BANK transactions
-    // (Leje Borxhin changes CASH→BANK on GoDaddy, so BANK records are there, not in distribuimi)
-    if ($statusFilter === 'bank') {
-        handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo, 'bank');
-        return;
-    }
+    // MERR BORXHIN: status_filter="bank" → query distribuimi first (live system has BANK there)
+    // If no results in distribuimi, fall back to GoDaddy (test system without auto-sync)
+    // This ensures both live and test environments work correctly
 
     // Other filters: query distribuimi
     $where = ['LOWER(TRIM(klienti)) = ?'];
@@ -708,6 +705,13 @@ function handleGetClientTransactions($db) {
     $bankTotalStmt->execute([strtolower(trim($clientName))]);
     $bankTotalRow = $bankTotalStmt->fetch(PDO::FETCH_ASSOC);
     $bankTotal = number_format((float)($bankTotalRow['bank_total'] ?? 0), 2, '.', '');
+
+    // If BANK filter returned no results from distribuimi, try GoDaddy as fallback
+    // (test environment without auto-sync has BANK records on GoDaddy instead)
+    if ($statusFilter === 'bank' && empty($data)) {
+        handleGetClientTransactionsFromGoDaddy($db, $clientName, $dateFrom, $dateTo, 'bank');
+        return;
+    }
 
     echo json_encode([
         'status'     => '1',
