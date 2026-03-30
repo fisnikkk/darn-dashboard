@@ -255,11 +255,45 @@ try {
         $stmt = $db->prepare("REPLACE INTO snapshots (name, created_at, snapshot_data, size_bytes) VALUES (?, ?, ?, ?)");
         $stmt->execute([$name, $createdAt, $compressed, $sizeBytes]);
 
+        // Auto-restore: apply the uploaded snapshot data immediately
+        $db->beginTransaction();
+
+        foreach ($snapshot['tables'] as $t => $rows) {
+            if (!in_array($t, $tables)) continue;
+            $db->exec("DELETE FROM {$t}");
+
+            if (empty($rows)) continue;
+
+            $cols = array_keys($rows[0]);
+            $placeholders = '(' . implode(',', array_fill(0, count($cols), '?')) . ')';
+            $sql = "INSERT INTO {$t} (" . implode(',', $cols) . ") VALUES {$placeholders}";
+            $insertStmt = $db->prepare($sql);
+
+            foreach ($rows as $row) {
+                $insertStmt->execute(array_values($row));
+            }
+        }
+
+        // Recalculate bilanci for gjendja_bankare
+        $all = $db->query("SELECT id, debia, kredi FROM gjendja_bankare ORDER BY data ASC, id ASC")->fetchAll();
+        $running = 0;
+        foreach ($all as $r) {
+            $running = round($running + (float)$r['kredi'] + (float)$r['debia'], 2);
+            $db->prepare("UPDATE gjendja_bankare SET bilanci = ? WHERE id = ?")->execute([$running, $r['id']]);
+        }
+
+        // Log restore action
+        $tablesRestored = array_keys($snapshot['tables']);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('restore', 'snapshot', 0, 'snapshot_name', NULL, ?)")
+            ->execute([json_encode(['snapshot' => $name . ' (upload)', 'tables' => $tablesRestored, 'created_at' => $createdAt], JSON_UNESCAPED_UNICODE)]);
+
+        $db->commit();
+
         $sizeMB = round($sizeBytes / 1048576, 2);
         $tableCount = count($snapshot['tables']);
         echo json_encode([
             'success' => true,
-            'message' => "Snapshot '{$name}' u ngarkua ({$sizeMB} MB, {$tableCount} tabela)"
+            'message' => "Snapshot '{$name}' u ngarkua dhe u rikthye ({$sizeMB} MB, {$tableCount} tabela)"
         ], JSON_UNESCAPED_UNICODE);
 
     } elseif ($action === 'download') {
