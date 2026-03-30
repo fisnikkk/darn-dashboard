@@ -186,9 +186,7 @@ function handleImport($db, $input) {
     $nxemeseSQL = "INSERT INTO nxemese (klienti, data, te_dhena, te_marra, koment) VALUES (?, ?, ?, ?, ?)";
     $nxemeseStmt = $db->prepare($nxemeseSQL);
 
-    // Shitje produkteve (products, isCylinder=1)
-    $shitjeSQL = "INSERT INTO shitje_produkteve (data, cilindra_sasia, klienti, cmimi, totali, menyra_pageses, koment) VALUES (?, ?, ?, ?, ?, ?, ?)";
-    $shitjeStmt = $db->prepare($shitjeSQL);
+    // Shitje produkteve — imported from getSalesLastReport below (not from delivery_report)
 
     foreach ($gdRows as $row) {
         $m = mapRow($row);
@@ -199,7 +197,9 @@ function handleImport($db, $input) {
             $skipped++;
             continue;
         }
-        if ($isCylinder === '1' && !$importShitje) {
+        if ($isCylinder === '1') {
+            // Products in delivery_report are skipped — product sales come from
+            // getSalesLastReport (product_transaction_info) instead, imported below
             $skipped++;
             continue;
         }
@@ -218,19 +218,6 @@ function handleImport($db, $input) {
                 'Import nga GoDaddy',
             ]);
             $insertedNxemese++;
-
-        } elseif ($isCylinder === '1') {
-            // ── PRODUCT → shitje_produkteve table ──
-            $shitjeStmt->execute([
-                $m['data'],
-                (int)$m['sasia'],           // cilindra_sasia (quantity)
-                $m['klienti'],
-                $m['cmimi'],                // cmimi (price per unit)
-                $m['pagesa'],               // totali (total price)
-                $m['menyra_e_pageses'],     // menyra_pageses (payment method)
-                $m['fatura_e_derguar'],     // koment (comment)
-            ]);
-            $insertedShitje++;
 
         } else {
             // ── CYLINDER → distribuimi table (same as before) ──
