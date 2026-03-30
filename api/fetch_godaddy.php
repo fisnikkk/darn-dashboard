@@ -157,6 +157,11 @@ function handleImport($db, $input) {
         return;
     }
 
+    // Type filters (default: import all)
+    $importCylinders = ($input['import_cylinders'] ?? true) !== false;
+    $importNxemese   = ($input['import_nxemese'] ?? true) !== false;
+    $importShitje    = ($input['import_shitje'] ?? true) !== false;
+
     $gdRows = fetchGoDaddyRows($dateFrom, $dateTo);
 
     if (empty($gdRows)) {
@@ -189,6 +194,19 @@ function handleImport($db, $input) {
         $m = mapRow($row);
         $gdId = (int)($row['ID'] ?? 0);
         $isCylinder = $m['isCylinder'] ?? '0';
+
+        if ($isCylinder === '2' && !$importNxemese) {
+            $skipped++;
+            continue;
+        }
+        if ($isCylinder === '1' && !$importShitje) {
+            $skipped++;
+            continue;
+        }
+        if ($isCylinder === '0' && !$importCylinders) {
+            $skipped++;
+            continue;
+        }
 
         if ($isCylinder === '2') {
             // ── HEATER → nxemese table ──

@@ -692,6 +692,20 @@ function applyBulkPayment() {
                 </div>
             </div>
 
+            <!-- Import type checkboxes -->
+            <div id="gdTypeFilter" style="display:none;margin-bottom:14px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">
+                <div style="font-size:0.82rem;font-weight:600;margin-bottom:6px;">Cilat lloje te importohen:</div>
+                <label style="margin-right:16px;font-size:0.85rem;cursor:pointer;">
+                    <input type="checkbox" id="gdTypeCylinder" checked> Cilindra
+                </label>
+                <label style="margin-right:16px;font-size:0.85rem;cursor:pointer;">
+                    <input type="checkbox" id="gdTypeNxemese" checked> Nxemese
+                </label>
+                <label style="font-size:0.85rem;cursor:pointer;">
+                    <input type="checkbox" id="gdTypeShitje" checked> Shitje
+                </label>
+            </div>
+
             <!-- Preview table -->
             <div id="gdPreviewWrap" style="display:none;">
                 <div id="gdPreviewInfo" style="font-size:0.85rem;margin-bottom:8px;"></div>
@@ -839,6 +853,7 @@ function gdPreview() {
 
         if (data.new_rows > 0) {
             importBtn.style.display = 'inline-flex';
+            document.getElementById('gdTypeFilter').style.display = 'block';
         }
     })
     .catch(() => {
@@ -865,7 +880,14 @@ function gdImport() {
     fetch('/api/fetch_godaddy.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'import', date_from: dateFrom, date_to: dateTo })
+        body: JSON.stringify({
+            action: 'import',
+            date_from: dateFrom,
+            date_to: dateTo,
+            import_cylinders: document.getElementById('gdTypeCylinder').checked,
+            import_nxemese: document.getElementById('gdTypeNxemese').checked,
+            import_shitje: document.getElementById('gdTypeShitje').checked,
+        })
     })
     .then(r => r.json())
     .then(data => {
@@ -876,7 +898,7 @@ function gdImport() {
             results.style.background = '#f0fdf4';
             results.style.border = '1px solid #bbf7d0';
             results.innerHTML = '<div style="color:#059669;font-weight:600;"><i class="fas fa-check-circle"></i> ' + data.message + '</div>';
-            if (data.inserted > 0) {
+            if ((data.inserted || 0) + (data.inserted_nxemese || 0) + (data.inserted_shitje || 0) > 0) {
                 results.innerHTML += '<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="location.reload()"><i class="fas fa-redo"></i> Rifresko faqen</button></div>';
                 gdLoadHistory();
             }
