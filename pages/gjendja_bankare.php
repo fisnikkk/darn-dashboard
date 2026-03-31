@@ -259,7 +259,7 @@ ob_start();
                         <td class="amount" style="font-weight:600;"><?= eur($r['bilanci']) ?></td>
                         <td class="editable" data-field="deftesa"><?= e($r['deftesa']) ?></td>
                         <td class="editable truncate" data-field="lloji" data-type="select" data-options="<?= e($llojiJSON) ?>" title="<?= e($r['lloji']) ?>"><?= e($r['lloji']) ?></td>
-                        <td class="editable truncate" data-field="klienti" data-type="select" data-options="<?= e($distKlientetJSON) ?>" title="<?= e($r['klienti']) ?>"><?= e($r['klienti']) ?></td>
+                        <td class="editable truncate" data-field="klienti" data-type="select" data-options="<?= e($distKlientetJSON) ?>" data-allow-custom="true" title="<?= e($r['klienti']) ?>"><?= e($r['klienti']) ?></td>
                         <td class="editable truncate" data-field="komentet" title="<?= e($r['komentet']) ?>"><?= e($r['komentet']) ?></td>
                         <td><button class="btn btn-danger btn-sm" onclick="deleteRow('gjendja_bankare',<?= $r['id'] ?>)"><i class="fas fa-trash"></i></button></td>
                     </tr>
