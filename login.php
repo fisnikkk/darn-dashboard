@@ -27,8 +27,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = trim($_POST['username'] ?? '');
         $pass = $_POST['password'] ?? '';
 
-        if ($user === AUTH_USER && AUTH_PASS !== '' && hash_equals(AUTH_PASS, $pass)) {
-            // Success
+        $authenticated = false;
+
+        // Try dashboard_users table first
+        try {
+            $stmt = $db->prepare("SELECT id, username, password_hash, role FROM dashboard_users WHERE username = ?");
+            $stmt->execute([$user]);
+            $dbUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($dbUser && password_verify($pass, $dbUser['password_hash'])) {
+                $authenticated = true;
+                $_SESSION['user_id'] = $dbUser['id'];
+                $_SESSION['username'] = $dbUser['username'];
+                $_SESSION['user_role'] = $dbUser['role'];
+            }
+        } catch (PDOException $e) {
+            // Table might not exist yet — fall through to legacy auth
+        }
+
+        // Fallback: legacy env var credentials
+        if (!$authenticated && $user === AUTH_USER && AUTH_PASS !== '' && hash_equals(AUTH_PASS, $pass)) {
+            $authenticated = true;
+            $_SESSION['username'] = $user;
+            $_SESSION['user_role'] = 'admin';
+        }
+
+        if ($authenticated) {
             clearAttempts($db, $ip);
             session_regenerate_id(true);
             $_SESSION['logged_in'] = true;

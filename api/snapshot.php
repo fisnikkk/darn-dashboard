@@ -117,8 +117,8 @@ try {
 
         // Log restore action to changelog
         $tablesRestored = array_keys($snapshot['tables']);
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('restore', 'snapshot', 0, 'snapshot_name', NULL, ?)")
-            ->execute([json_encode(['snapshot' => $name, 'tables' => $tablesRestored, 'created_at' => $snapshot['created_at'] ?? null], JSON_UNESCAPED_UNICODE)]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('restore', 'snapshot', 0, 'snapshot_name', NULL, ?, ?)")
+            ->execute([json_encode(['snapshot' => $name, 'tables' => $tablesRestored, 'created_at' => $snapshot['created_at'] ?? null], JSON_UNESCAPED_UNICODE), getCurrentUser()]);
 
         $db->commit();
         echo json_encode(['success' => true, 'message' => "Snapshot '{$name}' u rikthye me sukses"]);
@@ -284,8 +284,8 @@ try {
 
         // Log restore action
         $tablesRestored = array_keys($snapshot['tables']);
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('restore', 'snapshot', 0, 'snapshot_name', NULL, ?)")
-            ->execute([json_encode(['snapshot' => $name . ' (upload)', 'tables' => $tablesRestored, 'created_at' => $createdAt], JSON_UNESCAPED_UNICODE)]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('restore', 'snapshot', 0, 'snapshot_name', NULL, ?, ?)")
+            ->execute([json_encode(['snapshot' => $name . ' (upload)', 'tables' => $tablesRestored, 'created_at' => $createdAt], JSON_UNESCAPED_UNICODE), getCurrentUser()]);
 
         $db->commit();
 

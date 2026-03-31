@@ -344,8 +344,8 @@ if ($action === 'import_rows') {
         }
 
         // Log to changelog
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('excel_import', ?, 0, ?, NULL, ?)")
-            ->execute([$tableName, $mode, json_encode(['imported' => $imported, 'deleted' => $deleted, 'errors' => count($errors)])]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('excel_import', ?, 0, ?, NULL, ?, ?)")
+            ->execute([$tableName, $mode, json_encode(['imported' => $imported, 'deleted' => $deleted, 'errors' => count($errors)]), getCurrentUser()]);
 
         $db->commit();
 

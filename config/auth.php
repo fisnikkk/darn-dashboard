@@ -14,9 +14,24 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Credentials from env vars
+// Legacy env var credentials (fallback if dashboard_users table is empty)
 define('AUTH_USER', getenv('DASHBOARD_USER') ?: '74719225');
 define('AUTH_PASS', getenv('DASHBOARD_PASS') ?: '');
+
+/**
+ * Get the currently logged-in username.
+ * Returns 'system' if no user session (for API calls, cron, etc.)
+ */
+function getCurrentUser() {
+    return $_SESSION['username'] ?? 'system';
+}
+
+/**
+ * Get the currently logged-in user's role.
+ */
+function getCurrentUserRole() {
+    return $_SESSION['user_role'] ?? 'user';
+}
 
 // Don't guard login.php itself
 $currentScript = basename($_SERVER['SCRIPT_FILENAME'] ?? '');

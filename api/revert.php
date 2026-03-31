@@ -129,8 +129,8 @@ try {
         $db->prepare("UPDATE changelog SET reverted = 1 WHERE id = ?")->execute([$changelogId]);
 
         // Log the deletion
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('delete', ?, ?, 'revert_insert', ?, NULL)")
-            ->execute([$tableName, $rowId, json_encode($rowData, JSON_UNESCAPED_UNICODE)]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('delete', ?, ?, 'revert_insert', ?, NULL, ?)")
+            ->execute([$tableName, $rowId, json_encode($rowData, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
 
         // Recalculate bilanci if gjendja_bankare
         if ($tableName === 'gjendja_bankare') {
@@ -189,8 +189,8 @@ try {
         $db->prepare("UPDATE changelog SET reverted = 1 WHERE id = ?")->execute([$changelogId]);
 
         // Log the restore
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', ?, ?, 'restore_delete', NULL, ?)")
-            ->execute([$table, (int)$newId, json_encode($rowData, JSON_UNESCAPED_UNICODE)]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('insert', ?, ?, 'restore_delete', NULL, ?, ?)")
+            ->execute([$table, (int)$newId, json_encode($rowData, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
 
         // Recalculate bilanci if gjendja_bankare
         if ($table === 'gjendja_bankare') {

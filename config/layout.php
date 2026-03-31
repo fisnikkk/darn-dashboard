@@ -26,6 +26,7 @@ function renderLayout($pageTitle, $currentPage, $content) {
         ['id' => 'depo', 'icon' => 'fa-warehouse', 'label' => 'Depo'],
         ['id' => 'notes', 'icon' => 'fa-sticky-note', 'label' => 'Notes'],
         ['id' => 'import', 'icon' => 'fa-file-upload', 'label' => 'Import Excel'],
+        ['id' => 'users', 'icon' => 'fa-users-cog', 'label' => 'Perdoruesit'],
     ];
 ?>
 <!DOCTYPE html>
@@ -56,6 +57,9 @@ function renderLayout($pageTitle, $currentPage, $content) {
             <?php endforeach; ?>
         </nav>
         <div class="sidebar-footer">
+            <div class="nav-item" style="color:var(--text-muted);font-size:0.8rem;cursor:default;">
+                <i class="fas fa-user-circle"></i> <span><?= htmlspecialchars(getCurrentUser()) ?></span>
+            </div>
             <a href="?logout=1" class="nav-item" style="color:#f87171;"><i class="fas fa-sign-out-alt"></i> <span>Dil</span></a>
         </div>
     </aside>

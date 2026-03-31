@@ -410,6 +410,14 @@ ob_start();
     padding: 1px 8px;
     border-radius: 8px;
 }
+.log-user-tag {
+    font-size: 0.7rem;
+    color: #6366f1;
+    background: #eef2ff;
+    padding: 1px 8px;
+    border-radius: 8px;
+    font-weight: 500;
+}
 
 /* Row context pills (which row was changed) */
 .log-context {
@@ -718,6 +726,9 @@ ob_start();
                     <?= $sourceTag ?>
                     <?php if ($isReverted): ?>
                         <span class="log-reverted-tag"><i class="fas fa-check"></i> kthyer</span>
+                    <?php endif; ?>
+                    <?php if (!empty($r['username']) && $r['username'] !== 'system'): ?>
+                    <span class="log-user-tag"><i class="fas fa-user"></i> <?= e($r['username']) ?></span>
                     <?php endif; ?>
                     <span class="log-time" title="<?= $exactTime ?>"><?= e($relTime) ?></span>
                 </div>

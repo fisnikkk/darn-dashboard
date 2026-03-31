@@ -215,9 +215,9 @@ try {
 
                 // Log changes to changelog
                 $batchId = 'inv_' . $invoiceNum;
-                $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', 'CASH', 'PO (FATURE TE RREGULLTE) CASH', ?)");
+                $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id, username) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', 'CASH', 'PO (FATURE TE RREGULLTE) CASH', ?, ?)");
                 foreach ($cashIds as $rid) {
-                    $logStmt->execute([$rid, $batchId]);
+                    $logStmt->execute([$rid, $batchId, getCurrentUser()]);
                 }
             }
 

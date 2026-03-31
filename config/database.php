@@ -368,6 +368,12 @@ function runMigrations($pdo) {
             $pdo->exec("CREATE INDEX idx_changelog_batch ON changelog (batch_id)");
         }
 
+        // Add username column to changelog for tracking who made changes
+        $cols = $pdo->query("SHOW COLUMNS FROM changelog LIKE 'username'")->fetchAll();
+        if (empty($cols)) {
+            $pdo->exec("ALTER TABLE changelog ADD COLUMN username VARCHAR(100) NULL AFTER batch_id");
+        }
+
         // Login attempts table for rate limiting
         $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -468,6 +474,22 @@ function runMigrations($pdo) {
                 $pdo->exec("CREATE UNIQUE INDEX idx_godaddy_id ON distribuimi (godaddy_id)");
             }
         } catch (PDOException $e) {}
+
+        // Dashboard users table for multi-user login
+        $pdo->exec("CREATE TABLE IF NOT EXISTS dashboard_users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(100) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL,
+            role VARCHAR(50) DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Seed default admin if table is empty
+        $userCount = (int)$pdo->query("SELECT COUNT(*) FROM dashboard_users")->fetchColumn();
+        if ($userCount === 0) {
+            $pdo->prepare("INSERT INTO dashboard_users (username, password_hash, role) VALUES (?, ?, ?)")
+                ->execute(['admin', password_hash('admin123', PASSWORD_DEFAULT), 'admin']);
+        }
 
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)

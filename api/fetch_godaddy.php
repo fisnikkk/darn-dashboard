@@ -262,8 +262,8 @@ function handleImport($db, $input) {
 
             // Log to changelog with batch_id
             $m['_godaddy_id'] = $gdId;
-            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?, ?)")
-                ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE), $batchId]);
+            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id, username) VALUES ('insert', 'distribuimi', ?, 'godaddy_import', NULL, ?, ?, ?)")
+                ->execute([(int)$newId, json_encode($m, JSON_UNESCAPED_UNICODE), $batchId, getCurrentUser()]);
 
             $inserted++;
         }

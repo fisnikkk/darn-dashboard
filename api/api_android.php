@@ -1176,17 +1176,17 @@ function handleApproveBorxh($db) {
                 'pagesa'            => $gdRow['TotalPrice'] ?? '',
                 'menyra_e_pageses'  => $newPayment,
             ], JSON_UNESCAPED_UNICODE);
-            $ctxStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, '_row_context', NULL, ?)");
-            $ctxStmt->execute([$distId, $contextJson]);
+            $ctxStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'delivery_report', ?, '_row_context', NULL, ?, ?)");
+            $ctxStmt->execute([$distId, $contextJson, getCurrentUser()]);
 
             // Log to changelog (table_name = 'delivery_report' for audit trail)
-            $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'PaymentMethod', ?, ?)");
-            $logStmt->execute([$distId, $gdRow['PaymentMethod'], $newPayment]);
+            $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'delivery_report', ?, 'PaymentMethod', ?, ?, ?)");
+            $logStmt->execute([$distId, $gdRow['PaymentMethod'], $newPayment, getCurrentUser()]);
 
             // Log approval action
             $approvalLog = 'Approved by ' . $adminUser . ', requested by ' . ($pending['requested_by'] ?? 'unknown');
-            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'delivery_report', ?, 'borxh_koment', ?, ?)");
-            $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
+            $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'delivery_report', ?, 'borxh_koment', ?, ?, ?)");
+            $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog, getCurrentUser()]);
 
             // Sync local distribuimi row if it was already imported (godaddy_id = delivery_report ID)
             $localSync = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ? WHERE godaddy_id = ?");
@@ -1264,17 +1264,17 @@ function handleApproveBorxh($db) {
         $updateStmt->execute([$newPayment, $newKoment, $borxhKoment ?: null, $distId]);
 
         // Log to changelog — payment method change
-        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', ?, ?)");
-        $logStmt->execute([$distId, $row['menyra_e_pageses'], $newPayment]);
+        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', ?, ?, ?)");
+        $logStmt->execute([$distId, $row['menyra_e_pageses'], $newPayment, getCurrentUser()]);
 
         // Log to changelog — comment change
-        $logStmt2 = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'koment', ?, ?)");
-        $logStmt2->execute([$distId, $currentKoment, $newKoment]);
+        $logStmt2 = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'distribuimi', ?, 'koment', ?, ?, ?)");
+        $logStmt2->execute([$distId, $currentKoment, $newKoment, getCurrentUser()]);
 
         // Log approval action
         $approvalLog = 'Approved by ' . $adminUser . ', requested by ' . ($pending['requested_by'] ?? 'unknown');
-        $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, 'borxh_koment', ?, ?)");
-        $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog]);
+        $userLogStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'distribuimi', ?, 'borxh_koment', ?, ?, ?)");
+        $userLogStmt->execute([$distId, $pending['requested_by'] ?? '', $approvalLog, getCurrentUser()]);
 
         // Mark pending request as approved (use PHP date, not MySQL NOW(), to match Belgrade timezone)
         $nowBelgrade = date('Y-m-d H:i:s');

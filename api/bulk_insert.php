@@ -28,7 +28,7 @@ try {
     $inserted = 0;
 
     // Prepare changelog statement for logging each inserted row
-    $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', ?, ?, 'bulk_paste', NULL, ?)");
+    $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('insert', ?, ?, 'bulk_paste', NULL, ?, ?)");
 
     if ($table === 'gjendja_bankare') {
         $sql = "INSERT INTO gjendja_bankare (data, data_valutes, ora, shpjegim, valuta, debia, kredi, bilanci, deftesa, lloji, klienti, komentet, e_kontrolluar)
@@ -69,7 +69,7 @@ try {
 
             // Log to changelog
             $insertedData = ['data'=>$data, 'data_valutes'=>$dataValutes, 'ora'=>$ora, 'shpjegim'=>$shpjegim, 'valuta'=>$valuta, 'debia'=>$debia, 'kredi'=>$kredi, 'bilanci'=>$bilanci, 'deftesa'=>$deftesa, 'lloji'=>$lloji, 'klienti'=>$klienti, 'komentet'=>$komentet, 'e_kontrolluar'=>$e_kontrolluar];
-            $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE)]);
+            $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
 
             // Track running balance for subsequent rows
             $prevBilanci = $bilanci;
@@ -120,7 +120,7 @@ try {
 
             // Log to changelog
             $insertedData = ['klienti'=>$klienti, 'data'=>$data, 'sasia'=>$sasia, 'boca_te_kthyera'=>$boca_te_kthyera, 'litra'=>$litra, 'cmimi'=>$cmimi, 'pagesa'=>$pagesa, 'menyra_e_pageses'=>$menyra_e_pageses, 'fatura_e_derguar'=>$fatura_e_derguar, 'data_e_fletepageses'=>$data_e_fletepageses, 'koment'=>$koment, 'litrat_total'=>$litrat_total, 'litrat_e_konvertuara'=>$litrat_e_konvertuara];
-            $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE)]);
+            $logStmt->execute([$table, $newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
         }
     }
 

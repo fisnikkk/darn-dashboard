@@ -79,19 +79,19 @@ try {
     } else {
         // Execute fixes with changelog logging
         $fixed = 0;
-        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'distribuimi', ?, ?, ?, ?)");
+        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'distribuimi', ?, ?, ?, ?, ?)");
         foreach ($fixes as $f) {
             $db->prepare("UPDATE distribuimi SET pagesa = ?, litrat_total = ?, litrat_e_konvertuara = ? WHERE id = ?")
                ->execute([$f['pagesa_correct'], $f['litrat_total_correct'], $f['litrat_konv_correct'], $f['id']]);
             // Log each changed field
             if ($f['pagesa_current'] != $f['pagesa_correct']) {
-                $logStmt->execute([$f['id'], 'pagesa', (string)$f['pagesa_current'], (string)$f['pagesa_correct']]);
+                $logStmt->execute([$f['id'], 'pagesa', (string)$f['pagesa_current'], (string)$f['pagesa_correct'], getCurrentUser()]);
             }
             if ($f['litrat_total_current'] != $f['litrat_total_correct']) {
-                $logStmt->execute([$f['id'], 'litrat_total', (string)$f['litrat_total_current'], (string)$f['litrat_total_correct']]);
+                $logStmt->execute([$f['id'], 'litrat_total', (string)$f['litrat_total_current'], (string)$f['litrat_total_correct'], getCurrentUser()]);
             }
             if ($f['litrat_konv_current'] != $f['litrat_konv_correct']) {
-                $logStmt->execute([$f['id'], 'litrat_e_konvertuara', (string)$f['litrat_konv_current'], (string)$f['litrat_konv_correct']]);
+                $logStmt->execute([$f['id'], 'litrat_e_konvertuara', (string)$f['litrat_konv_current'], (string)$f['litrat_konv_correct'], getCurrentUser()]);
             }
             $fixed++;
         }

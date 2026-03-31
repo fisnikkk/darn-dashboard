@@ -43,11 +43,11 @@ try {
     // Log to changelog
     $rowId = $existing ? (int)$existing['id'] : (int)$db->lastInsertId();
     if ($isUpdate) {
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('update', 'borxhet_notes', ?, ?, ?, ?)")
-            ->execute([$rowId, $field, $oldValue, $value]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('update', 'borxhet_notes', ?, ?, ?, ?, ?)")
+            ->execute([$rowId, $field, $oldValue, $value, getCurrentUser()]);
     } else {
-        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', 'borxhet_notes', ?, NULL, NULL, ?)")
-            ->execute([$rowId, json_encode(['klienti' => $klienti, $field => $value], JSON_UNESCAPED_UNICODE)]);
+        $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('insert', 'borxhet_notes', ?, NULL, NULL, ?, ?)")
+            ->execute([$rowId, json_encode(['klienti' => $klienti, $field => $value], JSON_UNESCAPED_UNICODE), getCurrentUser()]);
     }
 
     echo json_encode(['success' => true]);

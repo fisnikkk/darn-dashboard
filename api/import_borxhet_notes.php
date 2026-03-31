@@ -61,7 +61,7 @@ $stmt = $db->prepare("
 ");
 
 $checkStmt = $db->prepare("SELECT id FROM borxhet_notes WHERE klienti = ?");
-$logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES (?, 'borxhet_notes', ?, 'import_excel', NULL, ?)");
+$logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES (?, 'borxhet_notes', ?, 'import_excel', NULL, ?, ?)");
 
 $imported = 0;
 foreach ($toImport as $r) {
@@ -73,7 +73,7 @@ foreach ($toImport as $r) {
     $stmt->execute([$r['klienti'], $r['bc'] ?: null, $r['km'] ?: null, $r['ko'] ?: null]);
 
     $rowId = $existingId ?: (int)$db->lastInsertId();
-    $logStmt->execute([$actionType, (int)$rowId, json_encode(['klienti'=>$r['klienti'], 'klient_bank_cash'=>$r['bc'], 'kush_merr_borxhin'=>$r['km'], 'koment'=>$r['ko']], JSON_UNESCAPED_UNICODE)]);
+    $logStmt->execute([$actionType, (int)$rowId, json_encode(['klienti'=>$r['klienti'], 'klient_bank_cash'=>$r['bc'], 'kush_merr_borxhin'=>$r['km'], 'koment'=>$r['ko']], JSON_UNESCAPED_UNICODE), getCurrentUser()]);
     $imported++;
 }
 

@@ -32,8 +32,8 @@ try {
 
         // Log the deletion
         if ($deletedRow) {
-            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('delete', ?, ?, NULL, ?, NULL)")
-                ->execute([$table, $id, json_encode($deletedRow, JSON_UNESCAPED_UNICODE)]);
+            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('delete', ?, ?, NULL, ?, NULL, ?)")
+                ->execute([$table, $id, json_encode($deletedRow, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
         }
 
         // Recalculate bilanci for ALL rows from the beginning (safest approach)
@@ -50,8 +50,8 @@ try {
 
         // Log the deletion
         if ($deletedRow) {
-            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('delete', ?, ?, NULL, ?, NULL)")
-                ->execute([$table, $id, json_encode($deletedRow, JSON_UNESCAPED_UNICODE)]);
+            $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('delete', ?, ?, NULL, ?, NULL, ?)")
+                ->execute([$table, $id, json_encode($deletedRow, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
         }
     }
 

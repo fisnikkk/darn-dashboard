@@ -217,8 +217,8 @@ try {
 
     // Log the insert to changelog
     $insertedData = array_combine($fields, $values);
-    $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value) VALUES ('insert', ?, ?, NULL, NULL, ?)")
-        ->execute([$table, (int)$newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE)]);
+    $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, username) VALUES ('insert', ?, ?, NULL, NULL, ?, ?)")
+        ->execute([$table, (int)$newId, json_encode($insertedData, JSON_UNESCAPED_UNICODE), getCurrentUser()]);
 
     // After inserting a gjendja_bankare row, recalculate ALL bilanci from scratch
     // (handles backdated entries where the new row isn't the latest by date)
