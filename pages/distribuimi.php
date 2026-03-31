@@ -144,6 +144,11 @@ $summStmt = $db->prepare("SELECT COUNT(DISTINCT LOWER(klienti)) FROM distribuimi
 $summStmt->execute($params);
 $uniqueClients = $summStmt->fetchColumn();
 
+// Total pagesa (invoice total) — respects active filters
+$totalPagesaStmt = $db->prepare("SELECT COALESCE(SUM(pagesa), 0) FROM distribuimi d {$whereSQL}");
+$totalPagesaStmt->execute($params);
+$totalPagesa = $totalPagesaStmt->fetchColumn();
+
 // Stoku total ne terren: ALWAYS global (unfiltered) — per Albulena's requirement
 $stokuTotal = $db->query("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi")->fetchColumn();
 
@@ -184,6 +189,10 @@ ob_start();
     <div class="summary-card">
         <div class="label">Klientë unikë</div>
         <div class="value"><?= num($uniqueClients) ?></div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Total Fatura</div>
+        <div class="value">&euro; <?= eur($totalPagesa) ?></div>
     </div>
     <div class="summary-card">
         <div class="label">Babi Cash Total</div>
