@@ -615,6 +615,10 @@ try {
 
             try {
                 $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->CharSet = 'UTF-8';
+
+                // Try SMTP first, fall back to PHP mail() if connection fails
+                $useSMTP = true;
                 $mail->isSMTP();
                 $mail->Host = 'smtp.gmail.com';
                 $mail->SMTPAuth = true;
@@ -622,7 +626,7 @@ try {
                 $mail->Password = $gmailPass;
                 $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
                 $mail->Port = 465;
-                $mail->CharSet = 'UTF-8';
+                $mail->Timeout = 10;  // 10 seconds timeout, not 300
 
                 // Sender
                 $mail->setFrom($gmailEmail, $senderName);
@@ -652,13 +656,32 @@ try {
                 // Attach PDF
                 $mail->addAttachment($filepath, $inv['pdf_filename']);
 
-                $mail->send();
+                try {
+                    $mail->send();
+                    echo json_encode([
+                        'success' => true,
+                        'message' => "Email u dergua me sukses te {$clientEmail}",
+                        'to' => $clientEmail
+                    ]);
+                } catch (Exception $smtpEx) {
+                    // SMTP failed — retry with PHP mail() (works on GoDaddy's local mail server)
+                    $mail2 = new PHPMailer\PHPMailer\PHPMailer(true);
+                    $mail2->isMail(); // Use PHP mail() instead of SMTP
+                    $mail2->CharSet = 'UTF-8';
+                    $mail2->setFrom($gmailEmail, $senderName);
+                    $mail2->addReplyTo($gmailEmail);
+                    $mail2->addAddress($clientEmail);
+                    $mail2->Subject = $mail->Subject;
+                    $mail2->Body = $mail->Body;
+                    $mail2->addAttachment($filepath, $inv['pdf_filename']);
+                    $mail2->send();
 
-                echo json_encode([
-                    'success' => true,
-                    'message' => "Email u dergua me sukses te {$clientEmail}",
-                    'to' => $clientEmail
-                ]);
+                    echo json_encode([
+                        'success' => true,
+                        'message' => "Email u dergua me sukses te {$clientEmail} (via mail)",
+                        'to' => $clientEmail
+                    ]);
+                }
             } catch (Exception $mailEx) {
                 echo json_encode(['success' => false, 'error' => 'Gabim ne dergimin e emailit: ' . $mailEx->getMessage()]);
             }
