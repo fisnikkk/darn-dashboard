@@ -320,8 +320,9 @@ function handleImport($db, $input) {
     }
 
     // ── Sync client details from GoDaddy → kontrata table ──
+    $importKontrata = ($input['import_kontrata'] ?? true) !== false;
     $syncedKontrata = 0;
-    try {
+    if ($importKontrata) try {
         $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
         $gdClientsUrl = $gdBaseUrl . 'api_product.php?GetAllClients';
         $ch = curl_init($gdClientsUrl);

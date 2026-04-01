@@ -710,8 +710,11 @@ function applyBulkPayment() {
                 <label style="margin-right:16px;font-size:0.85rem;cursor:pointer;">
                     <input type="checkbox" id="gdTypeNxemese" checked> Nxemese
                 </label>
-                <label style="font-size:0.85rem;cursor:pointer;">
+                <label style="margin-right:16px;font-size:0.85rem;cursor:pointer;">
                     <input type="checkbox" id="gdTypeShitje" checked> Shitje
+                </label>
+                <label style="font-size:0.85rem;cursor:pointer;">
+                    <input type="checkbox" id="gdTypeKontrata" checked> Kontrata
                 </label>
             </div>
 
@@ -896,6 +899,7 @@ function gdImport() {
             import_cylinders: document.getElementById('gdTypeCylinder').checked,
             import_nxemese: document.getElementById('gdTypeNxemese').checked,
             import_shitje: document.getElementById('gdTypeShitje').checked,
+            import_kontrata: document.getElementById('gdTypeKontrata').checked,
         })
     })
     .then(r => r.json())
