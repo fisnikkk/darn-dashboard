@@ -319,6 +319,54 @@ function handleImport($db, $input) {
         }
     }
 
+    // ── Sync client details from GoDaddy → kontrata table ──
+    $syncedKontrata = 0;
+    try {
+        $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
+        $gdClientsUrl = $gdBaseUrl . 'api_product.php?GetAllClients';
+        $ch = curl_init($gdClientsUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_CONNECTTIMEOUT => 5,
+        ]);
+        $clientResp = curl_exec($ch);
+        curl_close($ch);
+
+        if ($clientResp) {
+            $clientData = json_decode($clientResp, true);
+            if ($clientData && ($clientData['status'] ?? '') === '1' && !empty($clientData['data'])) {
+                $checkStmt = $db->prepare("SELECT id FROM kontrata WHERE LOWER(TRIM(name_from_database)) = ? LIMIT 1");
+                $updateStmt = $db->prepare("UPDATE kontrata SET biznesi = ?, numri_unik = ?, rruga = ?, qyteti = ?, perfaqesuesi = ?, nr_telefonit = ?, email = ? WHERE LOWER(TRIM(name_from_database)) = ?");
+                $insertStmt = $db->prepare("INSERT INTO kontrata (name_from_database, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+                foreach ($clientData['data'] as $gc) {
+                    $name = trim($gc['Name'] ?? '');
+                    if ($name === '') continue;
+                    $lower = mb_strtolower($name);
+
+                    $business   = trim($gc['Bussiness'] ?? '') ?: null;
+                    $uniqueNum  = trim($gc['Unique_Number'] ?? '') ?: null;
+                    $street     = trim($gc['Street'] ?? '') ?: null;
+                    $city       = trim($gc['City'] ?? '') ?: null;
+                    $rep        = trim($gc['Representative'] ?? '') ?: null;
+                    $phone      = trim($gc['PhoneNo'] ?? '') ?: null;
+                    $email      = trim($gc['Email'] ?? '') ?: null;
+
+                    $checkStmt->execute([$lower]);
+                    if ($checkStmt->fetch()) {
+                        $updateStmt->execute([$business, $uniqueNum, $street, $city, $rep, $phone, $email, $lower]);
+                    } else {
+                        $insertStmt->execute([$name, $business, $uniqueNum, $street, $city, $rep, $phone, $email]);
+                    }
+                    $syncedKontrata++;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        // Silently fail — delivery import already succeeded
+    }
+
     $db->commit();
 
     // Build response message with counts for each type
@@ -326,6 +374,7 @@ function handleImport($db, $input) {
     if ($inserted > 0) $parts[] = "{$inserted} cilindra";
     if ($insertedNxemese > 0) $parts[] = "{$insertedNxemese} nxemese";
     if ($insertedShitje > 0) $parts[] = "{$insertedShitje} shitje";
+    if ($syncedKontrata > 0) $parts[] = "{$syncedKontrata} kontrata";
     $msg = $parts ? 'U importuan: ' . implode(', ', $parts) : 'Asgje e re nuk u gjet';
     if ($skipped > 0) $msg .= " ({$skipped} cilindra ekzistonin tashme)";
 
