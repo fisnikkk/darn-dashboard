@@ -612,8 +612,8 @@ try {
                 $mail->SMTPAuth = true;
                 $mail->Username = $emailConfig['gmail_email'];
                 $mail->Password = $emailConfig['gmail_app_password'];
-                $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port = 587;
+                $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+                $mail->Port = 465;
                 $mail->CharSet = 'UTF-8';
 
                 // Sender
