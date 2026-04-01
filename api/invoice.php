@@ -649,6 +649,12 @@ try {
                 $mail->addAttachment($filepath, $inv['pdf_filename']);
 
                 $mail->send();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Email u dergua me sukses te {$clientEmail}",
+                    'to' => $clientEmail
+                ]);
             } catch (Exception $mailEx) {
                 echo json_encode(['success' => false, 'error' => 'Gabim ne dergimin e emailit: ' . $mailEx->getMessage()]);
             }
