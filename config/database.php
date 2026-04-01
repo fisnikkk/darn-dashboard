@@ -496,6 +496,13 @@ function runMigrations($pdo) {
     }
 }
 
+// Helper: get current logged-in username (safe to call from API without session)
+if (!function_exists('getCurrentUser')) {
+    function getCurrentUser() {
+        return $_SESSION['username'] ?? 'system';
+    }
+}
+
 // Helper: format number as Euro
 function eur($val) {
     if ($val === null || $val === '') return '-';

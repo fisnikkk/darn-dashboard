@@ -18,19 +18,12 @@ if (session_status() === PHP_SESSION_NONE) {
 define('AUTH_USER', getenv('DASHBOARD_USER') ?: '74719225');
 define('AUTH_PASS', getenv('DASHBOARD_PASS') ?: '');
 
-/**
- * Get the currently logged-in username.
- * Returns 'system' if no user session (for API calls, cron, etc.)
- */
-function getCurrentUser() {
-    return $_SESSION['username'] ?? 'system';
-}
-
-/**
- * Get the currently logged-in user's role.
- */
-function getCurrentUserRole() {
-    return $_SESSION['user_role'] ?? 'user';
+// getCurrentUser() is defined in database.php (available to all files including api_android.php)
+// getCurrentUserRole() is only needed by dashboard pages (which always include auth.php)
+if (!function_exists('getCurrentUserRole')) {
+    function getCurrentUserRole() {
+        return $_SESSION['user_role'] ?? 'user';
+    }
 }
 
 // Don't guard login.php itself
