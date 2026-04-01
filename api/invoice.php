@@ -576,56 +576,20 @@ try {
                 break;
             }
 
-            // Check if PHPMailer is available
-            $mailerPath = __DIR__ . '/../lib/PHPMailer/PHPMailerAutoload.php';
-            $mailerSrcPath = __DIR__ . '/../lib/PHPMailer/src/PHPMailer.php';
-            if (!file_exists($mailerPath) && !file_exists($mailerSrcPath)) {
-                echo json_encode(['success' => false, 'error' => 'PHPMailer nuk eshte instaluar. Kontaktoni administratorin.']);
-                break;
-            }
+            // Load Gmail API (sends via HTTPS, no SMTP ports needed)
+            require_once __DIR__ . '/../lib/GmailAPI.php';
 
-            // Load PHPMailer
-            if (file_exists($mailerSrcPath)) {
-                require_once __DIR__ . '/../lib/PHPMailer/src/Exception.php';
-                require_once __DIR__ . '/../lib/PHPMailer/src/PHPMailer.php';
-                require_once __DIR__ . '/../lib/PHPMailer/src/SMTP.php';
-            } else {
-                require_once $mailerPath;
-            }
-
-            // Load email config — try getenv first, then fallback to config file
-            $gmailEmail = getenv('GMAIL_EMAIL') ?: ($_ENV['GMAIL_EMAIL'] ?? ($_SERVER['GMAIL_EMAIL'] ?? ''));
-            $gmailPass = getenv('GMAIL_APP_PASSWORD') ?: ($_ENV['GMAIL_APP_PASSWORD'] ?? ($_SERVER['GMAIL_APP_PASSWORD'] ?? ''));
+            $senderEmail = 'Sales@darngroup.com';
             $senderName = 'Darn Group L.L.C';
+            $serviceAccountFile = __DIR__ . '/../config/credentials/gmail-service-account.json';
 
-            // Fallback: try config file
-            if (empty($gmailEmail) || empty($gmailPass)) {
-                $configPath = __DIR__ . '/../config/email.php';
-                if (file_exists($configPath)) {
-                    $emailConfig = require $configPath;
-                    if (empty($gmailEmail)) $gmailEmail = $emailConfig['gmail_email'] ?? '';
-                    if (empty($gmailPass)) $gmailPass = $emailConfig['gmail_app_password'] ?? '';
-                }
-            }
-
-            if (empty($gmailEmail) || empty($gmailPass)) {
-                echo json_encode(['success' => false, 'error' => 'Gmail SMTP nuk eshte konfiguruar. GMAIL_EMAIL=' . (empty($gmailEmail) ? 'BOSH' : 'OK') . ', GMAIL_APP_PASSWORD=' . (empty($gmailPass) ? 'BOSH' : 'OK')]);
+            if (!file_exists($serviceAccountFile)) {
+                echo json_encode(['success' => false, 'error' => 'Gmail service account key nuk u gjet. Vendosni config/credentials/gmail-service-account.json']);
                 break;
             }
 
             try {
-                $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-                $mail->CharSet = 'UTF-8';
-
-                // Use PHP mail() — GoDaddy Windows hosting handles the relay automatically
-                $mail->isMail();
-
-                // Sender
-                $mail->setFrom($gmailEmail, $senderName);
-                $mail->addReplyTo($gmailEmail);
-
-                // Recipient
-                $mail->addAddress($clientEmail);
+                $gmail = new GmailAPI($serviceAccountFile, $senderEmail);
 
                 // Format month for subject
                 $monthNames = ['Janar','Shkurt','Mars','Prill','Maj','Qershor','Korrik','Gusht','Shtator','Tetor','Nentor','Dhjetor'];
@@ -634,8 +598,8 @@ try {
                 $monthShort = date('M', strtotime($inv['date_to']));
                 $yearStr = date('Y', strtotime($inv['date_to']));
 
-                $mail->Subject = "Fatura per {$inv['klienti']} per muajin {$monthShort}-{$yearStr}";
-                $mail->Body =
+                $subject = "Fatura per {$inv['klienti']} per muajin {$monthShort}-{$yearStr}";
+                $body =
                     "Pershendetje {$inv['klienti']},\n\n" .
                     "Ju lutemi gjeni te bashkangjitur faturen per muajin {$monthFull} {$yearStr}.\n" .
                     "Falemnderit per bashkepunimin tuaj!\n\n" .
@@ -645,10 +609,7 @@ try {
                     "I autorizuari i vetem ne tere Kosoven per mbushjen dhe kontrollimin e cilindrave LPG\n\n" .
                     "Cell: +383 (0) 49 62 76 76\nE-mail: sales@darngroup.com\nwww.darngroup.com";
 
-                // Attach PDF
-                $mail->addAttachment($filepath, $inv['pdf_filename']);
-
-                $mail->send();
+                $gmail->sendEmail($clientEmail, $subject, $body, $filepath, $inv['pdf_filename'], $senderName);
 
                 echo json_encode([
                     'success' => true,

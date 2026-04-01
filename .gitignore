@@ -28,3 +28,6 @@ UsersPCDesktop*
 
 # Environment
 .env
+
+# Credentials (service account keys — NEVER commit)
+config/credentials/
