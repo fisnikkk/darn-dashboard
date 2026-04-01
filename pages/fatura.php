@@ -59,7 +59,7 @@ ob_start();
             <!-- Invoice number -->
             <div>
                 <label style="display:block; font-size:0.8rem; margin-bottom:4px; color:var(--text-secondary);">Nr. Fatures</label>
-                <input type="number" id="inv-number" style="width:80px; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; text-align:center;" readonly>
+                <input type="number" id="inv-number" style="width:80px; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; text-align:center;">
             </div>
 
             <!-- Buttons -->
