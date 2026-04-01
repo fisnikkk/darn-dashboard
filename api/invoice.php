@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../config/godaddy.php';
 
 header('Content-Type: application/json');
 
@@ -98,7 +99,8 @@ try {
 
             // Auto-sync client data from GoDaddy before looking up (ensures fresh info)
             try {
-                $ch = curl_init('http://adaptive.darn-group.com/api_product.php?GetAllClients');
+                $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
+                $ch = curl_init($gdBaseUrl . 'api_product.php?GetAllClients');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 $resp = curl_exec($ch);
@@ -345,7 +347,8 @@ try {
 
         // ─── Sync emails from GoDaddy ───
         case 'sync_emails':
-            $ch = curl_init('http://adaptive.darn-group.com/api_product.php?GetAllClients');
+            $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
+                $ch = curl_init($gdBaseUrl . 'api_product.php?GetAllClients');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             $resp = curl_exec($ch);
@@ -474,7 +477,8 @@ try {
 
             // Auto-sync client data from GoDaddy
             try {
-                $ch = curl_init('http://adaptive.darn-group.com/api_product.php?GetAllClients');
+                $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
+                $ch = curl_init($gdBaseUrl . 'api_product.php?GetAllClients');
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 $resp = curl_exec($ch);

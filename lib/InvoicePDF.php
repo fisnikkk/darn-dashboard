@@ -363,20 +363,15 @@ class InvoicePDF extends FPDF {
             $startY = $this->GetY();
         }
 
-        // Left: "Faturoi" label + stamp image below it
-        $this->SetFont('Helvetica', '', 8);
-        $this->SetXY(10, $startY);
-        $this->Cell(50, 5, 'Faturoi', 0, 1, 'L');
-        $stampY = $startY + 5;
-
+        // Left: stamp image (image already includes "Faturoi" text)
         $img = $this->imgDir . 'sign_icon.png';
         if (file_exists($img)) {
-            $this->Image($img, 10, $stampY, 50, 33);
+            $this->Image($img, 10, $startY, 50, 33);
         }
 
         // Right: "Pranoi" line (vertically centered with stamp)
         $this->SetFont('Helvetica', '', 8);
-        $this->SetXY(120, $stampY + 20);
+        $this->SetXY(120, $startY + 20);
         $this->Cell(70, 5, 'Pranoi   ______________________________', 0, 1, 'L');
     }
 }
