@@ -617,12 +617,8 @@ try {
                 $mail = new PHPMailer\PHPMailer\PHPMailer(true);
                 $mail->CharSet = 'UTF-8';
 
-                // Use GoDaddy's internal SMTP relay (not blocked)
-                $mail->isSMTP();
-                $mail->Host = 'relay-hosting.secureserver.net';
-                $mail->SMTPAuth = false;
-                $mail->Port = 25;
-                $mail->Timeout = 15;
+                // Use PHP mail() — GoDaddy Windows hosting handles the relay automatically
+                $mail->isMail();
 
                 // Sender
                 $mail->setFrom($gmailEmail, $senderName);
