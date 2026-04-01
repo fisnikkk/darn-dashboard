@@ -593,15 +593,23 @@ try {
                 require_once $mailerPath;
             }
 
-            // Load email config
-            $emailConfig = [];
-            $configPath = __DIR__ . '/../config/email.php';
-            if (file_exists($configPath)) {
-                $emailConfig = require $configPath;
+            // Load email config — try getenv first, then fallback to config file
+            $gmailEmail = getenv('GMAIL_EMAIL') ?: ($_ENV['GMAIL_EMAIL'] ?? ($_SERVER['GMAIL_EMAIL'] ?? ''));
+            $gmailPass = getenv('GMAIL_APP_PASSWORD') ?: ($_ENV['GMAIL_APP_PASSWORD'] ?? ($_SERVER['GMAIL_APP_PASSWORD'] ?? ''));
+            $senderName = 'Darn Group L.L.C';
+
+            // Fallback: try config file
+            if (empty($gmailEmail) || empty($gmailPass)) {
+                $configPath = __DIR__ . '/../config/email.php';
+                if (file_exists($configPath)) {
+                    $emailConfig = require $configPath;
+                    if (empty($gmailEmail)) $gmailEmail = $emailConfig['gmail_email'] ?? '';
+                    if (empty($gmailPass)) $gmailPass = $emailConfig['gmail_app_password'] ?? '';
+                }
             }
 
-            if (empty($emailConfig['gmail_email']) || empty($emailConfig['gmail_app_password'])) {
-                echo json_encode(['success' => false, 'error' => 'Gmail SMTP nuk eshte konfiguruar. Plotesoni config/email.php']);
+            if (empty($gmailEmail) || empty($gmailPass)) {
+                echo json_encode(['success' => false, 'error' => 'Gmail SMTP nuk eshte konfiguruar. GMAIL_EMAIL=' . (empty($gmailEmail) ? 'BOSH' : 'OK') . ', GMAIL_APP_PASSWORD=' . (empty($gmailPass) ? 'BOSH' : 'OK')]);
                 break;
             }
 
@@ -610,15 +618,15 @@ try {
                 $mail->isSMTP();
                 $mail->Host = 'smtp.gmail.com';
                 $mail->SMTPAuth = true;
-                $mail->Username = $emailConfig['gmail_email'];
-                $mail->Password = $emailConfig['gmail_app_password'];
+                $mail->Username = $gmailEmail;
+                $mail->Password = $gmailPass;
                 $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
                 $mail->Port = 465;
                 $mail->CharSet = 'UTF-8';
 
                 // Sender
-                $mail->setFrom($emailConfig['gmail_email'], $emailConfig['sender_name'] ?? 'Darn Group L.L.C');
-                $mail->addReplyTo($emailConfig['gmail_email']);
+                $mail->setFrom($gmailEmail, $senderName);
+                $mail->addReplyTo($gmailEmail);
 
                 // Recipient
                 $mail->addAddress($clientEmail);
