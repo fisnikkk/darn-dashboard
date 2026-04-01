@@ -81,6 +81,8 @@ try {
         handleSearchARBK();
     } elseif (strpos($query, 'RegisterContract') !== false) {
         handleRegisterContract($db);
+    } elseif (strpos($query, 'MarkInvoiceRows') !== false) {
+        handleMarkInvoiceRows($db);
     } else {
         echo json_encode(['status' => '0', 'message' => 'Unknown endpoint']);
     }
@@ -426,6 +428,70 @@ function handleUpdateInvoiceNumber($db) {
 
     echo json_encode([
         'inv_number' => $nextInv,
+    ]);
+}
+
+
+/**
+ * MarkInvoiceRows — Mark CASH rows as "PO (FATURE TE RREGULLTE) CASH" after invoice generation
+ *
+ * Called by the Android app after creating an invoice PDF.
+ * Same logic as api/invoice.php lines 201-222.
+ *
+ * Params: client, date_from, date_to, invoice_number, isType (optional)
+ */
+function handleMarkInvoiceRows($db) {
+    $client = $_GET['client'] ?? '';
+    $dateFrom = $_GET['date_from'] ?? '';
+    $dateTo = $_GET['date_to'] ?? '';
+    $invoiceNum = $_GET['invoice_number'] ?? '';
+    $isType = $_GET['isType'] ?? '0';
+
+    if (empty($client) || empty($dateFrom) || empty($dateTo) || empty($invoiceNum)) {
+        echo json_encode(['status' => '0', 'message' => 'Missing parameters']);
+        return;
+    }
+
+    // Find CASH rows for this client/date range
+    $sql = "SELECT id FROM distribuimi
+            WHERE LOWER(TRIM(klienti)) = LOWER(TRIM(?))
+              AND data >= ? AND data <= ?
+              AND LOWER(TRIM(menyra_e_pageses)) = 'cash'";
+    $params = [$client, $dateFrom, $dateTo];
+
+    // Apply type filter (same as GetInvoicefromToDate)
+    if ($isType === '0') {
+        $sql .= " AND (isCylinder = '0' OR isCylinder IS NULL)";
+    } elseif ($isType === '1') {
+        $sql .= " AND isCylinder = '1'";
+    } elseif ($isType === '3') {
+        $sql .= " AND isCylinder = '2'";
+    }
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $cashIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $updated = 0;
+    if (!empty($cashIds)) {
+        $placeholders = implode(',', array_fill(0, count($cashIds), '?'));
+        $upd = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = 'PO (FATURE TE RREGULLTE) CASH' WHERE id IN ({$placeholders})");
+        $upd->execute($cashIds);
+        $updated = $upd->rowCount();
+
+        // Log to changelog
+        $batchId = 'inv_' . $invoiceNum;
+        $logStmt = $db->prepare("INSERT INTO changelog (action_type, table_name, row_id, field_name, old_value, new_value, batch_id, username) VALUES ('update', 'distribuimi', ?, 'menyra_e_pageses', 'CASH', 'PO (FATURE TE RREGULLTE) CASH', ?, ?)");
+        foreach ($cashIds as $rid) {
+            $logStmt->execute([$rid, $batchId, getCurrentUser()]);
+        }
+    }
+
+    echo json_encode([
+        'status' => '1',
+        'message' => $updated > 0 ? "{$updated} rows updated to PO FATURE" : 'No CASH rows to update',
+        'inv_number' => $invoiceNum,
+        'updated' => $updated,
     ]);
 }
 
