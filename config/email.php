@@ -10,7 +10,7 @@
  * 5. Copy the 16-character password and paste it below
  */
 return [
-    'gmail_email' => getenv('GMAIL_EMAIL') ?: '',           // e.g. 'sales@darngroup.com' or her Gmail
-    'gmail_app_password' => getenv('GMAIL_APP_PASSWORD') ?: '', // 16-char app password from Google
+    'gmail_email' => getenv('GMAIL_EMAIL') ?: '',
+    'gmail_app_password' => getenv('GMAIL_APP_PASSWORD') ?: '',
     'sender_name' => 'Darn Group L.L.C',
 ];
