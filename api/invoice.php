@@ -545,7 +545,8 @@ try {
 
         // ─── Send email with PDF attachment via Gmail SMTP ───
         case 'send_email':
-            $id = intval($_POST['id'] ?? $_GET['id'] ?? 0);
+            $jsonBody = json_decode(file_get_contents('php://input'), true) ?: [];
+            $id = intval($jsonBody['id'] ?? $_POST['id'] ?? $_GET['id'] ?? 0);
             if (!$id) {
                 echo json_encode(['success' => false, 'error' => 'Mungon ID']);
                 break;
