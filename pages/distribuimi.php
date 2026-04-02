@@ -838,12 +838,15 @@ function gdPreview() {
             return;
         }
 
+        var kontrataMsg = data.kontrata_count ? ' | <strong>' + data.kontrata_count + '</strong> kontrata per sync' : '';
+
         if (!data.rows || !data.rows.length) {
-            body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">Asgje nuk u gjet per kete periudhe</td></tr>';
+            body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">Asgje nuk u gjet per kete periudhe' + (data.kontrata_count ? ' (por ' + data.kontrata_count + ' kontrata gati per sync)' : '') + '</td></tr>';
+            if (data.kontrata_count) info.innerHTML = '<strong>0</strong> rreshta deliverimi' + kontrataMsg;
             return;
         }
 
-        info.innerHTML = '<strong>' + data.total_found + '</strong> rreshta u gjeten — <strong style="color:#059669;">' + data.new_rows + '</strong> te reja, <strong style="color:#f59e0b;">' + data.duplicates + '</strong> ekzistojne tashme';
+        info.innerHTML = '<strong>' + data.total_found + '</strong> rreshta u gjeten — <strong style="color:#059669;">' + data.new_rows + '</strong> te reja, <strong style="color:#f59e0b;">' + data.duplicates + '</strong> ekzistojne tashme' + kontrataMsg;
 
         body.innerHTML = data.rows.map(r => {
             const isDup = r._duplicate;

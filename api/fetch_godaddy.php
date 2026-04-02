@@ -137,11 +137,27 @@ function handlePreview($db, $input) {
         $mapped[] = $m;
     }
 
+    // Count kontrata that would be synced
+    $kontrataCount = 0;
+    try {
+        $gdUrl = GD_API_URL . '?action=GetAllClients&key=' . GD_API_KEY;
+        $ch = curl_init($gdUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        $resp = curl_exec($ch);
+        curl_close($ch);
+        $clientData = json_decode($resp, true);
+        if ($clientData && isset($clientData['data'])) {
+            $kontrataCount = count($clientData['data']);
+        }
+    } catch (Exception $e) {}
+
     echo json_encode([
         'success' => true,
         'total_found' => count($mapped),
         'duplicates' => $duplicates,
         'new_rows' => count($mapped) - $duplicates,
+        'kontrata_count' => $kontrataCount,
         'rows' => $mapped,
     ]);
 }
