@@ -354,25 +354,26 @@ class InvoicePDF extends FPDF {
 
     // ─── Signature: stamp image (left) + "Pranoi" line (right) ───
     private function renderSignature() {
-        $this->Ln(8);
+        $this->Ln(10);
         $startY = $this->GetY();
 
         // Check if we need a page break
-        if ($startY + 50 > 280) {
+        if ($startY + 45 > 280) {
             $this->AddPage();
             $startY = $this->GetY();
         }
 
-        // Left: stamp image
-        $stampHeight = 33;
+        // Left: stamp image (includes "Faturoi" text at top)
+        $stampWidth = 50;
+        $stampHeight = 35;
         $img = $this->imgDir . 'sign_icon.png';
         if (file_exists($img)) {
-            $this->Image($img, 10, $startY, 50, $stampHeight);
+            $this->Image($img, 10, $startY, $stampWidth, $stampHeight);
         }
 
-        // Right: "Pranoi" line — aligned with bottom of stamp
+        // Right: "Pranoi" line — same vertical level as stamp bottom
         $this->SetFont('Helvetica', '', 8);
-        $this->SetXY(120, $startY + $stampHeight - 5);
+        $this->SetXY(120, $startY + $stampHeight);
         $this->Cell(70, 5, 'Pranoi   ______________________________', 0, 1, 'L');
     }
 }
