@@ -144,10 +144,35 @@ try {
                 // Silently fail — use whatever data we have in klientet
             }
 
-            // Get client info for PDF
+            // Get client info for PDF (primary: klientet, fallback: kontrata)
             $clientStmt = $db->prepare("SELECT * FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?)) LIMIT 1");
             $clientStmt->execute([$client]);
             $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+            // Fallback: fill missing fields from kontrata
+            $kontrataFields = [
+                'i_regjistruar_ne_emer' => 'biznesi',
+                'adresa' => 'rruga',
+                'numri_unik_identifikues' => 'numri_unik',
+                'telefoni' => 'nr_telefonit',
+                'email' => 'email',
+            ];
+            $needsFallback = false;
+            foreach ($kontrataFields as $klientField => $kontrataField) {
+                if (empty(trim($clientInfo[$klientField] ?? ''))) { $needsFallback = true; break; }
+            }
+            if ($needsFallback) {
+                $kStmt = $db->prepare("SELECT biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
+                $kStmt->execute([$client]);
+                $kontrataInfo = $kStmt->fetch(PDO::FETCH_ASSOC);
+                if ($kontrataInfo) {
+                    foreach ($kontrataFields as $klientField => $kontrataField) {
+                        if (empty(trim($clientInfo[$klientField] ?? '')) && !empty(trim($kontrataInfo[$kontrataField] ?? ''))) {
+                            $clientInfo[$klientField] = $kontrataInfo[$kontrataField];
+                        }
+                    }
+                }
+            }
 
             // Get cylinder count for this client (total cylinders at their business)
             $cylStmt = $db->prepare("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) AS boca_tek_biznesi FROM distribuimi WHERE klienti = ?");
