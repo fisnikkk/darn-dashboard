@@ -294,22 +294,37 @@ class InvoicePDF extends FPDF {
             $startY = $this->GetY();
         }
 
-        // LEFT: Bank details + payment terms
         $this->SetFont('Helvetica', '', 7);
         $this->SetDrawColor(128, 128, 128);
+        $this->SetLineWidth(0.3);
 
-        $this->SetXY(10, $startY);
+        $boxX = 10;
+        $boxW = 100;
+
+        // Row 1: Bank info (bordered cell)
+        $this->SetXY($boxX, $startY);
         $bankText = self::BANK_NAME . ' ' . self::BANK_IBAN;
-        $this->Cell(100, 4, $bankText, 0, 1, 'L');
+        $this->Cell($boxW, 5, ' ' . $bankText, 1, 1, 'L');
 
-        $this->SetX(10);
+        // Row 2: Verejtje (bordered cell)
+        $this->SetX($boxX);
         $this->SetFont('Helvetica', '', 6);
-        $this->MultiCell(100, 3,
+        $verejtjeY = $this->GetY();
+        $this->SetXY($boxX + 1, $verejtjeY + 1);
+        $this->MultiCell($boxW - 2, 3,
             iconv('UTF-8', 'ISO-8859-1//TRANSLIT',
                 "Verejtje: Pagesa duhet te behet 7 dite nga data e pranimit te\n" .
                 "fatures, ne te kundert aplikohet kamata ditore 0.1%"
             )
         );
+        $verejtjeH = $this->GetY() - $verejtjeY + 1;
+        $this->Rect($boxX, $verejtjeY, $boxW, $verejtjeH);
+
+        // Row 3: ART NE PERD (bordered cell)
+        $artY = $verejtjeY + $verejtjeH;
+        $this->SetFont('Helvetica', 'B', 7);
+        $this->SetXY($boxX, $artY);
+        $this->Cell($boxW, 6, 'ART. NE PERD. NE TOTAL :  ' . $this->cylinderCount, 1, 1, 'C');
 
         // RIGHT: VAT breakdown table
         $rightX = 130;
@@ -344,36 +359,37 @@ class InvoicePDF extends FPDF {
         $this->Cell(2, 4.5, '', 0, 0);
         $this->Cell(23, 4.5, number_format($totalWithVat, 2), 1, 1, 'R');
 
-        // ART. NE PERD. NE TOTAL - total cylinders client has in use
-        $this->SetX(10);
-        $this->SetFont('Helvetica', 'B', 7);
-        $this->Cell(80, 5, 'ART. NE PERD. NE TOTAL :  ' . $this->cylinderCount, 0, 1, 'R');
-
         $this->Ln(5);
     }
 
     // ─── Signature: stamp image (left) + "Pranoi" line (right) ───
     private function renderSignature() {
-        $this->Ln(10);
-        $startY = $this->GetY();
+        $startY = $this->GetY() + 8;
 
         // Check if we need a page break
-        if ($startY + 45 > 280) {
+        if ($startY + 40 > 280) {
             $this->AddPage();
-            $startY = $this->GetY();
+            $startY = $this->GetY() + 8;
         }
 
-        // Left: stamp image (includes "Faturoi" text at top)
-        $stampWidth = 50;
-        $stampHeight = 35;
+        // 1. Place stamp image at startY (Faturoi text + signature + seal)
         $img = $this->imgDir . 'sign_icon.png';
         if (file_exists($img)) {
-            $this->Image($img, 10, $startY, $stampWidth, $stampHeight);
+            $this->Image($img, 10, $startY, 50, 33);
         }
 
-        // Right: "Pranoi" line — same vertical level as stamp bottom
+        // 2. White-out image's built-in "Faturoi" text
+        $this->SetFillColor(255, 255, 255);
+        $this->Rect(10, $startY, 20, 5, 'F');
+
+        // 3. "Faturoi" aligned with the signature line in the image (~5mm down)
+        $lineY = $startY + 5;
         $this->SetFont('Helvetica', '', 8);
-        $this->SetXY(120, $startY + $stampHeight);
+        $this->SetXY(10, $lineY);
+        $this->Cell(50, 5, 'Faturoi', 0, 0, 'L');
+
+        // 4. "Pranoi" on the right — same Y as Faturoi
+        $this->SetXY(120, $lineY);
         $this->Cell(70, 5, 'Pranoi   ______________________________', 0, 1, 'L');
     }
 }
