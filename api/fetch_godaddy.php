@@ -370,31 +370,20 @@ function handleImport($db, $input) {
                     $email      = trim($gc['Email'] ?? '') ?: null;
 
                     $checkStmt->execute([$lower]);
-                    $existingRow = $checkStmt->fetch(PDO::FETCH_ASSOC);
-                    if ($existingRow) {
-                        // Only fill EMPTY kontrata fields — never overwrite manual edits
-                        // Fetch current kontrata data to check which fields are empty
-                        $currentStmt = $db->prepare("SELECT biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE id = ?");
-                        $currentStmt->execute([$existingRow['id']]);
-                        $current = $currentStmt->fetch(PDO::FETCH_ASSOC);
-
+                    if ($checkStmt->fetch()) {
+                        // Only update fields where GoDaddy has a value — preserve manual edits
                         $sets = [];
                         $vals = [];
-                        $fieldMap = [
-                            'biznesi' => $business, 'numri_unik' => $uniqueNum,
-                            'rruga' => $street, 'qyteti' => $city,
-                            'perfaqesuesi' => $rep, 'nr_telefonit' => $phone, 'email' => $email,
-                        ];
-                        foreach ($fieldMap as $col => $gdVal) {
-                            // Only update if GoDaddy has data AND kontrata field is empty
-                            if ($gdVal !== null && empty(trim($current[$col] ?? ''))) {
-                                $sets[] = "$col = ?";
-                                $vals[] = $gdVal;
-                            }
-                        }
+                        if ($business !== null) { $sets[] = 'biznesi = ?'; $vals[] = $business; }
+                        if ($uniqueNum !== null) { $sets[] = 'numri_unik = ?'; $vals[] = $uniqueNum; }
+                        if ($street !== null) { $sets[] = 'rruga = ?'; $vals[] = $street; }
+                        if ($city !== null) { $sets[] = 'qyteti = ?'; $vals[] = $city; }
+                        if ($rep !== null) { $sets[] = 'perfaqesuesi = ?'; $vals[] = $rep; }
+                        if ($phone !== null) { $sets[] = 'nr_telefonit = ?'; $vals[] = $phone; }
+                        if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
                         if (!empty($sets)) {
-                            $vals[] = $existingRow['id'];
-                            $db->prepare("UPDATE kontrata SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+                            $vals[] = $lower;
+                            $db->prepare("UPDATE kontrata SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(name_from_database)) = ?")->execute($vals);
                         }
                     } else {
                         $insertStmt->execute([$name, $business, $uniqueNum, $street, $city, $rep, $phone, $email]);
