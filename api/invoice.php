@@ -159,7 +159,7 @@ try {
             $clientStmt->execute([$client]);
             $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-            // Override: kontrata is the user-maintained master — its data takes priority
+            // Fallback: fill missing fields from kontrata
             $kontrataFields = [
                 'i_regjistruar_ne_emer' => 'biznesi',
                 'adresa' => 'rruga',
@@ -167,22 +167,19 @@ try {
                 'telefoni' => 'nr_telefonit',
                 'email' => 'email',
             ];
-            {
+            $needsFallback = false;
+            foreach ($kontrataFields as $klientField => $kontrataField) {
+                if (empty(trim($clientInfo[$klientField] ?? ''))) { $needsFallback = true; break; }
+            }
+            if ($needsFallback) {
                 $kStmt = $db->prepare("SELECT biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
                 $kStmt->execute([$client]);
                 $kontrataInfo = $kStmt->fetch(PDO::FETCH_ASSOC);
                 if ($kontrataInfo) {
                     foreach ($kontrataFields as $klientField => $kontrataField) {
-                        // Kontrata data always wins when it has a value
-                        if (!empty(trim($kontrataInfo[$kontrataField] ?? ''))) {
+                        if (empty(trim($clientInfo[$klientField] ?? '')) && !empty(trim($kontrataInfo[$kontrataField] ?? ''))) {
                             $clientInfo[$klientField] = $kontrataInfo[$kontrataField];
                         }
-                    }
-                    // Special: address is city + street combined
-                    $konCity = trim($kontrataInfo['qyteti'] ?? '');
-                    $konStreet = trim($kontrataInfo['rruga'] ?? '');
-                    if ($konCity || $konStreet) {
-                        $clientInfo['adresa'] = trim($konStreet . ($konStreet && $konCity ? ', ' : '') . $konCity);
                     }
                 }
             }
