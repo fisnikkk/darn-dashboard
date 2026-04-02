@@ -618,13 +618,19 @@ try {
                 break;
             }
 
-            // Get client email
+            // Get client email — check klientet first, then kontrata as fallback
             $clientStmt = $db->prepare("SELECT email FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?)) LIMIT 1");
             $clientStmt->execute([$inv['klienti']]);
             $clientEmail = $clientStmt->fetchColumn() ?: '';
 
             if (!$clientEmail) {
-                echo json_encode(['success' => false, 'error' => 'Klienti nuk ka email te regjistruar']);
+                $kontrataStmt = $db->prepare("SELECT email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND email IS NOT NULL AND email != '' LIMIT 1");
+                $kontrataStmt->execute([$inv['klienti']]);
+                $clientEmail = $kontrataStmt->fetchColumn() ?: '';
+            }
+
+            if (!$clientEmail) {
+                echo json_encode(['success' => false, 'error' => 'Klienti nuk ka email te regjistruar. Shtoni email ne Kontrata ose Klientet.']);
                 break;
             }
 
