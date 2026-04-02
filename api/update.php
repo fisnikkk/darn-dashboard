@@ -154,6 +154,38 @@ try {
         $db->prepare("UPDATE stoku_zyrtar SET vlera = ? WHERE id = ?")->execute([$newVlera, $id]);
     }
 
+    // Auto-sync kontrata edits to klientet (so invoice picks up changes)
+    if ($table === 'kontrata') {
+        $konRow = $db->prepare("SELECT name_from_database, biznesi, numri_unik, qyteti, rruga, perfaqesuesi, nr_telefonit, email, bashkepunim FROM kontrata WHERE id = ?");
+        $konRow->execute([$id]);
+        $kon = $konRow->fetch(PDO::FETCH_ASSOC);
+        if ($kon && $kon['name_from_database']) {
+            $adresa = trim(($kon['qyteti'] ?? '') . (($kon['rruga'] ?? '') ? ', ' . $kon['rruga'] : ''));
+            $fieldMap = [
+                'numri_unik_identifikues' => $kon['numri_unik'] ?? '',
+                'adresa'                  => $adresa,
+                'telefoni'                => $kon['nr_telefonit'] ?? '',
+                'email'                   => $kon['email'] ?? '',
+                'kontakti'                => $kon['perfaqesuesi'] ?? '',
+                'bashkepunim'             => $kon['bashkepunim'] ?? '',
+                'i_regjistruar_ne_emer'   => $kon['biznesi'] ?? '',
+            ];
+            // Update klientet — overwrite with kontrata values (kontrata is the master)
+            $kSets = [];
+            $kVals = [];
+            foreach ($fieldMap as $kCol => $kVal) {
+                if ($kVal !== '') {
+                    $kSets[] = "$kCol = ?";
+                    $kVals[] = $kVal;
+                }
+            }
+            if (!empty($kSets)) {
+                $kVals[] = $kon['name_from_database'];
+                $db->prepare("UPDATE klientet SET " . implode(', ', $kSets) . " WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?))")->execute($kVals);
+            }
+        }
+    }
+
     $db->commit();
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {

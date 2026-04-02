@@ -1854,18 +1854,46 @@ function handleRegisterContract($db) {
     $db->beginTransaction();
 
     try {
-        // 1. INSERT into kontrata
-        $stmt = $db->prepare("
-            INSERT INTO kontrata
-                (biznesi, name_from_database, numri_unik, qyteti, rruga,
-                 perfaqesuesi, nr_telefonit, email, bashkepunim, koment, data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
-        ");
-        $stmt->execute([
-            $biznesi, $nameFromDb, $numriUnik, $qyteti, $rruga,
-            $perfaqesuesi, $nrTelefonit, $email, $bashkepunim, $koment,
-        ]);
-        $contractId = $db->lastInsertId();
+        // 1. UPSERT into kontrata — update existing or insert new
+        $checkKontrata = $db->prepare("SELECT id FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
+        $checkKontrata->execute([$nameFromDb]);
+        $existingKontrata = $checkKontrata->fetch(PDO::FETCH_ASSOC);
+
+        if ($existingKontrata) {
+            // UPDATE existing kontrata — only set non-empty fields
+            $sets = [];
+            $vals = [];
+            $fields = [
+                'biznesi' => $biznesi, 'numri_unik' => $numriUnik,
+                'qyteti' => $qyteti, 'rruga' => $rruga,
+                'perfaqesuesi' => $perfaqesuesi, 'nr_telefonit' => $nrTelefonit,
+                'email' => $email, 'bashkepunim' => $bashkepunim, 'koment' => $koment,
+            ];
+            foreach ($fields as $col => $val) {
+                if ($val !== '') {
+                    $sets[] = "$col = ?";
+                    $vals[] = $val;
+                }
+            }
+            if (!empty($sets)) {
+                $vals[] = $existingKontrata['id'];
+                $db->prepare("UPDATE kontrata SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+            }
+            $contractId = $existingKontrata['id'];
+        } else {
+            // INSERT new kontrata row
+            $stmt = $db->prepare("
+                INSERT INTO kontrata
+                    (biznesi, name_from_database, numri_unik, qyteti, rruga,
+                     perfaqesuesi, nr_telefonit, email, bashkepunim, koment, data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+            ");
+            $stmt->execute([
+                $biznesi, $nameFromDb, $numriUnik, $qyteti, $rruga,
+                $perfaqesuesi, $nrTelefonit, $email, $bashkepunim, $koment,
+            ]);
+            $contractId = $db->lastInsertId();
+        }
 
         // 2. SMART UPSERT into klientet — only fill empty/NULL fields, never overwrite existing data
         $adresa = trim($qyteti . ($rruga ? ', ' . $rruga : ''));
