@@ -363,18 +363,16 @@ class InvoicePDF extends FPDF {
             $startY = $this->GetY();
         }
 
-        // Right: "Pranoi" line
-        $pranoiY = $startY + 25;
-        $this->SetFont('Helvetica', '', 8);
-        $this->SetXY(120, $pranoiY);
-
-        // Left: stamp image — bottom aligned with Pranoi line
+        // Left: stamp image
         $stampHeight = 33;
-        $stampY = $pranoiY - $stampHeight + 5;
         $img = $this->imgDir . 'sign_icon.png';
         if (file_exists($img)) {
-            $this->Image($img, 10, $stampY, 50, $stampHeight);
+            $this->Image($img, 10, $startY, 50, $stampHeight);
         }
+
+        // Right: "Pranoi" line — aligned with bottom of stamp
+        $this->SetFont('Helvetica', '', 8);
+        $this->SetXY(120, $startY + $stampHeight - 5);
         $this->Cell(70, 5, 'Pranoi   ______________________________', 0, 1, 'L');
     }
 }
