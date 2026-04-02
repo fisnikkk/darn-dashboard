@@ -132,8 +132,18 @@ try {
                         $existCheck = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = ?");
                         $existCheck->execute([$lower]);
                         if ($existCheck->fetch()) {
-                            $db->prepare("UPDATE klientet SET email = ?, i_regjistruar_ne_emer = ?, telefoni = ?, adresa = ?, numri_unik_identifikues = ? WHERE LOWER(TRIM(emri)) = ?")
-                                ->execute([$email, $business, $phone, $address, $uniqueNum, $lower]);
+                            // Only update fields where GoDaddy has a value — preserve manual/app data
+                            $sets = [];
+                            $vals = [];
+                            if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
+                            if ($business !== null) { $sets[] = 'i_regjistruar_ne_emer = ?'; $vals[] = $business; }
+                            if ($phone !== null) { $sets[] = 'telefoni = ?'; $vals[] = $phone; }
+                            if ($address !== null) { $sets[] = 'adresa = ?'; $vals[] = $address; }
+                            if ($uniqueNum !== null) { $sets[] = 'numri_unik_identifikues = ?'; $vals[] = $uniqueNum; }
+                            if (!empty($sets)) {
+                                $vals[] = $lower;
+                                $db->prepare("UPDATE klientet SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(emri)) = ?")->execute($vals);
+                            }
                         } else {
                             $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)")
                                 ->execute([$client, $email, $business, $phone, $address, $uniqueNum]);
@@ -426,24 +436,33 @@ try {
             $inserted = 0;
             $updated = 0;
             $insertStmt = $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)");
-            $updateStmt = $db->prepare("UPDATE klientet SET email = ?, i_regjistruar_ne_emer = ?, telefoni = ?, adresa = ?, numri_unik_identifikues = ? WHERE LOWER(TRIM(emri)) = ?");
 
             foreach ($distClients as $clientName) {
                 $lower = mb_strtolower(trim($clientName));
                 $gc = $gdFullMap[$lower] ?? null;
 
                 if (isset($existingSet[$lower])) {
-                    // Update existing record if GoDaddy has data
+                    // Update existing record — only non-empty GoDaddy fields (preserve manual/app data)
                     if ($gc) {
                         $email = trim($gc['Email'] ?? '') ?: null;
-                        $business = trim($gc['Bussiness'] ?? '') ?: $clientName;
+                        $business = trim($gc['Bussiness'] ?? '') ?: null;
                         $phone = trim($gc['PhoneNo'] ?? '') ?: null;
                         $street = trim($gc['Street'] ?? '');
                         $city = trim($gc['City'] ?? '');
                         $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
                         $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
-                        $updateStmt->execute([$email, $business, $phone, $address, $uniqueNum, $lower]);
-                        if ($updateStmt->rowCount() > 0) $updated++;
+                        $sets = [];
+                        $vals = [];
+                        if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
+                        if ($business !== null) { $sets[] = 'i_regjistruar_ne_emer = ?'; $vals[] = $business; }
+                        if ($phone !== null) { $sets[] = 'telefoni = ?'; $vals[] = $phone; }
+                        if ($address !== null) { $sets[] = 'adresa = ?'; $vals[] = $address; }
+                        if ($uniqueNum !== null) { $sets[] = 'numri_unik_identifikues = ?'; $vals[] = $uniqueNum; }
+                        if (!empty($sets)) {
+                            $vals[] = $lower;
+                            $db->prepare("UPDATE klientet SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(emri)) = ?")->execute($vals);
+                            $updated++;
+                        }
                     }
                 } else {
                     // Insert new record
@@ -532,8 +551,18 @@ try {
                         $existCheck = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = ?");
                         $existCheck->execute([$lower]);
                         if ($existCheck->fetch()) {
-                            $db->prepare("UPDATE klientet SET email = ?, i_regjistruar_ne_emer = ?, telefoni = ?, adresa = ?, numri_unik_identifikues = ? WHERE LOWER(TRIM(emri)) = ?")
-                                ->execute([$email, $business, $phone, $address, $uniqueNum, $lower]);
+                            // Only update non-empty GoDaddy fields — preserve manual/app data
+                            $sets = [];
+                            $vals = [];
+                            if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
+                            if ($business !== null) { $sets[] = 'i_regjistruar_ne_emer = ?'; $vals[] = $business; }
+                            if ($phone !== null) { $sets[] = 'telefoni = ?'; $vals[] = $phone; }
+                            if ($address !== null) { $sets[] = 'adresa = ?'; $vals[] = $address; }
+                            if ($uniqueNum !== null) { $sets[] = 'numri_unik_identifikues = ?'; $vals[] = $uniqueNum; }
+                            if (!empty($sets)) {
+                                $vals[] = $lower;
+                                $db->prepare("UPDATE klientet SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(emri)) = ?")->execute($vals);
+                            }
                         } else {
                             $db->prepare("INSERT INTO klientet (emri, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues) VALUES (?, ?, ?, ?, ?, ?)")
                                 ->execute([$client, $email, $business, $phone, $address, $uniqueNum]);
