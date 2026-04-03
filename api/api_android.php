@@ -1860,9 +1860,11 @@ function handleRegisterContract($db) {
         $existingKontrata = $checkKontrata->fetch(PDO::FETCH_ASSOC);
 
         if ($existingKontrata) {
-            // UPDATE existing kontrata — only set non-empty fields
+            // UPDATE existing kontrata — only set non-empty fields, fill date if empty
             $sets = [];
             $vals = [];
+            // Always fill date if currently NULL
+            $sets[] = "data = COALESCE(data, CURDATE())";
             $fields = [
                 'biznesi' => $biznesi, 'numri_unik' => $numriUnik,
                 'qyteti' => $qyteti, 'rruga' => $rruga,
