@@ -842,7 +842,11 @@ function gdPreview() {
 
         if (!data.rows || !data.rows.length) {
             body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">Asgje nuk u gjet per kete periudhe' + (data.kontrata_count ? ' (por ' + data.kontrata_count + ' kontrata gati per sync)' : '') + '</td></tr>';
-            if (data.kontrata_count) info.innerHTML = '<strong>0</strong> rreshta deliverimi' + kontrataMsg;
+            if (data.kontrata_count) {
+                info.innerHTML = '<strong>0</strong> rreshta deliverimi' + kontrataMsg;
+                importBtn.style.display = 'inline-flex';
+                document.getElementById('gdTypeFilter').style.display = 'block';
+            }
             return;
         }
 
