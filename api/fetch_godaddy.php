@@ -152,7 +152,8 @@ function handlePreview($db, $input) {
     // Count kontrata that would be synced
     $kontrataCount = 0;
     try {
-        $gdUrl = GD_API_URL . '?action=GetAllClients&key=' . GD_API_KEY;
+        $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
+        $gdUrl = $gdBaseUrl . 'api_product.php?GetAllClients';
         $ch = curl_init($gdUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
