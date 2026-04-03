@@ -183,7 +183,12 @@ function handlePreview($db, $input) {
         curl_close($ch);
         $salesData = json_decode($resp, true);
         if ($salesData && ($salesData['status'] ?? '') === '1' && !empty($salesData['data'])) {
-            $shitjeCount = count($salesData['data']);
+            foreach ($salesData['data'] as $sale) {
+                $saleTs = $sale['Timestamp'] ?? '';
+                if ($saleTs >= $fromDate && $saleTs <= $toDate) {
+                    $shitjeCount++;
+                }
+            }
         }
     } catch (Exception $e) {}
 
