@@ -149,7 +149,7 @@ function handlePreview($db, $input) {
         else $newCylinders++;
     }
 
-    // Count kontrata that would be synced
+    // Count kontrata added within the date range
     $kontrataCount = 0;
     try {
         $gdBaseUrl = str_replace('dashboard_export.php', '', GD_API_URL);
@@ -160,8 +160,15 @@ function handlePreview($db, $input) {
         $resp = curl_exec($ch);
         curl_close($ch);
         $clientData = json_decode($resp, true);
-        if ($clientData && isset($clientData['data'])) {
-            $kontrataCount = count($clientData['data']);
+        if ($clientData && ($clientData['status'] ?? '') === '1' && !empty($clientData['data'])) {
+            $fromDate = $dateFrom . ' 00:00:00';
+            $toDate = $dateTo . ' 23:59:59';
+            foreach ($clientData['data'] as $gc) {
+                $ts = $gc['Timestamp'] ?? '';
+                if ($ts >= $fromDate && $ts <= $toDate) {
+                    $kontrataCount++;
+                }
+            }
         }
     } catch (Exception $e) {}
 
