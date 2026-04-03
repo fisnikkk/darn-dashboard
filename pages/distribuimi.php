@@ -838,19 +838,30 @@ function gdPreview() {
             return;
         }
 
-        var kontrataMsg = data.kontrata_count ? ' | <strong>' + data.kontrata_count + '</strong> kontrata per sync' : '';
+        // Build type breakdown summary
+        var parts = [];
+        if (data.new_cylinders > 0) parts.push(data.new_cylinders + ' cilindra');
+        if (data.new_nxemese > 0) parts.push(data.new_nxemese + ' nxemese');
+        if (data.new_products > 0) parts.push(data.new_products + ' produkte');
+        if (data.shitje_count > 0) parts.push(data.shitje_count + ' shitje');
+        if (data.kontrata_count > 0) parts.push(data.kontrata_count + ' kontrata');
+        var breakdownMsg = parts.length ? ' (' + parts.join(', ') + ')' : '';
+
+        var hasAnything = (data.new_rows > 0) || data.shitje_count > 0 || data.kontrata_count > 0;
 
         if (!data.rows || !data.rows.length) {
-            body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">Asgje nuk u gjet per kete periudhe' + (data.kontrata_count ? ' (por ' + data.kontrata_count + ' kontrata gati per sync)' : '') + '</td></tr>';
-            if (data.kontrata_count) {
-                info.innerHTML = '<strong>0</strong> rreshta deliverimi' + kontrataMsg;
+            body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted);">' +
+                (hasAnything ? 'Asgje cilindra per kete periudhe, por ka: ' + parts.join(', ') : 'Asgje nuk u gjet per kete periudhe') +
+                '</td></tr>';
+            if (hasAnything) {
+                info.innerHTML = '<strong>0</strong> rreshta deliverimi' + breakdownMsg;
                 importBtn.style.display = 'inline-flex';
                 document.getElementById('gdTypeFilter').style.display = 'block';
             }
             return;
         }
 
-        info.innerHTML = '<strong>' + data.total_found + '</strong> rreshta u gjeten — <strong style="color:#059669;">' + data.new_rows + '</strong> te reja, <strong style="color:#f59e0b;">' + data.duplicates + '</strong> ekzistojne tashme' + kontrataMsg;
+        info.innerHTML = '<strong>' + data.total_found + '</strong> rreshta u gjeten — <strong style="color:#059669;">' + data.new_rows + '</strong> te reja, <strong style="color:#f59e0b;">' + data.duplicates + '</strong> ekzistojne tashme' + breakdownMsg;
 
         body.innerHTML = data.rows.map(r => {
             const isDup = r._duplicate;
@@ -870,7 +881,7 @@ function gdPreview() {
             </tr>`;
         }).join('');
 
-        if (data.new_rows > 0) {
+        if (data.new_rows > 0 || data.shitje_count > 0 || data.kontrata_count > 0) {
             importBtn.style.display = 'inline-flex';
             document.getElementById('gdTypeFilter').style.display = 'block';
         }

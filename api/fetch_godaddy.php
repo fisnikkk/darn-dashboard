@@ -137,6 +137,18 @@ function handlePreview($db, $input) {
         $mapped[] = $m;
     }
 
+    // Count by type (new rows only, exclude duplicates)
+    $newCylinders = 0;
+    $newNxemese = 0;
+    $newProducts = 0;
+    foreach ($mapped as $m) {
+        if ($m['_duplicate']) continue;
+        $type = $m['isCylinder'] ?? '0';
+        if ($type === '2') $newNxemese++;
+        elseif ($type === '1') $newProducts++;
+        else $newCylinders++;
+    }
+
     // Count kontrata that would be synced
     $kontrataCount = 0;
     try {
@@ -152,11 +164,30 @@ function handlePreview($db, $input) {
         }
     } catch (Exception $e) {}
 
+    // Count product sales from getSalesLastReport
+    $shitjeCount = 0;
+    try {
+        $salesUrl = str_replace('dashboard_export.php', 'api.php', GD_API_URL) . '?getSalesLastReport';
+        $ch = curl_init($salesUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        $resp = curl_exec($ch);
+        curl_close($ch);
+        $salesData = json_decode($resp, true);
+        if ($salesData && ($salesData['status'] ?? '') === '1' && !empty($salesData['data'])) {
+            $shitjeCount = count($salesData['data']);
+        }
+    } catch (Exception $e) {}
+
     echo json_encode([
         'success' => true,
         'total_found' => count($mapped),
         'duplicates' => $duplicates,
         'new_rows' => count($mapped) - $duplicates,
+        'new_cylinders' => $newCylinders,
+        'new_nxemese' => $newNxemese,
+        'new_products' => $newProducts,
+        'shitje_count' => $shitjeCount,
         'kontrata_count' => $kontrataCount,
         'rows' => $mapped,
     ]);
