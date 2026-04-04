@@ -243,7 +243,7 @@ function handleImport($db, $input) {
     $insertStmt = $db->prepare($insertSQL);
 
     // Nxemese (heaters, isCylinder=2)
-    $nxemeseSQL = "INSERT INTO nxemese (klienti, data, te_dhena, te_marra, koment) VALUES (?, ?, ?, ?, ?)";
+    $nxemeseSQL = "INSERT INTO nxemese (klienti, data, te_dhena, te_marra, koment, godaddy_id) VALUES (?, ?, ?, ?, ?, ?)";
     $nxemeseStmt = $db->prepare($nxemeseSQL);
 
     // Shitje produkteve — imported from getSalesLastReport below (not from delivery_report)
@@ -269,18 +269,25 @@ function handleImport($db, $input) {
         }
 
         if ($isCylinder === '2') {
-            // ── HEATER → nxemese table (with deduplication) ──
-            $nxDupCheck = $db->prepare("SELECT COUNT(*) FROM nxemese WHERE klienti = ? AND data = ? AND te_dhena = ? AND te_marra = ?");
-            $nxDupCheck->execute([$m['klienti'], $m['data'], (int)$m['sasia'], (int)$m['boca_te_kthyera']]);
-            if ((int)$nxDupCheck->fetchColumn() === 0) {
+            // ── HEATER → nxemese table (dedup by godaddy_id, same as cylinders) ──
+            $nxIsDup = false;
+            if ($gdId > 0) {
+                $nxDup = $db->prepare("SELECT COUNT(*) FROM nxemese WHERE godaddy_id = ?");
+                $nxDup->execute([$gdId]);
+                $nxIsDup = (int)$nxDup->fetchColumn() > 0;
+            }
+            if (!$nxIsDup) {
                 $nxemeseStmt->execute([
                     $m['klienti'],
                     $m['data'],
                     (int)$m['sasia'],           // te_dhena (delivered)
                     (int)$m['boca_te_kthyera'], // te_marra (returned)
                     'Import nga GoDaddy',
+                    $gdId > 0 ? $gdId : null,
                 ]);
                 $insertedNxemese++;
+            } else {
+                $skipped++;
             }
 
         } else {
