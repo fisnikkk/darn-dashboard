@@ -159,7 +159,8 @@ try {
             $clientStmt->execute([$client]);
             $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-            // Fallback: fill missing fields from kontrata
+            // Kontrata override: if a field was manually edited in kontrata, it takes priority
+            // Also fills empty klientet fields from kontrata as fallback
             $kontrataFields = [
                 'i_regjistruar_ne_emer' => 'biznesi',
                 'adresa' => 'rruga',
@@ -167,18 +168,34 @@ try {
                 'telefoni' => 'nr_telefonit',
                 'email' => 'email',
             ];
-            $needsFallback = false;
-            foreach ($kontrataFields as $klientField => $kontrataField) {
-                if (empty(trim($clientInfo[$klientField] ?? ''))) { $needsFallback = true; break; }
-            }
-            if ($needsFallback) {
-                $kStmt = $db->prepare("SELECT biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
+            {
+                $kStmt = $db->prepare("SELECT id, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
                 $kStmt->execute([$client]);
                 $kontrataInfo = $kStmt->fetch(PDO::FETCH_ASSOC);
                 if ($kontrataInfo) {
+                    // Check which kontrata fields were manually edited (have changelog entries)
+                    $editedFields = [];
+                    $logStmt = $db->prepare("SELECT DISTINCT field_name FROM changelog WHERE table_name = 'kontrata' AND row_id = ?");
+                    $logStmt->execute([$kontrataInfo['id']]);
+                    while ($logRow = $logStmt->fetch(PDO::FETCH_ASSOC)) {
+                        $editedFields[$logRow['field_name']] = true;
+                    }
+
                     foreach ($kontrataFields as $klientField => $kontrataField) {
-                        if (empty(trim($clientInfo[$klientField] ?? '')) && !empty(trim($kontrataInfo[$kontrataField] ?? ''))) {
-                            $clientInfo[$klientField] = $kontrataInfo[$kontrataField];
+                        $konVal = trim($kontrataInfo[$kontrataField] ?? '');
+                        $klientVal = trim($clientInfo[$klientField] ?? '');
+
+                        // Use kontrata value if: field was manually edited, OR klientet is empty
+                        if ($konVal !== '' && (isset($editedFields[$kontrataField]) || $klientVal === '')) {
+                            $clientInfo[$klientField] = $konVal;
+                        }
+                    }
+                    // Special: address combines city + street
+                    if (isset($editedFields['qyteti']) || isset($editedFields['rruga']) || empty(trim($clientInfo['adresa'] ?? ''))) {
+                        $konCity = trim($kontrataInfo['qyteti'] ?? '');
+                        $konStreet = trim($kontrataInfo['rruga'] ?? '');
+                        if ($konCity || $konStreet) {
+                            $clientInfo['adresa'] = trim($konStreet . ($konStreet && $konCity ? ', ' : '') . $konCity);
                         }
                     }
                 }
