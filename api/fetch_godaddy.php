@@ -269,15 +269,19 @@ function handleImport($db, $input) {
         }
 
         if ($isCylinder === '2') {
-            // ── HEATER → nxemese table ──
-            $nxemeseStmt->execute([
-                $m['klienti'],
-                $m['data'],
-                (int)$m['sasia'],           // te_dhena (delivered)
-                (int)$m['boca_te_kthyera'], // te_marra (returned)
-                'Import nga GoDaddy',
-            ]);
-            $insertedNxemese++;
+            // ── HEATER → nxemese table (with deduplication) ──
+            $nxDupCheck = $db->prepare("SELECT COUNT(*) FROM nxemese WHERE klienti = ? AND data = ? AND te_dhena = ? AND te_marra = ?");
+            $nxDupCheck->execute([$m['klienti'], $m['data'], (int)$m['sasia'], (int)$m['boca_te_kthyera']]);
+            if ((int)$nxDupCheck->fetchColumn() === 0) {
+                $nxemeseStmt->execute([
+                    $m['klienti'],
+                    $m['data'],
+                    (int)$m['sasia'],           // te_dhena (delivered)
+                    (int)$m['boca_te_kthyera'], // te_marra (returned)
+                    'Import nga GoDaddy',
+                ]);
+                $insertedNxemese++;
+            }
 
         } else {
             // ── CYLINDER → distribuimi table (same as before) ──
