@@ -593,6 +593,31 @@ try {
             $clientStmt->execute([$client]);
             $clientInfo = $clientStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
+            // Override with manually edited kontrata fields (same logic as create action)
+            $kontrataFields2 = [
+                'i_regjistruar_ne_emer' => 'biznesi', 'adresa' => 'rruga',
+                'numri_unik_identifikues' => 'numri_unik', 'telefoni' => 'nr_telefonit', 'email' => 'email',
+            ];
+            $kStmt2 = $db->prepare("SELECT id, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
+            $kStmt2->execute([$client]);
+            $kontrataInfo2 = $kStmt2->fetch(PDO::FETCH_ASSOC);
+            if ($kontrataInfo2) {
+                $editedFields2 = [];
+                $logStmt2 = $db->prepare("SELECT DISTINCT field_name FROM changelog WHERE table_name = 'kontrata' AND row_id = ?");
+                $logStmt2->execute([$kontrataInfo2['id']]);
+                while ($lr = $logStmt2->fetch(PDO::FETCH_ASSOC)) { $editedFields2[$lr['field_name']] = true; }
+                foreach ($kontrataFields2 as $kf => $knf) {
+                    $kv = trim($kontrataInfo2[$knf] ?? '');
+                    if ($kv !== '' && (isset($editedFields2[$knf]) || empty(trim($clientInfo[$kf] ?? '')))) {
+                        $clientInfo[$kf] = $kv;
+                    }
+                }
+                if (isset($editedFields2['qyteti']) || isset($editedFields2['rruga']) || empty(trim($clientInfo['adresa'] ?? ''))) {
+                    $kc = trim($kontrataInfo2['qyteti'] ?? ''); $ks = trim($kontrataInfo2['rruga'] ?? '');
+                    if ($kc || $ks) { $clientInfo['adresa'] = trim($ks . ($ks && $kc ? ', ' : '') . $kc); }
+                }
+            }
+
             // Get cylinder count
             $cylStmt = $db->prepare("SELECT COALESCE(SUM(sasia) - SUM(boca_te_kthyera), 0) FROM distribuimi WHERE klienti = ?");
             $cylStmt->execute([$client]);
