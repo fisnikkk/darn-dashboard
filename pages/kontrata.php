@@ -152,19 +152,27 @@ function withClientFilter($thHtml, $filterName, $filterValues, $colIdx) {
 ob_start();
 ?>
 <style>
+    .data-table[data-table="kontrata"] {
+        table-layout: fixed;
+        width: 100%;
+    }
     .data-table[data-table="kontrata"] td,
     .data-table[data-table="kontrata"] th {
-        padding: 4px 6px;
-        font-size: 0.82rem;
+        padding: 3px 4px;
+        font-size: 0.78rem;
         white-space: nowrap;
-    }
-    .data-table[data-table="kontrata"] td.editable.truncate,
-    .data-table[data-table="kontrata"] td.koment-cell {
-        white-space: normal;
-        max-width: 150px;
         overflow: hidden;
         text-overflow: ellipsis;
     }
+    .data-table[data-table="kontrata"] th { font-size: 0.72rem; }
+    .data-table[data-table="kontrata"] col.col-nr { width: 40px; }
+    .data-table[data-table="kontrata"] col.col-data { width: 75px; }
+    .data-table[data-table="kontrata"] col.col-emri { width: 130px; }
+    .data-table[data-table="kontrata"] col.col-num { width: 45px; }
+    .data-table[data-table="kontrata"] col.col-text { width: 90px; }
+    .data-table[data-table="kontrata"] col.col-email { width: 120px; }
+    .data-table[data-table="kontrata"] col.col-koment { width: 100px; }
+    .data-table[data-table="kontrata"] col.col-actions { width: 60px; }
 </style>
 
 <div class="summary-grid">
@@ -213,6 +221,31 @@ ob_start();
     <div class="card-body">
         <div class="table-wrapper">
             <table class="data-table" data-table="kontrata" data-server-sort="true">
+                <colgroup>
+                    <col class="col-nr"><!-- Nr -->
+                    <col class="col-data"><!-- Data -->
+                    <col class="col-emri"><!-- Emri -->
+                    <col class="col-num"><!-- Stok kontrate -->
+                    <col class="col-num"><!-- Sipas distribuimit -->
+                    <col class="col-num"><!-- Diferenca -->
+                    <col class="col-num"><!-- Skenimi PDA -->
+                    <col class="col-text"><!-- Bashkepunim -->
+                    <col class="col-text"><!-- Qyteti -->
+                    <col class="col-text"><!-- Rruga -->
+                    <col class="col-text"><!-- Nr Unik -->
+                    <col class="col-text"><!-- Perfaqesuesi -->
+                    <col class="col-text"><!-- Tel -->
+                    <col class="col-email"><!-- Email -->
+                    <col class="col-text"><!-- Grup njoftues -->
+                    <col class="col-text"><!-- Kontrate e vjeter -->
+                    <col class="col-text"><!-- Lloji bocave -->
+                    <col class="col-text"><!-- Bocat e paguara -->
+                    <col class="col-data"><!-- Data rregullatoret -->
+                    <col class="col-num"><!-- Dite pa marre -->
+                    <col class="col-num"><!-- Mesatare/muaj -->
+                    <col class="col-koment"><!-- Koment -->
+                    <col class="col-actions"><!-- Actions -->
+                </colgroup>
                 <thead>
                     <tr>
                         <?= sortThKt('nr_i_kontrates', 'Nr', $sortCol, $sortDir) ?>
