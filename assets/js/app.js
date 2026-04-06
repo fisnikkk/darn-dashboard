@@ -891,6 +891,20 @@ function initColumnFilters() {
             if (dropdown.classList.contains('open')) {
                 searchInput.value = '';
                 searchInput.dispatchEvent(new Event('input'));
+                // For client-side filters: sync checkboxes with current active filter state
+                if (th.dataset.filterMode === 'client') {
+                    const table = th.closest('table');
+                    const currentFilter = (table._clientFilters || {})[paramName];
+                    items.forEach(it => {
+                        const cb = it.querySelector('input');
+                        if (currentFilter) {
+                            cb.checked = currentFilter.selectedValues.has(it.dataset.value.toLowerCase());
+                        } else {
+                            cb.checked = true; // no filter = all checked
+                        }
+                    });
+                    updateSelectAll();
+                }
                 // Position dropdown using fixed positioning relative to the button
                 positionFilterDropdown(btn, dropdown);
                 setTimeout(() => searchInput.focus(), 50);
