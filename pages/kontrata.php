@@ -248,7 +248,7 @@ ob_start();
                         $dite = $r['calc_dite'] !== null ? abs((int)$r['calc_dite']) : null;
                         $avg = $r['calc_avg'] !== null ? $r['calc_avg'] : '-';
                     ?>
-                    <tr data-id="<?= $r['id'] ?>" <?= $dite && $dite > 30 ? 'style="background:#fef2f2;"' : '' ?>>
+                    <tr data-id="<?= $r['id'] ?>" <?= $dite && $dite > 90 ? 'style="background:#fde2e2;"' : ($dite && $dite > 60 ? 'style="background:#fef2f2;"' : ($dite && $dite > 30 ? 'style="background:#fff8f0;"' : '')) ?>>
                         <td><?= $r['nr_i_kontrates'] ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="editable" data-field="name_from_database" style="color:var(--primary);font-weight:500;"><?= e($r['name_from_database']) ?></td>
@@ -272,7 +272,7 @@ ob_start();
                         <td class="editable" data-field="lloji_i_bocave"><?= e($r['lloji_i_bocave']) ?></td>
                         <td class="editable" data-field="bocat_e_paguara"><?= e($r['bocat_e_paguara']) ?></td>
                         <td class="editable" data-field="data_rregullatoret" data-type="date"><?= $r['data_rregullatoret'] ?></td>
-                        <td class="num" style="font-weight:600;<?= $dite && $dite > 30 ? 'color:var(--danger);' : '' ?>">
+                        <td class="num" style="font-weight:600;<?= $dite && $dite > 90 ? 'color:#991b1b;' : ($dite && $dite > 60 ? 'color:#dc2626;' : ($dite && $dite > 30 ? 'color:#f59e0b;' : '')) ?>">
                             <?= $dite !== null ? $dite . ' ditë' : '-' ?>
                         </td>
                         <td class="num"><?= $avg ?></td>
