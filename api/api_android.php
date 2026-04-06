@@ -123,7 +123,45 @@ function handleGetAllClients($db) {
     if ($response !== false && $httpCode === 200) {
         $gdData = json_decode($response, true);
         if ($gdData && isset($gdData['status']) && $gdData['status'] === '1' && !empty($gdData['data'])) {
-            // GoDaddy returned valid client data — pass it through directly
+            // Enrich GoDaddy data with kontrata details (fill empty fields)
+            $konStmt = $db->query("SELECT name_from_database, biznesi, numri_unik, qyteti, rruga, perfaqesuesi, nr_telefonit, email FROM kontrata");
+            $konMap = [];
+            while ($kr = $konStmt->fetch(PDO::FETCH_ASSOC)) {
+                $konMap[mb_strtolower(trim($kr['name_from_database']))] = $kr;
+            }
+
+            foreach ($gdData['data'] as &$gc) {
+                $key = mb_strtolower(trim($gc['Name'] ?? ''));
+                if (isset($konMap[$key])) {
+                    $k = $konMap[$key];
+                    if (empty(trim($gc['Bussiness'] ?? '')) && !empty(trim($k['biznesi'] ?? ''))) $gc['Bussiness'] = $k['biznesi'];
+                    if (empty(trim($gc['Unique_Number'] ?? '')) && !empty(trim($k['numri_unik'] ?? ''))) $gc['Unique_Number'] = $k['numri_unik'];
+                    if (empty(trim($gc['City'] ?? '')) && !empty(trim($k['qyteti'] ?? ''))) $gc['City'] = $k['qyteti'];
+                    if (empty(trim($gc['Street'] ?? '')) && !empty(trim($k['rruga'] ?? ''))) $gc['Street'] = $k['rruga'];
+                    if (empty(trim($gc['Representative'] ?? '')) && !empty(trim($k['perfaqesuesi'] ?? ''))) $gc['Representative'] = $k['perfaqesuesi'];
+                    if (empty(trim($gc['PhoneNo'] ?? '')) && !empty(trim($k['nr_telefonit'] ?? ''))) $gc['PhoneNo'] = $k['nr_telefonit'];
+                    if (empty(trim($gc['Email'] ?? '')) && !empty(trim($k['email'] ?? ''))) $gc['Email'] = $k['email'];
+                    // Also check changelog for manually edited kontrata fields
+                    $konId = $db->prepare("SELECT id FROM kontrata WHERE LOWER(TRIM(name_from_database)) = ? LIMIT 1");
+                    $konId->execute([$key]);
+                    $konRow = $konId->fetch(PDO::FETCH_ASSOC);
+                    if ($konRow) {
+                        $editedStmt = $db->prepare("SELECT DISTINCT field_name FROM changelog WHERE table_name = 'kontrata' AND row_id = ?");
+                        $editedStmt->execute([$konRow['id']]);
+                        $edited = [];
+                        while ($ef = $editedStmt->fetch(PDO::FETCH_ASSOC)) { $edited[$ef['field_name']] = true; }
+                        if (isset($edited['biznesi']) && !empty(trim($k['biznesi'] ?? ''))) $gc['Bussiness'] = $k['biznesi'];
+                        if (isset($edited['numri_unik']) && !empty(trim($k['numri_unik'] ?? ''))) $gc['Unique_Number'] = $k['numri_unik'];
+                        if (isset($edited['qyteti']) && !empty(trim($k['qyteti'] ?? ''))) $gc['City'] = $k['qyteti'];
+                        if (isset($edited['rruga']) && !empty(trim($k['rruga'] ?? ''))) $gc['Street'] = $k['rruga'];
+                        if (isset($edited['perfaqesuesi']) && !empty(trim($k['perfaqesuesi'] ?? ''))) $gc['Representative'] = $k['perfaqesuesi'];
+                        if (isset($edited['nr_telefonit']) && !empty(trim($k['nr_telefonit'] ?? ''))) $gc['PhoneNo'] = $k['nr_telefonit'];
+                        if (isset($edited['email']) && !empty(trim($k['email'] ?? ''))) $gc['Email'] = $k['email'];
+                    }
+                }
+            }
+            unset($gc);
+
             echo json_encode($gdData, JSON_UNESCAPED_UNICODE);
             return;
         }
