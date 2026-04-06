@@ -308,7 +308,13 @@ function startCellEdit(td) {
     const id = row.dataset.id;
     const field = td.dataset.field;
     const type = td.dataset.type || 'text';
-    const rawText = td.textContent.trim();
+    const rawText = (td.title && td.title.length > td.textContent.trim().length) ? td.title : td.textContent.trim();
+
+    // Long text fields (koment, rruga, etc.) — use popup textarea
+    if (field === 'koment' || td.classList.contains('truncate') || rawText.length > 40) {
+        startCellEditPopup(td, table, id, field, rawText);
+        return;
+    }
 
     // Store original
     const origHtml = td.innerHTML;
@@ -446,6 +452,95 @@ async function saveCellEdit(td, input, table, id, field, type) {
         showToast('Gabim ne ruajtje', 'error');
         td.textContent = origText;
     }
+}
+
+/* ---- Popup cell editor for long text (koment, etc.) ---- */
+
+function startCellEditPopup(td, table, id, field, rawText) {
+    // Remove any existing popup
+    document.querySelectorAll('.cell-edit-popup').forEach(p => p.remove());
+
+    const origHtml = td.innerHTML;
+    const origText = rawText;
+
+    // Create popup overlay
+    const popup = document.createElement('div');
+    popup.className = 'cell-edit-popup';
+    popup.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.3);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:8px;padding:16px;width:90%;max-width:500px;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-weight:600;margin-bottom:8px;font-size:0.9rem;color:#334155;';
+    label.textContent = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
+
+    const textarea = document.createElement('textarea');
+    textarea.value = origText;
+    textarea.style.cssText = 'width:100%;min-height:120px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;resize:vertical;box-sizing:border-box;font-family:inherit;';
+
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:12px;';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Anulo';
+    cancelBtn.style.cssText = 'padding:6px 16px;border:1px solid #cbd5e1;background:#fff;border-radius:4px;cursor:pointer;';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Ruaj';
+    saveBtn.style.cssText = 'padding:6px 16px;border:none;background:#2563eb;color:#fff;border-radius:4px;cursor:pointer;';
+
+    btns.appendChild(cancelBtn);
+    btns.appendChild(saveBtn);
+    box.appendChild(label);
+    box.appendChild(textarea);
+    box.appendChild(btns);
+    popup.appendChild(box);
+    document.body.appendChild(popup);
+
+    textarea.focus();
+
+    // Cancel
+    cancelBtn.addEventListener('click', () => popup.remove());
+    popup.addEventListener('click', (e) => { if (e.target === popup) popup.remove(); });
+
+    // Save
+    async function save() {
+        const newVal = textarea.value;
+        if (newVal === origText) { popup.remove(); return; }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Duke ruajtur...';
+
+        try {
+            const resp = await fetch('/api/update.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table, id, changes: [{ field, value: newVal }] })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('U ruajt me sukses');
+                td.textContent = newVal || '';
+                td.title = newVal || '';
+                popup.remove();
+            } else {
+                showToast('Gabim: ' + (data.error || ''), 'error');
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Ruaj';
+            }
+        } catch (e) {
+            showToast('Gabim ne ruajtje', 'error');
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Ruaj';
+        }
+    }
+
+    saveBtn.addEventListener('click', save);
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); popup.remove(); }
+        if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); save(); }
+    });
 }
 
 /* ---- Bank reconciliation toggle ---- */
