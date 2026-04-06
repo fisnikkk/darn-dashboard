@@ -151,6 +151,21 @@ function withClientFilter($thHtml, $filterName, $filterValues, $colIdx) {
 
 ob_start();
 ?>
+<style>
+    .data-table[data-table="kontrata"] td,
+    .data-table[data-table="kontrata"] th {
+        padding: 4px 6px;
+        font-size: 0.82rem;
+        white-space: nowrap;
+    }
+    .data-table[data-table="kontrata"] td.editable.truncate,
+    .data-table[data-table="kontrata"] td.koment-cell {
+        white-space: normal;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
 
 <div class="summary-grid">
     <div class="summary-card">
@@ -233,7 +248,7 @@ ob_start();
                         $dite = $r['calc_dite'] !== null ? abs((int)$r['calc_dite']) : null;
                         $avg = $r['calc_avg'] !== null ? $r['calc_avg'] : '-';
                     ?>
-                    <tr data-id="<?= $r['id'] ?>" <?= $dite && $dite > 90 ? 'style="background:#fef2f2;"' : '' ?>>
+                    <tr data-id="<?= $r['id'] ?>" <?= $dite && $dite > 30 ? 'style="background:#fef2f2;"' : '' ?>>
                         <td><?= $r['nr_i_kontrates'] ?></td>
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="editable" data-field="name_from_database" style="color:var(--primary);font-weight:500;"><?= e($r['name_from_database']) ?></td>
@@ -257,7 +272,7 @@ ob_start();
                         <td class="editable" data-field="lloji_i_bocave"><?= e($r['lloji_i_bocave']) ?></td>
                         <td class="editable" data-field="bocat_e_paguara"><?= e($r['bocat_e_paguara']) ?></td>
                         <td class="editable" data-field="data_rregullatoret" data-type="date"><?= $r['data_rregullatoret'] ?></td>
-                        <td class="num" style="font-weight:600;<?= $dite && $dite > 90 ? 'color:var(--danger);' : '' ?>">
+                        <td class="num" style="font-weight:600;<?= $dite && $dite > 30 ? 'color:var(--danger);' : '' ?>">
                             <?= $dite !== null ? $dite . ' ditë' : '-' ?>
                         </td>
                         <td class="num"><?= $avg ?></td>
