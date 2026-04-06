@@ -975,15 +975,25 @@ function initColumnFilters() {
                 const table = th.closest('table');
                 if (!table._clientFilters) table._clientFilters = {};
 
+                // Save to URL so it survives server-side filter reloads
+                const curUrl = new URL(window.location);
+                curUrl.searchParams.delete(paramName + '[]');
+
                 if (allChecked || noneChecked) {
                     delete table._clientFilters[paramName];
                 } else {
                     const selectedValues = new Set();
                     items.forEach(it => {
-                        if (it.querySelector('input').checked) selectedValues.add(it.dataset.value.toLowerCase());
+                        if (it.querySelector('input').checked) {
+                            selectedValues.add(it.dataset.value.toLowerCase());
+                            curUrl.searchParams.append(paramName + '[]', it.dataset.value);
+                        }
                     });
                     table._clientFilters[paramName] = { colIdx, selectedValues };
                 }
+
+                // Update URL without reloading
+                history.replaceState(null, '', curUrl.toString());
 
                 applyClientFilters(table);
                 dropdown.classList.remove('open');
@@ -1023,6 +1033,10 @@ function initColumnFilters() {
             if (th.dataset.filterMode === 'client') {
                 const table = th.closest('table');
                 if (table._clientFilters) delete table._clientFilters[paramName];
+                // Remove from URL
+                const clearUrl = new URL(window.location);
+                clearUrl.searchParams.delete(paramName + '[]');
+                history.replaceState(null, '', clearUrl.toString());
                 applyClientFilters(table);
                 items.forEach(it => it.querySelector('input').checked = true);
                 selectAllCb.checked = true;
@@ -1076,9 +1090,28 @@ function initColumnFilters() {
         // Close on outside click
         dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
 
+        // Restore client-side filters from URL on page load
+        if (th.dataset.filterMode === 'client' && activeFilters.length > 0) {
+            const colIdx = parseInt(th.dataset.filterCol, 10);
+            const table = th.closest('table');
+            if (!table._clientFilters) table._clientFilters = {};
+            const selectedValues = new Set(activeFilters.map(v => v.toLowerCase()));
+            table._clientFilters[paramName] = { colIdx, selectedValues };
+            // Mark for deferred apply
+            table._needsClientFilterApply = true;
+        }
+
         wrap.appendChild(btn);
         wrap.appendChild(dropdown);
         th.appendChild(wrap);
+    });
+
+    // Apply any restored client-side filters
+    document.querySelectorAll('table.data-table').forEach(table => {
+        if (table._needsClientFilterApply) {
+            applyClientFilters(table);
+            delete table._needsClientFilterApply;
+        }
     });
 
     // Global: close all filter dropdowns on outside click
