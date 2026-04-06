@@ -286,6 +286,168 @@ async function saveRowEdit(row) {
     }
 }
 
+/* ---- Click-to-edit individual cells ---- */
+
+function initCellEdit() {
+    document.querySelectorAll('table.data-table tbody tr[data-id] td.editable').forEach(td => {
+        td.style.cursor = 'pointer';
+        td.addEventListener('click', function(e) {
+            // Don't trigger if already editing this row or clicking an input
+            const row = td.closest('tr');
+            if (row.classList.contains('editing')) return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+            startCellEdit(td);
+        });
+    });
+}
+
+function startCellEdit(td) {
+    const row = td.closest('tr');
+    const table = row.closest('table').dataset.table;
+    const id = row.dataset.id;
+    const field = td.dataset.field;
+    const type = td.dataset.type || 'text';
+    const rawText = td.textContent.trim();
+
+    // Store original
+    const origHtml = td.innerHTML;
+    const origText = rawText;
+    td._cellOriginal = { html: origHtml, text: origText };
+
+    // Create input
+    let input;
+    if (type === 'select') {
+        let options = [];
+        try { options = JSON.parse(td.dataset.options || '[]'); } catch(e) {}
+        const allowCustom = td.dataset.allowCustom === 'true';
+
+        if (allowCustom) {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.value = rawText;
+            const dlId = 'dl_cell_' + field + '_' + id;
+            input.setAttribute('list', dlId);
+            const datalist = document.createElement('datalist');
+            datalist.id = dlId;
+            options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt;
+                datalist.appendChild(o);
+            });
+            input._datalist = datalist;
+        } else {
+            input = document.createElement('select');
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = '-- Zgjidh --';
+            input.appendChild(emptyOpt);
+            let currentFound = !rawText;
+            options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt; o.textContent = opt;
+                if (opt === rawText) { o.selected = true; currentFound = true; }
+                input.appendChild(o);
+            });
+            if (!currentFound && rawText) {
+                const currentOpt = document.createElement('option');
+                currentOpt.value = rawText;
+                currentOpt.textContent = rawText;
+                currentOpt.selected = true;
+                input.insertBefore(currentOpt, input.children[1]);
+            }
+        }
+    } else {
+        input = document.createElement('input');
+        input.type = type === 'number' ? 'number' : type === 'date' ? 'date' : 'text';
+        if (type === 'number') {
+            const stripped = rawText.replace(/[€,\s]/g, '');
+            input.value = (stripped === '-' || stripped === '—' || stripped === '') ? '' : stripped;
+            input.step = '0.01';
+        } else {
+            input.value = rawText;
+        }
+    }
+
+    input.style.width = '100%';
+    input.style.boxSizing = 'border-box';
+    td.textContent = '';
+    td.appendChild(input);
+    if (input._datalist) td.appendChild(input._datalist);
+    input.focus();
+    if (input.type === 'text') input.select();
+
+    // Save on Enter
+    input.addEventListener('keydown', function(e) {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveCellEdit(td, input, table, id, field, type);
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelCellEdit(td);
+        }
+    });
+
+    // Save on blur (click away)
+    input.addEventListener('blur', function() {
+        // Small delay to allow Enter handler to fire first
+        setTimeout(() => {
+            if (td._cellOriginal) saveCellEdit(td, input, table, id, field, type);
+        }, 150);
+    });
+}
+
+function cancelCellEdit(td) {
+    if (!td._cellOriginal) return;
+    td.innerHTML = td._cellOriginal.html;
+    delete td._cellOriginal;
+}
+
+async function saveCellEdit(td, input, table, id, field, type) {
+    if (!td._cellOriginal) return;
+    const origText = td._cellOriginal.text;
+    const newVal = input.value;
+
+    let origCompare = origText;
+    if (type === 'number') {
+        const stripped = origText.replace(/[€,\s]/g, '');
+        origCompare = (stripped === '-' || stripped === '—') ? '' : stripped;
+    }
+
+    // No change — just restore
+    if (newVal === origCompare) {
+        cancelCellEdit(td);
+        return;
+    }
+
+    // Save
+    td.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:var(--text-muted);"></i>';
+    delete td._cellOriginal;
+
+    try {
+        const resp = await fetch('/api/update.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table, id, changes: [{ field, value: newVal }] })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.success) {
+            showToast('U ruajt me sukses');
+            // Update cell with new value
+            td.textContent = newVal || '';
+        } else {
+            showToast('Gabim: ' + (data.error || ''), 'error');
+            td.textContent = origText;
+        }
+    } catch (e) {
+        showToast('Gabim ne ruajtje', 'error');
+        td.textContent = origText;
+    }
+}
+
 /* ---- Bank reconciliation toggle ---- */
 
 function toggleHighlight(id, table) {
@@ -973,6 +1135,7 @@ function initFilterPersistence() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initRowEdit();
+    initCellEdit();
     initForms();
     initTableSearch();
     initTableSort();
