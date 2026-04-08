@@ -38,7 +38,7 @@ $allowed = [
     'shitje_produkteve' => ['data','cilindra_sasia','produkti','klienti','adresa','qyteti',
                             'cmimi','totali','menyra_pageses','koment','statusi_i_pageses'],
     'kontrata' => ['nr_i_kontrates','data','biznesi','name_from_database','numri_ne_stok_sipas_kontrates',
-                   'bashkepunim','qyteti','rruga','numri_unik','perfaqesuesi','nr_telefonit',
+                   'bashkepunim','qyteti','rruga','numri_unik','nr_fiskal','perfaqesuesi','nr_telefonit',
                    'koment','email','ne_grup_njoftues','lloji_i_bocave','bocat_e_paguara',
                    'kontrate_e_vjeter','data_rregullatoret','sipas_skenimit_pda'],
     'gjendja_bankare' => ['data','data_valutes','ora','shpjegim','valuta','debia','kredi','bilanci','deftesa','lloji','klienti','e_kontrolluar','komentet'],

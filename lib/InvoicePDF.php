@@ -40,7 +40,7 @@ class InvoicePDF extends FPDF {
         $invoiceNumber, $dateFrom, $dateTo,
         $clientName, $clientBusiness, $clientAddress,
         $clientFiskal, $clientPhone, $clientEmail,
-        $rows, $cylinderCount = 0
+        $rows, $cylinderCount = 0, $clientNrFiskal = ''
     ) {
         parent::__construct('P', 'mm', 'A4');
         $this->invoiceNumber = $invoiceNumber;
@@ -50,6 +50,7 @@ class InvoicePDF extends FPDF {
         $this->clientBusiness = $clientBusiness ?: $clientName;
         $this->clientAddress = $clientAddress ?: '';
         $this->clientFiskal = $clientFiskal ?: '';
+        $this->clientNrFiskal = $clientNrFiskal ?: '';
         $this->clientPhone = $clientPhone ?: '';
         $this->clientEmail = $clientEmail ?: '';
         $this->rows = $rows;
@@ -175,7 +176,7 @@ class InvoicePDF extends FPDF {
         // Row 1: Fiscal + Phone
         $this->Cell(47.5, 4, 'Nr. Fiskal : ' . self::SELLER_FISKAL, 0, 0, 'L');
         $this->Cell(47.5, 4, 'Tel : ' . self::SELLER_PHONE, 0, 0, 'L');
-        $this->Cell(47.5, 4, 'Nr. Fiskal : ', 0, 0, 'L');
+        $this->Cell(47.5, 4, 'Nr. Fiskal : ' . $this->clientNrFiskal, 0, 0, 'L');
         $this->Cell(47.5, 4, 'Tel : ' . $this->clientPhone, 0, 1, 'L');
 
         // Row 2: Business# + Email

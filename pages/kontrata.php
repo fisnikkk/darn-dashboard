@@ -233,6 +233,7 @@ ob_start();
                     <col class="col-text"><!-- Qyteti -->
                     <col class="col-text"><!-- Rruga -->
                     <col class="col-text"><!-- Nr Unik -->
+                    <col class="col-text"><!-- Nr Fiskal -->
                     <col class="col-text"><!-- Perfaqesuesi -->
                     <col class="col-text"><!-- Tel -->
                     <col class="col-email"><!-- Email -->
@@ -259,6 +260,7 @@ ob_start();
                         <?= withFilter(sortThKt('qyteti', 'Qyteti', $sortCol, $sortDir), 'f_qyteti', $qytetValues) ?>
                         <?= withFilter(sortThKt('rruga', 'Rruga', $sortCol, $sortDir), 'f_rruga', $rrugaVals) ?>
                         <?= sortThKt('numri_unik', 'Nr. Unik', $sortCol, $sortDir) ?>
+                        <?= sortThKt('nr_fiskal', 'Nr. Fiskal', $sortCol, $sortDir) ?>
                         <?= withFilter(sortThKt('perfaqesuesi', 'Përfaqësuesi', $sortCol, $sortDir), 'f_perfaq', $perfaqVals) ?>
                         <?= sortThKt('nr_telefonit', 'Tel.', $sortCol, $sortDir) ?>
                         <?= sortThKt('email', 'Email', $sortCol, $sortDir) ?>
@@ -297,6 +299,7 @@ ob_start();
                         <td class="editable" data-field="qyteti"><?= e($r['qyteti']) ?></td>
                         <td class="editable" data-field="rruga"><?= e($r['rruga']) ?></td>
                         <td class="editable" data-field="numri_unik"><?= e($r['numri_unik']) ?></td>
+                        <td class="editable" data-field="nr_fiskal"><?= e($r['nr_fiskal'] ?? '') ?></td>
                         <td class="editable" data-field="perfaqesuesi"><?= e($r['perfaqesuesi']) ?></td>
                         <td class="editable" data-field="nr_telefonit"><?= e($r['nr_telefonit']) ?></td>
                         <td class="editable truncate" data-field="email" style="max-width:150px;" title="<?= e($r['email']) ?>"><?= e($r['email']) ?></td>
@@ -351,7 +354,8 @@ ob_start();
                 <div class="form-row">
                     <div class="form-group"><label>Qyteti</label><input type="text" name="qyteti"></div>
                     <div class="form-group"><label>Rruga</label><input type="text" name="rruga"></div>
-                    <div class="form-group"><label>Nr. Unik</label><input type="text" name="numri_unik"></div>
+                    <div class="form-group"><label>Nr. Unik (Bisnesi)</label><input type="text" name="numri_unik"></div>
+                    <div class="form-group"><label>Nr. Fiskal</label><input type="text" name="nr_fiskal"></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>Përfaqësuesi</label><input type="text" name="perfaqesuesi"></div>

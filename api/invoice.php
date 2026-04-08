@@ -208,6 +208,12 @@ try {
 
             // Generate PDF
             require_once __DIR__ . '/../lib/InvoicePDF.php';
+            // Fetch nr_fiskal from kontrata (separate from numri_unik/bisnesi number)
+            $nrFiskal = '';
+            $nfStmt = $db->prepare("SELECT nr_fiskal FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND nr_fiskal IS NOT NULL AND nr_fiskal != '' LIMIT 1");
+            $nfStmt->execute([$client]);
+            $nrFiskal = $nfStmt->fetchColumn() ?: '';
+
             $pdf = new InvoicePDF(
                 $invoiceNum,
                 $dateFrom,
@@ -219,7 +225,8 @@ try {
                 $clientInfo['telefoni'] ?? '',
                 $clientInfo['email'] ?? '',
                 $rows,
-                $cylinderCount
+                $cylinderCount,
+                $nrFiskal
             );
             $pdf->generate();
 
@@ -623,6 +630,12 @@ try {
             $cylStmt->execute([$client]);
             $cylinderCount = intval($cylStmt->fetchColumn() ?: 0);
 
+            // Fetch nr_fiskal from kontrata
+            $nrFiskal2 = '';
+            $nfStmt2 = $db->prepare("SELECT nr_fiskal FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND nr_fiskal IS NOT NULL AND nr_fiskal != '' LIMIT 1");
+            $nfStmt2->execute([$client]);
+            $nrFiskal2 = $nfStmt2->fetchColumn() ?: '';
+
             // Generate PDF (temp — not saved to invoices table)
             require_once __DIR__ . '/../lib/InvoicePDF.php';
             $pdf = new InvoicePDF(
@@ -632,7 +645,7 @@ try {
                 $clientInfo['numri_unik_identifikues'] ?? '',
                 $clientInfo['telefoni'] ?? '',
                 $clientInfo['email'] ?? '',
-                $rows, $cylinderCount
+                $rows, $cylinderCount, $nrFiskal2
             );
             $pdf->generate();
 
