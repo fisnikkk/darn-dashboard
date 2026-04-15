@@ -4,6 +4,13 @@
  * Mirrors the Excel workbook tabs as sidebar navigation
  */
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/database.php';
+
+// Process POST filter submissions into $_SESSION (for filters too large to fit in URL).
+// Defined in database.php. Runs before any output so the PRG redirect can send headers.
+if (function_exists('handleFilterPost')) {
+    handleFilterPost();
+}
 
 function renderLayout($pageTitle, $currentPage, $content) {
     $pages = [

@@ -933,6 +933,53 @@ function applyClientFilters(table) {
 
 /* ---- Excel-like Column Filters ---- */
 
+/**
+ * Submits a server-side filter change via a POST form so that very large
+ * filter lists (hundreds of values) never exceed the request URL length
+ * limit (HTTP 414). The server-side handler (handleFilterPost in
+ * config/database.php) reads _filter_submit, stores the values in
+ * $_SESSION, then redirects back to a clean URL (PRG pattern).
+ *
+ * @param {string} paramName  e.g. "f_name_db"
+ * @param {string[]} values   selected filter values (ignored if isClear is true)
+ * @param {boolean} isClear   true to clear this filter from the session
+ */
+function submitFilterPost(paramName, values, isClear) {
+    // Build the action URL — strip this filter's params, reset to page 1,
+    // keep sort/other params intact.
+    const actionUrl = new URL(window.location);
+    actionUrl.searchParams.delete(paramName + '[]');
+    for (let i = 0; i < 200; i++) {
+        if (!actionUrl.searchParams.has(paramName + '[' + i + ']')) break;
+        actionUrl.searchParams.delete(paramName + '[' + i + ']');
+    }
+    actionUrl.searchParams.set('page', '1');
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = actionUrl.toString();
+    form.style.display = 'none';
+
+    function addHidden(name, value) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+    }
+
+    addHidden('_filter_submit', '1');
+
+    if (isClear) {
+        addHidden('_clear_' + paramName, '1');
+    } else {
+        values.forEach(function(v) { addHidden(paramName + '[]', v); });
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function positionFilterDropdown(btn, dropdown) {
     const btnRect = btn.getBoundingClientRect();
     // Default: open below the button, aligned left
@@ -972,11 +1019,21 @@ function initColumnFilters() {
         // Read currently active filter from URL
         // Handle both JS format (f_lloji[]) and PHP http_build_query format (f_lloji[0], f_lloji[1], ...)
         const url = new URL(window.location);
-        const activeFilters = url.searchParams.getAll(paramName + '[]');
+        let activeFilters = url.searchParams.getAll(paramName + '[]');
         for (let i = 0; i < 200; i++) {
             const v = url.searchParams.get(paramName + '[' + i + ']');
             if (v === null) break;
             activeFilters.push(v);
+        }
+        // Fallback: server-provided active filters (for session-stored large filters)
+        // The data-filter-active attribute is set by withFilter() in database.php.
+        if (activeFilters.length === 0 && th.dataset.filterActive) {
+            try {
+                const serverActive = JSON.parse(th.dataset.filterActive);
+                if (Array.isArray(serverActive) && serverActive.length > 0) {
+                    activeFilters = serverActive;
+                }
+            } catch (e) { /* ignore malformed JSON */ }
         }
 
         // Build filter button
@@ -1096,25 +1153,21 @@ function initColumnFilters() {
                 return;
             }
 
-            // Server-side filter (URL-based)
-            const newUrl = new URL(window.location);
-            // Delete both f_xxx[] (JS format) and f_xxx[0], f_xxx[1]... (PHP http_build_query format)
-            newUrl.searchParams.delete(paramName + '[]');
-            for (let i = 0; i < 200; i++) {
-                if (!newUrl.searchParams.has(paramName + '[' + i + ']')) break;
-                newUrl.searchParams.delete(paramName + '[' + i + ']');
-            }
-            newUrl.searchParams.set('page', '1');
-
-            if (!allChecked && !noneChecked) {
+            // Server-side filter — submitted via POST form so very large filter lists
+            // (hundreds of values) don't blow past the HTTP request URL length limit (8 KB).
+            // The server (handleFilterPost in database.php) stores the values in $_SESSION
+            // and redirects back to a clean URL via PRG pattern.
+            if (allChecked || noneChecked) {
+                submitFilterPost(paramName, [], true);
+            } else {
+                const selectedValues = [];
                 items.forEach(it => {
                     if (it.querySelector('input').checked) {
-                        newUrl.searchParams.append(paramName + '[]', it.dataset.value);
+                        selectedValues.push(it.dataset.value);
                     }
                 });
+                submitFilterPost(paramName, selectedValues, false);
             }
-            // If all checked or none checked, remove filter entirely
-            window.location.href = newUrl.toString();
         });
 
         // Cancel button
@@ -1140,15 +1193,9 @@ function initColumnFilters() {
                 return;
             }
 
-            // Server-side filter — delete both JS and PHP array formats
-            const newUrl = new URL(window.location);
-            newUrl.searchParams.delete(paramName + '[]');
-            for (let i = 0; i < 200; i++) {
-                if (!newUrl.searchParams.has(paramName + '[' + i + ']')) break;
-                newUrl.searchParams.delete(paramName + '[' + i + ']');
-            }
-            newUrl.searchParams.set('page', '1');
-            window.location.href = newUrl.toString();
+            // Server-side filter clear — POST a clear flag so the server wipes the
+            // session-stored filter and redirects to a clean URL.
+            submitFilterPost(paramName, [], true);
         });
 
         // Toggle dropdown

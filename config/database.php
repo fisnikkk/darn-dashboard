@@ -524,17 +524,99 @@ function e($str) {
  * Inject data-filter attributes into a <th> HTML string for Excel-like column filters.
  */
 function withFilter($thHtml, $filterName, $filterValues) {
-    $attr = ' data-filter="' . e($filterName) . '" data-filter-values="' . e(json_encode($filterValues, JSON_UNESCAPED_UNICODE)) . '"';
+    // Also emit the currently-active filter values so the JS can render
+    // the checkbox state correctly when the filter is stored in $_SESSION
+    // (not the URL). When URL has the filter, that takes precedence in the JS.
+    $activeVals = function_exists('getFilterParam') ? getFilterParam($filterName) : [];
+    $attr = ' data-filter="' . e($filterName) . '"'
+          . ' data-filter-values="' . e(json_encode($filterValues, JSON_UNESCAPED_UNICODE)) . '"'
+          . ' data-filter-active="' . e(json_encode(array_values($activeVals), JSON_UNESCAPED_UNICODE)) . '"';
     return preg_replace('/<th\b/', '<th' . $attr, $thHtml, 1);
 }
 
 /**
- * Read multi-select filter params from URL.
+ * Returns a stable page key used to scope session-stored filters per page.
+ * Example: /pages/kontrata.php → "kontrata"
+ */
+function getFilterPageKey() {
+    $script = $_SERVER['SCRIPT_NAME'] ?? ($_SERVER['PHP_SELF'] ?? '');
+    $base = pathinfo($script, PATHINFO_FILENAME);
+    return $base !== '' ? $base : 'default';
+}
+
+/**
+ * Read multi-select filter params from URL, falling back to $_SESSION.
  * Returns array of selected values, or empty array if no filter active.
+ *
+ * URL params win over session so legacy bookmark URLs still work. Session
+ * storage is used when the filter list is too large to fit in the URL
+ * (see handleFilterPost() which receives POST submissions and stores them).
  */
 function getFilterParam($name) {
-    $val = $_GET[$name] ?? [];
-    return is_array($val) ? $val : [$val];
+    // URL first (legacy / small filters)
+    $val = $_GET[$name] ?? null;
+    if ($val !== null && $val !== '') {
+        $arr = is_array($val) ? $val : [$val];
+        // Treat non-empty array as "URL has filter"
+        if (!empty($arr)) return $arr;
+    }
+    // Session fallback (large filters stored via POST)
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $pageKey = getFilterPageKey();
+        $sessionKey = "filter_{$pageKey}_{$name}";
+        if (isset($_SESSION[$sessionKey]) && is_array($_SESSION[$sessionKey])) {
+            return $_SESSION[$sessionKey];
+        }
+    }
+    return [];
+}
+
+/**
+ * Handles POST filter submissions: stores filter values in $_SESSION (per page),
+ * then redirects to the same URL via GET so the browser URL stays clean and
+ * refreshes do not resubmit the form (PRG pattern).
+ *
+ * Triggered only when $_POST contains '_filter_submit'. Any $_POST key that
+ * starts with 'f_' is treated as a filter name; '_clear_<name>' clears that
+ * filter from session.
+ *
+ * Must be called AFTER auth.php has started the session, and BEFORE any
+ * output (to allow the redirect header). layout.php calls it automatically.
+ */
+function handleFilterPost() {
+    if (empty($_POST['_filter_submit'])) return;
+    if (session_status() !== PHP_SESSION_ACTIVE) return;
+
+    $pageKey = getFilterPageKey();
+
+    // First, process explicit clears
+    foreach ($_POST as $postKey => $postVal) {
+        if (strpos($postKey, '_clear_') === 0) {
+            $filterName = substr($postKey, strlen('_clear_'));
+            $sessionKey = "filter_{$pageKey}_{$filterName}";
+            unset($_SESSION[$sessionKey]);
+        }
+    }
+
+    // Then, process filter value sets (f_*)
+    foreach ($_POST as $postKey => $postVal) {
+        if (strpos($postKey, 'f_') !== 0) continue;
+        if (!is_array($postVal)) continue;
+        $sessionKey = "filter_{$pageKey}_{$postKey}";
+        // Store only non-empty values; re-index
+        $clean = array_values($postVal);
+        if (empty($clean)) {
+            unset($_SESSION[$sessionKey]);
+        } else {
+            $_SESSION[$sessionKey] = $clean;
+        }
+    }
+
+    // Redirect to same URL via GET so refreshes don't resubmit
+    // Preserve the current query string (sort, page, etc.) but not POST body
+    $redirectUrl = $_SERVER['REQUEST_URI'] ?? '/';
+    header('Location: ' . $redirectUrl);
+    exit;
 }
 
 /**
