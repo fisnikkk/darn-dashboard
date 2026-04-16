@@ -200,6 +200,26 @@ if ($action === 'import_rows') {
         }
 
         // --- Replace mode: delete existing data first ---
+        // For gjendja_bankare: preserve e_kontrolluar (green tick) values so
+        // Lena's verification marks survive the reimport. We save them keyed
+        // by (data, ora, shpjegim, debia, kredi) before the DELETE, then
+        // restore them after the INSERT.
+        $savedVerified = [];
+        if ($mode === 'replace' && $tableName === 'gjendja_bankare') {
+            try {
+                $vRows = $db->query("SELECT data, ora, shpjegim, debia, kredi FROM gjendja_bankare WHERE e_kontrolluar = 1")->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($vRows as $vr) {
+                    $key = ($vr['data'] ?? '') . '|' . ($vr['ora'] ?? '') . '|' . ($vr['shpjegim'] ?? '') . '|' . ($vr['debia'] ?? '') . '|' . ($vr['kredi'] ?? '');
+                    $savedVerified[$key] = true;
+                }
+                if ($savedVerified) {
+                    error_log("excel_import: preserved " . count($savedVerified) . " verified rows for gjendja_bankare");
+                }
+            } catch (Exception $e) {
+                error_log("excel_import: failed to save verified rows: " . $e->getMessage());
+            }
+        }
+
         if ($mode === 'replace') {
             $deleted = (int)$db->query("SELECT COUNT(*) FROM `{$tableName}`")->fetchColumn();
             $db->exec("DELETE FROM `{$tableName}`");
@@ -275,6 +295,27 @@ if ($action === 'import_rows') {
                     $errors[] = "Row " . ($idx + 1) . ": " . $e->getMessage();
                 }
                 // Continue processing remaining rows (don't break!)
+            }
+        }
+
+        // Restore green ticks (e_kontrolluar) for gjendja_bankare after reimport
+        if (!empty($savedVerified) && $tableName === 'gjendja_bankare') {
+            try {
+                $restored = 0;
+                $allNewRows = $db->query("SELECT id, data, ora, shpjegim, debia, kredi FROM gjendja_bankare")->fetchAll(PDO::FETCH_ASSOC);
+                $restoreStmt = $db->prepare("UPDATE gjendja_bankare SET e_kontrolluar = 1 WHERE id = ?");
+                foreach ($allNewRows as $nr) {
+                    $key = ($nr['data'] ?? '') . '|' . ($nr['ora'] ?? '') . '|' . ($nr['shpjegim'] ?? '') . '|' . ($nr['debia'] ?? '') . '|' . ($nr['kredi'] ?? '');
+                    if (isset($savedVerified[$key])) {
+                        $restoreStmt->execute([$nr['id']]);
+                        $restored++;
+                    }
+                }
+                if ($restored > 0) {
+                    error_log("excel_import: restored e_kontrolluar on {$restored} rows");
+                }
+            } catch (Exception $e) {
+                error_log("excel_import: failed to restore verified rows: " . $e->getMessage());
             }
         }
 
