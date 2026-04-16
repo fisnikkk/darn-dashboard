@@ -310,8 +310,10 @@ function startCellEdit(td) {
     const type = td.dataset.type || 'text';
     const rawText = (td.title && td.title.length > td.textContent.trim().length) ? td.title : td.textContent.trim();
 
-    // Long text fields (koment, rruga, etc.) — use popup textarea
-    if (field === 'koment' || td.classList.contains('truncate') || rawText.length > 40) {
+    // Long text fields (koment, rruga, etc.) — use popup textarea.
+    // BUT: if the cell has data-type="select", let the inline select/datalist
+    // handler below take care of it — popup textarea doesn't know about dropdowns.
+    if (type !== 'select' && (field === 'koment' || td.classList.contains('truncate') || rawText.length > 40)) {
         startCellEditPopup(td, table, id, field, rawText);
         return;
     }
