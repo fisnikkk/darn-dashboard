@@ -146,7 +146,8 @@ function withClientFilter($thHtml, $filterName, $filterValues, $colIdx) {
         . ' data-filter-values="' . e(json_encode($filterValues, JSON_UNESCAPED_UNICODE)) . '"'
         . ' data-filter-mode="client"'
         . ' data-filter-col="' . (int)$colIdx . '"';
-    return preg_replace('/<th\b/', '<th' . $attrs, $thHtml, 1);
+    $safeAttrs = strtr($attrs, ['\\' => '\\\\', '$' => '\\$']);
+    return preg_replace('/<th\b/', '<th' . $safeAttrs, $thHtml, 1);
 }
 
 ob_start();
@@ -160,16 +161,23 @@ ob_start();
     .data-table[data-table="kontrata"] th {
         padding: 3px 4px;
         font-size: 0.78rem;
+    }
+    .data-table[data-table="kontrata"] td {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .data-table[data-table="kontrata"] th { font-size: 0.72rem; }
+    .data-table[data-table="kontrata"] th {
+        font-size: 0.72rem;
+        white-space: normal;
+        vertical-align: top;
+        line-height: 1.15;
+    }
     .data-table[data-table="kontrata"] col.col-nr { width: 40px; }
     .data-table[data-table="kontrata"] col.col-data { width: 75px; }
     .data-table[data-table="kontrata"] col.col-emri { width: 130px; }
-    .data-table[data-table="kontrata"] col.col-num { width: 45px; }
-    .data-table[data-table="kontrata"] col.col-text { width: 90px; }
+    .data-table[data-table="kontrata"] col.col-num { width: 55px; }
+    .data-table[data-table="kontrata"] col.col-text { width: 100px; }
     .data-table[data-table="kontrata"] col.col-email { width: 120px; }
     .data-table[data-table="kontrata"] col.col-koment { width: 100px; }
     .data-table[data-table="kontrata"] col.col-actions { width: 60px; }

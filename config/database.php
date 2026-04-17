@@ -531,7 +531,11 @@ function withFilter($thHtml, $filterName, $filterValues) {
     $attr = ' data-filter="' . e($filterName) . '"'
           . ' data-filter-values="' . e(json_encode($filterValues, JSON_UNESCAPED_UNICODE)) . '"'
           . ' data-filter-active="' . e(json_encode(array_values($activeVals), JSON_UNESCAPED_UNICODE)) . '"';
-    return preg_replace('/<th\b/', '<th' . $attr, $thHtml, 1);
+    // preg_replace interprets \\ and $N in the replacement string, so JSON
+    // backslashes from free-text values (e.g. koment) get collapsed and break
+    // the JSON on the client. Escape them before passing to preg_replace.
+    $safeAttr = strtr($attr, ['\\' => '\\\\', '$' => '\\$']);
+    return preg_replace('/<th\b/', '<th' . $safeAttr, $thHtml, 1);
 }
 
 /**
