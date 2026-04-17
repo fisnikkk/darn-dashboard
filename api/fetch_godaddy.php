@@ -409,7 +409,8 @@ function handleImport($db, $input) {
             $clientData = json_decode($clientResp, true);
             if ($clientData && ($clientData['status'] ?? '') === '1' && !empty($clientData['data'])) {
                 $checkStmt = $db->prepare("SELECT id FROM kontrata WHERE LOWER(TRIM(name_from_database)) = ? LIMIT 1");
-                $insertStmt = $db->prepare("INSERT INTO kontrata (name_from_database, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                // Fill `data` with CURDATE() on insert so new GoDaddy imports don't land with NULL dates.
+                $insertStmt = $db->prepare("INSERT INTO kontrata (name_from_database, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE())");
 
                 foreach ($clientData['data'] as $gc) {
                     $name = trim($gc['Name'] ?? '');
@@ -426,8 +427,9 @@ function handleImport($db, $input) {
 
                     $checkStmt->execute([$lower]);
                     if ($checkStmt->fetch()) {
-                        // Only update fields where GoDaddy has a value — preserve manual edits
-                        $sets = [];
+                        // Only update fields where GoDaddy has a value — preserve manual edits.
+                        // Always fill data if currently NULL (retroactively fixes old rows on re-sync).
+                        $sets = ['data = COALESCE(data, CURDATE())'];
                         $vals = [];
                         if ($business !== null) { $sets[] = 'biznesi = ?'; $vals[] = $business; }
                         if ($uniqueNum !== null) { $sets[] = 'numri_unik = ?'; $vals[] = $uniqueNum; }
@@ -436,10 +438,8 @@ function handleImport($db, $input) {
                         if ($rep !== null) { $sets[] = 'perfaqesuesi = ?'; $vals[] = $rep; }
                         if ($phone !== null) { $sets[] = 'nr_telefonit = ?'; $vals[] = $phone; }
                         if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
-                        if (!empty($sets)) {
-                            $vals[] = $lower;
-                            $db->prepare("UPDATE kontrata SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(name_from_database)) = ?")->execute($vals);
-                        }
+                        $vals[] = $lower;
+                        $db->prepare("UPDATE kontrata SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(name_from_database)) = ?")->execute($vals);
                     } else {
                         $insertStmt->execute([$name, $business, $uniqueNum, $street, $city, $rep, $phone, $email]);
                     }
