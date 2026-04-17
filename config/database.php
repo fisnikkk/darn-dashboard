@@ -491,8 +491,54 @@ function runMigrations($pdo) {
                 ->execute(['admin', password_hash('admin123', PASSWORD_DEFAULT), 'admin']);
         }
 
+        // Column widths shared across users per page (drag-to-resize feature)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS column_widths (
+            page_key VARCHAR(64) NOT NULL,
+            col_index INT NOT NULL,
+            width_px INT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by VARCHAR(100) NULL,
+            PRIMARY KEY (page_key, col_index)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     } catch (PDOException $e) {
         // Silently ignore migration errors (table might not exist yet during initial setup)
+    }
+}
+
+/**
+ * Read all stored column widths for a page as [col_index => width_px].
+ */
+function getColumnWidths($pageKey) {
+    try {
+        $stmt = getDB()->prepare("SELECT col_index, width_px FROM column_widths WHERE page_key = ?");
+        $stmt->execute([$pageKey]);
+        $out = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $out[(int)$row['col_index']] = (int)$row['width_px'];
+        }
+        return $out;
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Upsert a single column width. Returns true on success.
+ */
+function setColumnWidth($pageKey, $colIndex, $widthPx) {
+    $colIndex = (int)$colIndex;
+    $widthPx = max(30, min(800, (int)$widthPx));
+    try {
+        $stmt = getDB()->prepare(
+            "INSERT INTO column_widths (page_key, col_index, width_px, updated_by)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE width_px = VALUES(width_px), updated_by = VALUES(updated_by)"
+        );
+        $stmt->execute([$pageKey, $colIndex, $widthPx, getCurrentUser()]);
+        return true;
+    } catch (PDOException $e) {
+        return false;
     }
 }
 

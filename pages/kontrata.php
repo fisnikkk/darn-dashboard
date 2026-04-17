@@ -150,6 +150,14 @@ function withClientFilter($thHtml, $filterName, $filterValues, $colIdx) {
     return preg_replace('/<th\b/', '<th' . $safeAttrs, $thHtml, 1);
 }
 
+// Drag-to-resize: load any user-set column widths (shared across users via DB).
+// Keys are 0-based column indexes matching the <col> order in the colgroup.
+$savedColWidths = getColumnWidths('kontrata');
+function kColTag($class, $idx, $saved) {
+    $style = isset($saved[$idx]) ? ' style="width:' . (int)$saved[$idx] . 'px"' : '';
+    return '<col class="' . e($class) . '" data-col-idx="' . (int)$idx . '"' . $style . '>';
+}
+
 ob_start();
 ?>
 <style>
@@ -172,6 +180,8 @@ ob_start();
         white-space: normal;
         vertical-align: top;
         line-height: 1.15;
+        word-break: break-word;
+        overflow-wrap: anywhere;
     }
     .data-table[data-table="kontrata"] col.col-nr { width: 40px; }
     .data-table[data-table="kontrata"] col.col-data { width: 75px; }
@@ -181,6 +191,21 @@ ob_start();
     .data-table[data-table="kontrata"] col.col-email { width: 120px; }
     .data-table[data-table="kontrata"] col.col-koment { width: 100px; }
     .data-table[data-table="kontrata"] col.col-actions { width: 60px; }
+    /* Drag-to-resize: every th is relative so the grip can sit absolute at the right edge */
+    .data-table[data-table="kontrata"] th { position: relative; }
+    .col-resize-grip {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 6px;
+        cursor: col-resize;
+        user-select: none;
+        z-index: 5;
+    }
+    .col-resize-grip:hover,
+    .col-resize-grip.dragging { background: var(--primary); opacity: 0.35; }
+    body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
 </style>
 
 <div class="summary-grid">
@@ -230,30 +255,30 @@ ob_start();
         <div class="table-wrapper">
             <table class="data-table" data-table="kontrata" data-server-sort="true">
                 <colgroup>
-                    <col class="col-nr"><!-- Nr -->
-                    <col class="col-data"><!-- Data -->
-                    <col class="col-emri"><!-- Emri -->
-                    <col class="col-num"><!-- Stok kontrate -->
-                    <col class="col-num"><!-- Sipas distribuimit -->
-                    <col class="col-num"><!-- Diferenca -->
-                    <col class="col-num"><!-- Skenimi PDA -->
-                    <col class="col-text"><!-- Bashkepunim -->
-                    <col class="col-text"><!-- Qyteti -->
-                    <col class="col-text"><!-- Rruga -->
-                    <col class="col-text"><!-- Nr Unik -->
-                    <col class="col-text"><!-- Nr Fiskal -->
-                    <col class="col-text"><!-- Perfaqesuesi -->
-                    <col class="col-text"><!-- Tel -->
-                    <col class="col-email"><!-- Email -->
-                    <col class="col-text"><!-- Grup njoftues -->
-                    <col class="col-text"><!-- Kontrate e vjeter -->
-                    <col class="col-text"><!-- Lloji bocave -->
-                    <col class="col-text"><!-- Bocat e paguara -->
-                    <col class="col-data"><!-- Data rregullatoret -->
-                    <col class="col-num"><!-- Dite pa marre -->
-                    <col class="col-num"><!-- Mesatare/muaj -->
-                    <col class="col-koment"><!-- Koment -->
-                    <col class="col-actions"><!-- Actions -->
+                    <?= kColTag('col-nr', 0, $savedColWidths) ?><!-- Nr -->
+                    <?= kColTag('col-data', 1, $savedColWidths) ?><!-- Data -->
+                    <?= kColTag('col-emri', 2, $savedColWidths) ?><!-- Emri -->
+                    <?= kColTag('col-num', 3, $savedColWidths) ?><!-- Stok kontrate -->
+                    <?= kColTag('col-num', 4, $savedColWidths) ?><!-- Sipas distribuimit -->
+                    <?= kColTag('col-num', 5, $savedColWidths) ?><!-- Diferenca -->
+                    <?= kColTag('col-num', 6, $savedColWidths) ?><!-- Skenimi PDA -->
+                    <?= kColTag('col-text', 7, $savedColWidths) ?><!-- Bashkepunim -->
+                    <?= kColTag('col-text', 8, $savedColWidths) ?><!-- Qyteti -->
+                    <?= kColTag('col-text', 9, $savedColWidths) ?><!-- Rruga -->
+                    <?= kColTag('col-text', 10, $savedColWidths) ?><!-- Nr Unik -->
+                    <?= kColTag('col-text', 11, $savedColWidths) ?><!-- Nr Fiskal -->
+                    <?= kColTag('col-text', 12, $savedColWidths) ?><!-- Perfaqesuesi -->
+                    <?= kColTag('col-text', 13, $savedColWidths) ?><!-- Tel -->
+                    <?= kColTag('col-email', 14, $savedColWidths) ?><!-- Email -->
+                    <?= kColTag('col-text', 15, $savedColWidths) ?><!-- Grup njoftues -->
+                    <?= kColTag('col-text', 16, $savedColWidths) ?><!-- Kontrate e vjeter -->
+                    <?= kColTag('col-text', 17, $savedColWidths) ?><!-- Lloji bocave -->
+                    <?= kColTag('col-text', 18, $savedColWidths) ?><!-- Bocat e paguara -->
+                    <?= kColTag('col-data', 19, $savedColWidths) ?><!-- Data rregullatoret -->
+                    <?= kColTag('col-num', 20, $savedColWidths) ?><!-- Dite pa marre -->
+                    <?= kColTag('col-num', 21, $savedColWidths) ?><!-- Mesatare/muaj -->
+                    <?= kColTag('col-koment', 22, $savedColWidths) ?><!-- Koment -->
+                    <?= kColTag('col-actions', 23, $savedColWidths) ?><!-- Actions -->
                 </colgroup>
                 <thead>
                     <tr>
@@ -390,6 +415,65 @@ ob_start();
         </form>
     </div>
 </div>
+
+<script>
+/* Drag-to-resize columns on the Kontrata table.
+   Widths sync via /api/set_column_width.php so every user shares the same layout. */
+(function() {
+    const PAGE_KEY = 'kontrata';
+    const MIN_W = 30, MAX_W = 800;
+    const table = document.querySelector('table.data-table[data-table="kontrata"]');
+    if (!table) return;
+    const cols = table.querySelectorAll('colgroup col');
+    const ths = table.querySelectorAll('thead th');
+    if (ths.length === 0 || cols.length === 0) return;
+
+    // Attach a grip to every header cell
+    ths.forEach((th, idx) => {
+        if (idx >= cols.length) return;
+        const grip = document.createElement('div');
+        grip.className = 'col-resize-grip';
+        grip.title = 'Tërhiq për të ndryshuar gjerësinë';
+        th.appendChild(grip);
+
+        grip.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const col = cols[idx];
+            const startX = e.clientX;
+            // Use the live rendered width as the starting point, regardless of whether
+            // a fixed style was set — avoids jump on first drag.
+            const startW = th.getBoundingClientRect().width;
+            grip.classList.add('dragging');
+            document.body.classList.add('col-resizing');
+
+            function onMove(ev) {
+                const delta = ev.clientX - startX;
+                const newW = Math.max(MIN_W, Math.min(MAX_W, Math.round(startW + delta)));
+                col.style.width = newW + 'px';
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                grip.classList.remove('dragging');
+                document.body.classList.remove('col-resizing');
+                const finalW = parseInt(col.style.width, 10) || Math.round(th.getBoundingClientRect().width);
+                // Persist shared width
+                fetch('/api/set_column_width.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page: PAGE_KEY, col_index: idx, width_px: finalW })
+                }).catch(() => { /* silent — width still applied locally until next reload */ });
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        // Swallow clicks so the sort-click on the th doesn't fire
+        grip.addEventListener('click', e => e.stopPropagation());
+    });
+})();
+</script>
 
 <?php
 $content = ob_get_clean();
