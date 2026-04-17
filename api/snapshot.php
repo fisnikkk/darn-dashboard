@@ -17,9 +17,14 @@ if (empty($input)) {
     $input = $_GET;
 }
 
+// NOTE: pending_borxh deliberately NOT snapshotted. Snapshots store a point-in-time
+// view of business data that admins roll back when balances don't match. pending_borxh
+// represents async approval state from the Admin app — rolling it back silently undoes
+// approvals that admins have already processed (confirmed incident 2026-04-12 through
+// 2026-04-16 where Nita/Lena restores wiped 4 approvals by Sabi Super Admin).
+// Keep pending_borxh live across snapshot restores.
 $tables = ['distribuimi','shpenzimet','plini_depo','shitje_produkteve','kontrata',
-           'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo','borxhet_notes','notes',
-           'pending_borxh'];
+           'gjendja_bankare','nxemese','klientet','stoku_zyrtar','depo','borxhet_notes','notes'];
 
 try {
     $db = getDB();
