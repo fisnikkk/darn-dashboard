@@ -51,14 +51,34 @@ $investmentKeys = [
     'investime ne kombi 3'
 ];
 
-// Dynamic category discovery: find arsyetimi values not covered by hardcoded categories
+// Identify supply vendors — arsyetimi values that appear in Pagesa per plin rows.
+// Their per-vendor breakdown column should include BOTH 'Shpenzim' AND 'Pagesa per plin'
+// rows, because otherwise supply payments (the bulk of a fuel vendor's activity) stay
+// invisible in the vendor column and users see an empty cell next to a vendor name.
+// Expense-only subcategories (Paga, Taksa, Internet, etc.) keep the original
+// Shpenzim-only filter so they match the Excel formula exactly.
+$supplyVendorSet = array_flip($db->query(
+    "SELECT DISTINCT LOWER(TRIM(arsyetimi)) FROM shpenzimet
+     WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'pagesa per plin'
+       AND arsyetimi IS NOT NULL AND arsyetimi != ''"
+)->fetchAll(PDO::FETCH_COLUMN));
+
+// Dynamic category discovery: find arsyetimi values not covered by hardcoded categories.
+// Scan BOTH Shpenzim and Pagesa per plin rows so supply vendors (Alba petrol, Dea Gas,
+// Veda Oil, Edorita, Famgaz, …) get their own breakdown column even if they never
+// appear as a Shpenzim-type row.
 $coveredKeys = [];
 foreach ($expenseCategories as $cat) {
     foreach ($cat['keys'] as $key) {
         $coveredKeys[strtolower(trim($key))] = true;
     }
 }
-$allArsyetimet = $db->query("SELECT DISTINCT arsyetimi FROM shpenzimet WHERE LOWER(TRIM(lloji_i_transaksionit)) = 'shpenzim' AND arsyetimi IS NOT NULL AND arsyetimi != '' ORDER BY arsyetimi")->fetchAll(PDO::FETCH_COLUMN);
+$allArsyetimet = $db->query(
+    "SELECT DISTINCT arsyetimi FROM shpenzimet
+     WHERE LOWER(TRIM(lloji_i_transaksionit)) IN ('shpenzim', 'pagesa per plin')
+       AND arsyetimi IS NOT NULL AND arsyetimi != ''
+     ORDER BY arsyetimi"
+)->fetchAll(PDO::FETCH_COLUMN);
 foreach ($allArsyetimet as $arsyetimi) {
     $lower = strtolower(trim($arsyetimi));
     if (!isset($coveredKeys[$lower])) {
@@ -71,15 +91,23 @@ foreach ($allArsyetimet as $arsyetimi) {
     }
 }
 
-// Build the CASE WHEN SQL for all subcategories
+// Build the CASE WHEN SQL for all subcategories. Supply-vendor categories match
+// both transaction types; expense-only categories stay Shpenzim-only.
 $caseClauses = [];
 foreach ($expenseCategories as $id => $cat) {
     $conditions = [];
+    $isSupplyVendor = false;
     foreach ($cat['keys'] as $key) {
         $conditions[] = "LOWER(TRIM(arsyetimi)) = " . $db->quote(strtolower($key));
+        if (isset($supplyVendorSet[strtolower(trim($key))])) {
+            $isSupplyVendor = true;
+        }
     }
     $cond = implode(' OR ', $conditions);
-    $caseClauses[] = "COALESCE(SUM(CASE WHEN LOWER(TRIM(lloji_i_transaksionit)) = 'shpenzim' AND ({$cond}) THEN shuma ELSE 0 END), 0) as `{$id}`";
+    $typeCond = $isSupplyVendor
+        ? "LOWER(TRIM(lloji_i_transaksionit)) IN ('shpenzim', 'pagesa per plin')"
+        : "LOWER(TRIM(lloji_i_transaksionit)) = 'shpenzim'";
+    $caseClauses[] = "COALESCE(SUM(CASE WHEN {$typeCond} AND ({$cond}) THEN shuma ELSE 0 END), 0) as `{$id}`";
 }
 $caseSQL = implode(",\n        ", $caseClauses);
 
