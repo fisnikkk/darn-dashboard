@@ -102,7 +102,12 @@ foreach ($debts as $d) {
     $noteKey = strtolower($d['klienti']);
     $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
     $borxhBCNoteSet[] = cleanNote($note['klient_bank_cash'] ?? '');
-    $borxhKushSet[] = cleanNote($note['kush_merr_borxhin'] ?? '');
+    // "Kush e merr borxhin" filter: only feed values from rows with current debt
+    // (borxhi_bank_deri > 0). Otherwise clients who paid off old debts surface
+    // stale values into the dropdown (e.g. typos like "Behari" / "beh" / "bank").
+    if ((float)$d['borxhi_bank_deri'] > 0) {
+        $borxhKushSet[] = cleanNote($note['kush_merr_borxhin'] ?? '');
+    }
     $borxhKomentSet[] = cleanNote($note['koment'] ?? '');
 }
 $borxhBCNoteVals = array_unique_ci($borxhBCNoteSet);
