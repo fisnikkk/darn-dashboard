@@ -64,9 +64,18 @@ class GmailAPI {
     private function buildMime($to, $subject, $body, $attachmentPath, $attachmentName, $senderName) {
         $boundary = 'boundary_' . md5(time());
 
+        // Normalize multiple recipients: split on ";" or "," (Outlook/Albanian
+        // users commonly use ";"), trim whitespace, drop empties, rejoin with ", ".
+        // RFC 5322 requires comma-separated recipients — Gmail treats
+        // "a@x.com; b@y.com" as a SINGLE (malformed) address and only delivers
+        // to whichever it manages to parse, usually just the first one.
+        $recipients = preg_split('/[;,]/', trim((string)$to));
+        $recipients = array_filter(array_map('trim', $recipients), 'strlen');
+        $normalizedTo = implode(', ', $recipients);
+
         $headers = "From: {$senderName} <{$this->senderEmail}>\r\n";
         $headers .= "Reply-To: {$this->senderEmail}\r\n";
-        $headers .= "To: {$to}\r\n";
+        $headers .= "To: {$normalizedTo}\r\n";
         $headers .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
 
