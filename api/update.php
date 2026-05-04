@@ -154,7 +154,10 @@ try {
         $db->prepare("UPDATE stoku_zyrtar SET vlera = ? WHERE id = ?")->execute([$newVlera, $id]);
     }
 
-    // Auto-sync kontrata edits to klientet (so invoice picks up changes)
+    // Auto-sync kontrata edits to klientet (so invoice picks up changes).
+    // UPSERT semantics: if no klientet row matches the kontrata name, INSERT one
+    // so the next invoice operation can find it (without GoDaddy auto-sync racing
+    // ahead and creating a row from stale GoDaddy data first).
     if ($table === 'kontrata') {
         $konRow = $db->prepare("SELECT name_from_database, biznesi, numri_unik, qyteti, rruga, perfaqesuesi, nr_telefonit, email, bashkepunim FROM kontrata WHERE id = ?");
         $konRow->execute([$id]);
@@ -170,18 +173,44 @@ try {
                 'bashkepunim'             => $kon['bashkepunim'] ?? '',
                 'i_regjistruar_ne_emer'   => $kon['biznesi'] ?? '',
             ];
-            // Update klientet — overwrite with kontrata values (kontrata is the master)
-            $kSets = [];
-            $kVals = [];
-            foreach ($fieldMap as $kCol => $kVal) {
-                if ($kVal !== '') {
-                    $kSets[] = "$kCol = ?";
-                    $kVals[] = $kVal;
+
+            // Check if klientet row exists for this client (case-insensitive trim match)
+            $existsStmt = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?)) LIMIT 1");
+            $existsStmt->execute([$kon['name_from_database']]);
+            $existingKlientetId = $existsStmt->fetchColumn();
+
+            if ($existingKlientetId) {
+                // UPDATE: overwrite klientet with kontrata values for non-empty fields (kontrata is master)
+                $kSets = [];
+                $kVals = [];
+                foreach ($fieldMap as $kCol => $kVal) {
+                    if ($kVal !== '') {
+                        $kSets[] = "$kCol = ?";
+                        $kVals[] = $kVal;
+                    }
                 }
-            }
-            if (!empty($kSets)) {
-                $kVals[] = $kon['name_from_database'];
-                $db->prepare("UPDATE klientet SET " . implode(', ', $kSets) . " WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?))")->execute($kVals);
+                if (!empty($kSets)) {
+                    $kVals[] = $kon['name_from_database'];
+                    $db->prepare("UPDATE klientet SET " . implode(', ', $kSets) . " WHERE LOWER(TRIM(emri)) = LOWER(TRIM(?))")->execute($kVals);
+                }
+            } else {
+                // INSERT a new klientet row so the next invoice op finds the kontrata data
+                // here, NOT a GoDaddy-only fallback. Empty values become NULL so the
+                // GoDaddy fill-empty-only sync can later seed any missing fields.
+                $insStmt = $db->prepare("
+                    INSERT INTO klientet (emri, numri_unik_identifikues, adresa, telefoni, email, kontakti, bashkepunim, i_regjistruar_ne_emer)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $insStmt->execute([
+                    $kon['name_from_database'],
+                    $fieldMap['numri_unik_identifikues'] !== '' ? $fieldMap['numri_unik_identifikues'] : null,
+                    $fieldMap['adresa']                  !== '' ? $fieldMap['adresa']                  : null,
+                    $fieldMap['telefoni']                !== '' ? $fieldMap['telefoni']                : null,
+                    $fieldMap['email']                   !== '' ? $fieldMap['email']                   : null,
+                    $fieldMap['kontakti']                !== '' ? $fieldMap['kontakti']                : null,
+                    $fieldMap['bashkepunim']             !== '' ? $fieldMap['bashkepunim']             : null,
+                    $fieldMap['i_regjistruar_ne_emer']   !== '' ? $fieldMap['i_regjistruar_ne_emer']   : null,
+                ]);
             }
         }
     }
