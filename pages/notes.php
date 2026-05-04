@@ -261,7 +261,11 @@ ob_start();
     const input = document.getElementById('babiRaporti');
     const diffEl = document.getElementById('babiDiff');
     const diffCard = document.getElementById('babiDiffCard');
-    const STORAGE_KEY = 'notes_babi_raporti';
+    // Shared across all users via /api/setting.php (was localStorage — per-browser only)
+    const SETTING_KEY = 'notes_babi_raporti';
+    let saveTimer = null;
+    let lastSavedValue = null;  // avoid POSTing identical values
+    let oneTimeMigrated = false;
 
     function calcDiff() {
         const val = parseFloat(input.value);
@@ -283,20 +287,48 @@ ob_start();
         }
     }
 
-    // Restore saved value on page load
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved !== null && saved !== '') {
-        input.value = saved;
-        calcDiff();
+    function saveToServer(value) {
+        if (value === lastSavedValue) return;
+        lastSavedValue = value;
+        fetch('/api/setting.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ key: SETTING_KEY, value: value })
+        }).catch(() => {/* swallow — UI already calculated */});
     }
 
+    // Load shared value from server on page load
+    fetch('/api/setting.php?key=' + encodeURIComponent(SETTING_KEY))
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const serverVal = (d.value === null || d.value === undefined) ? '' : String(d.value);
+                if (serverVal !== '') {
+                    input.value = serverVal;
+                    lastSavedValue = serverVal;
+                    calcDiff();
+                } else {
+                    // One-time migration: if nothing on server but user had a localStorage value,
+                    // promote it to the server so they don't lose history on first visit.
+                    const legacy = localStorage.getItem('notes_babi_raporti');
+                    if (legacy !== null && legacy !== '' && !oneTimeMigrated) {
+                        oneTimeMigrated = true;
+                        input.value = legacy;
+                        calcDiff();
+                        saveToServer(legacy);
+                        localStorage.removeItem('notes_babi_raporti');
+                    }
+                }
+            }
+        })
+        .catch(() => {/* network error — leave input blank */});
+
     input.addEventListener('input', function() {
-        if (this.value === '') {
-            localStorage.removeItem(STORAGE_KEY);
-        } else {
-            localStorage.setItem(STORAGE_KEY, this.value);
-        }
+        const value = this.value;
         calcDiff();
+        // Debounce: write 400ms after the user stops typing
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => saveToServer(value), 400);
     });
 
 })();

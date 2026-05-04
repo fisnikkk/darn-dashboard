@@ -416,6 +416,16 @@ function runMigrations($pdo) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $pdo->exec("INSERT IGNORE INTO invoice_settings (setting_key, setting_value) VALUES ('next_invoice_number', '131')");
 
+        // Dashboard shared settings (multi-user state — replaces per-browser localStorage
+        // for things like 'Sipas raportit' that all finance users need to see the same value).
+        // Last write wins. Read by GET /api/setting.php?key=X, write by POST.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS dashboard_settings (
+            setting_key VARCHAR(100) PRIMARY KEY,
+            setting_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by VARCHAR(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
         // Add email column to klientet
         $cols = $pdo->query("SHOW COLUMNS FROM klientet LIKE 'email'")->fetchAll();
         if (empty($cols)) {

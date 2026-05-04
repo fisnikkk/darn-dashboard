@@ -1011,20 +1011,15 @@ function gdUndo(batchId, count) {
 }
 
 // Babi Cash Diferenca calculation (same as Notes page)
+// Shared across all users via /api/setting.php (was localStorage — per-browser only)
 (function() {
     var babiCash = <?= json_encode(round($babiCashTotal, 2)) ?>;
     var input = document.getElementById('babiRaportiDist');
     var diff = document.getElementById('babiDiffDist');
     var card = document.getElementById('babiDiffCardDist');
-
-    // Load saved value
-    var saved = localStorage.getItem('babiRaportiDist');
-    if (saved) { input.value = saved; calcDiff(); }
-
-    input.addEventListener('input', function() {
-        localStorage.setItem('babiRaportiDist', this.value);
-        calcDiff();
-    });
+    var SETTING_KEY = 'dist_babi_raporti';
+    var saveTimer = null;
+    var lastSavedValue = null;
 
     function calcDiff() {
         var val = parseFloat(input.value);
@@ -1033,6 +1028,47 @@ function gdUndo(batchId, count) {
         diff.textContent = (d >= 0 ? '+' : '') + d.toFixed(2) + ' EUR';
         diff.style.color = Math.abs(d) < 0.01 ? '#16a34a' : '#dc2626';
     }
+
+    function saveToServer(value) {
+        if (value === lastSavedValue) return;
+        lastSavedValue = value;
+        fetch('/api/setting.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ key: SETTING_KEY, value: value })
+        }).catch(function() {/* swallow */});
+    }
+
+    // Load shared value from server on page load
+    fetch('/api/setting.php?key=' + encodeURIComponent(SETTING_KEY))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success) {
+                var serverVal = (d.value === null || d.value === undefined) ? '' : String(d.value);
+                if (serverVal !== '') {
+                    input.value = serverVal;
+                    lastSavedValue = serverVal;
+                    calcDiff();
+                } else {
+                    // One-time migration of legacy per-browser value
+                    var legacy = localStorage.getItem('babiRaportiDist');
+                    if (legacy !== null && legacy !== '') {
+                        input.value = legacy;
+                        calcDiff();
+                        saveToServer(legacy);
+                        localStorage.removeItem('babiRaportiDist');
+                    }
+                }
+            }
+        })
+        .catch(function() {/* leave blank */});
+
+    input.addEventListener('input', function() {
+        var value = this.value;
+        calcDiff();
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(function() { saveToServer(value); }, 400);
+    });
 })();
 </script>
 
