@@ -11,11 +11,25 @@ $db = getDB();
 // Get client names from distribuimi (primary source — always has real names)
 $clientNames = $db->query("SELECT DISTINCT klienti FROM distribuimi ORDER BY klienti ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-// Get client emails map from klientet (match by name)
+// Build client email map: klientet (preferred) + kontrata (fallback)
+// Mirrors the backend's send_email logic in api/invoice.php so the preview
+// matches what will actually be sent. Keys are lowercase-trimmed to match
+// the backend's LOWER(TRIM(...)) comparison — JS lookup must normalize too.
 $clientEmails = [];
 $klientet = $db->query("SELECT emri, email FROM klientet WHERE email IS NOT NULL AND email != ''")->fetchAll(PDO::FETCH_ASSOC);
 foreach ($klientet as $c) {
-    $clientEmails[$c['emri']] = $c['email'];
+    $key = mb_strtolower(trim($c['emri']));
+    if ($key !== '' && !isset($clientEmails[$key])) {
+        $clientEmails[$key] = $c['email'];
+    }
+}
+// kontrata fallback — only adds entries not already in klientet (klientet wins)
+$kontrata = $db->query("SELECT name_from_database, email FROM kontrata WHERE email IS NOT NULL AND email != ''")->fetchAll(PDO::FETCH_ASSOC);
+foreach ($kontrata as $c) {
+    $key = mb_strtolower(trim($c['name_from_database']));
+    if ($key !== '' && !isset($clientEmails[$key])) {
+        $clientEmails[$key] = $c['email'];
+    }
 }
 
 ob_start();
@@ -121,8 +135,14 @@ ob_start();
 </div>
 
 <script>
-// Client emails map
+// Client emails map — keys are lowercase-trimmed; use lookupClientEmail() to query.
+// Mirrors the backend's case-insensitive lookup in api/invoice.php (send_email).
 var clientEmails = <?= json_encode($clientEmails) ?>;
+function lookupClientEmail(name) {
+    if (!name) return null;
+    var key = String(name).toLowerCase().trim();
+    return clientEmails[key] || null;
+}
 var previewCashCount = 0;
 
 // Searchable client dropdown
@@ -356,7 +376,7 @@ function invoiceCreate() {
 
 // Show email preview dialog before sending
 function sendEmail(invoiceId, clientName, dateTo) {
-    var email = clientEmails[clientName] || '(nuk ka email)';
+    var email = lookupClientEmail(clientName) || '(nuk ka email)';
     var monthFull = formatMonthFull(dateTo);
     var monthShort = formatMonth(dateTo);
 
@@ -489,7 +509,7 @@ function loadHistory() {
                 html += '<a href="#" data-email-btn="' + inv.id + '" onclick="sendEmailFromHistory(' + inv.id + ', \'' + inv.klienti.replace(/'/g, "\\'") + '\', \'' + inv.date_to + '\'); return false;" style="color:#16a34a; margin-right:8px;" title="Dergo Email me PDF"><i class="fas fa-paper-plane"></i></a>';
 
                 // Open Gmail compose (fallback)
-                var email = clientEmails[inv.klienti] || '';
+                var email = lookupClientEmail(inv.klienti) || '';
                 var gmailSubject = encodeURIComponent('Fatura per ' + inv.klienti + ' per muajin ' + formatMonth(inv.date_to));
                 var gmailBody = encodeURIComponent(
                     'Pershendetje ' + inv.klienti + ',\n\n' +
