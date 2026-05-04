@@ -128,18 +128,22 @@ try {
                         $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
                         $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
 
-                        // Check if exists
-                        $existCheck = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = ?");
+                        // Check if exists — fetch current values so we only fill EMPTY fields.
+                        // FILL-EMPTY-ONLY mode: GoDaddy is the seed; manual edits via the dashboard
+                        // (kontrata/klientet) are NEVER overwritten by GoDaddy on subsequent syncs.
+                        // GoDaddy can only populate fields that have no value yet.
+                        $existCheck = $db->prepare("SELECT id, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues FROM klientet WHERE LOWER(TRIM(emri)) = ?");
                         $existCheck->execute([$lower]);
-                        if ($existCheck->fetch()) {
-                            // Only update fields where GoDaddy has a value — preserve manual/app data
+                        $existing = $existCheck->fetch(PDO::FETCH_ASSOC);
+                        if ($existing) {
+                            $isEmpty = function($v) { return $v === null || trim((string)$v) === ''; };
                             $sets = [];
                             $vals = [];
-                            if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
-                            if ($business !== null) { $sets[] = 'i_regjistruar_ne_emer = ?'; $vals[] = $business; }
-                            if ($phone !== null) { $sets[] = 'telefoni = ?'; $vals[] = $phone; }
-                            if ($address !== null) { $sets[] = 'adresa = ?'; $vals[] = $address; }
-                            if ($uniqueNum !== null) { $sets[] = 'numri_unik_identifikues = ?'; $vals[] = $uniqueNum; }
+                            if ($email !== null && $isEmpty($existing['email']))                       { $sets[] = 'email = ?';                       $vals[] = $email; }
+                            if ($business !== null && $isEmpty($existing['i_regjistruar_ne_emer']))    { $sets[] = 'i_regjistruar_ne_emer = ?';      $vals[] = $business; }
+                            if ($phone !== null && $isEmpty($existing['telefoni']))                    { $sets[] = 'telefoni = ?';                    $vals[] = $phone; }
+                            if ($address !== null && $isEmpty($existing['adresa']))                    { $sets[] = 'adresa = ?';                      $vals[] = $address; }
+                            if ($uniqueNum !== null && $isEmpty($existing['numri_unik_identifikues'])) { $sets[] = 'numri_unik_identifikues = ?';     $vals[] = $uniqueNum; }
                             if (!empty($sets)) {
                                 $vals[] = $lower;
                                 $db->prepare("UPDATE klientet SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(emri)) = ?")->execute($vals);
@@ -466,7 +470,8 @@ try {
                 $gc = $gdFullMap[$lower] ?? null;
 
                 if (isset($existingSet[$lower])) {
-                    // Update existing record — only non-empty GoDaddy fields (preserve manual/app data)
+                    // FILL-EMPTY-ONLY mode: never overwrite manual/app data with GoDaddy.
+                    // Only set fields that are currently NULL/empty in klientet.
                     if ($gc) {
                         $email = trim($gc['Email'] ?? '') ?: null;
                         $business = trim($gc['Bussiness'] ?? '') ?: null;
@@ -475,13 +480,19 @@ try {
                         $city = trim($gc['City'] ?? '');
                         $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
                         $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
+
+                        $cur = $db->prepare("SELECT email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues FROM klientet WHERE LOWER(TRIM(emri)) = ? LIMIT 1");
+                        $cur->execute([$lower]);
+                        $existing = $cur->fetch(PDO::FETCH_ASSOC) ?: [];
+                        $isEmpty = function($v) { return $v === null || trim((string)$v) === ''; };
+
                         $sets = [];
                         $vals = [];
-                        if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
-                        if ($business !== null) { $sets[] = 'i_regjistruar_ne_emer = ?'; $vals[] = $business; }
-                        if ($phone !== null) { $sets[] = 'telefoni = ?'; $vals[] = $phone; }
-                        if ($address !== null) { $sets[] = 'adresa = ?'; $vals[] = $address; }
-                        if ($uniqueNum !== null) { $sets[] = 'numri_unik_identifikues = ?'; $vals[] = $uniqueNum; }
+                        if ($email !== null && $isEmpty($existing['email'] ?? null))                       { $sets[] = 'email = ?';                       $vals[] = $email; }
+                        if ($business !== null && $isEmpty($existing['i_regjistruar_ne_emer'] ?? null))    { $sets[] = 'i_regjistruar_ne_emer = ?';      $vals[] = $business; }
+                        if ($phone !== null && $isEmpty($existing['telefoni'] ?? null))                    { $sets[] = 'telefoni = ?';                    $vals[] = $phone; }
+                        if ($address !== null && $isEmpty($existing['adresa'] ?? null))                    { $sets[] = 'adresa = ?';                      $vals[] = $address; }
+                        if ($uniqueNum !== null && $isEmpty($existing['numri_unik_identifikues'] ?? null)) { $sets[] = 'numri_unik_identifikues = ?';     $vals[] = $uniqueNum; }
                         if (!empty($sets)) {
                             $vals[] = $lower;
                             $db->prepare("UPDATE klientet SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(emri)) = ?")->execute($vals);
@@ -572,17 +583,19 @@ try {
                         $address = trim($street . ($street && $city ? ', ' : '') . $city) ?: null;
                         $uniqueNum = trim($gc['Unique_Number'] ?? '') ?: null;
 
-                        $existCheck = $db->prepare("SELECT id FROM klientet WHERE LOWER(TRIM(emri)) = ?");
+                        // FILL-EMPTY-ONLY mode (see 'create' case for full reasoning)
+                        $existCheck = $db->prepare("SELECT id, email, i_regjistruar_ne_emer, telefoni, adresa, numri_unik_identifikues FROM klientet WHERE LOWER(TRIM(emri)) = ?");
                         $existCheck->execute([$lower]);
-                        if ($existCheck->fetch()) {
-                            // Only update non-empty GoDaddy fields — preserve manual/app data
+                        $existing = $existCheck->fetch(PDO::FETCH_ASSOC);
+                        if ($existing) {
+                            $isEmpty = function($v) { return $v === null || trim((string)$v) === ''; };
                             $sets = [];
                             $vals = [];
-                            if ($email !== null) { $sets[] = 'email = ?'; $vals[] = $email; }
-                            if ($business !== null) { $sets[] = 'i_regjistruar_ne_emer = ?'; $vals[] = $business; }
-                            if ($phone !== null) { $sets[] = 'telefoni = ?'; $vals[] = $phone; }
-                            if ($address !== null) { $sets[] = 'adresa = ?'; $vals[] = $address; }
-                            if ($uniqueNum !== null) { $sets[] = 'numri_unik_identifikues = ?'; $vals[] = $uniqueNum; }
+                            if ($email !== null && $isEmpty($existing['email']))                       { $sets[] = 'email = ?';                       $vals[] = $email; }
+                            if ($business !== null && $isEmpty($existing['i_regjistruar_ne_emer']))    { $sets[] = 'i_regjistruar_ne_emer = ?';      $vals[] = $business; }
+                            if ($phone !== null && $isEmpty($existing['telefoni']))                    { $sets[] = 'telefoni = ?';                    $vals[] = $phone; }
+                            if ($address !== null && $isEmpty($existing['adresa']))                    { $sets[] = 'adresa = ?';                      $vals[] = $address; }
+                            if ($uniqueNum !== null && $isEmpty($existing['numri_unik_identifikues'])) { $sets[] = 'numri_unik_identifikues = ?';     $vals[] = $uniqueNum; }
                             if (!empty($sets)) {
                                 $vals[] = $lower;
                                 $db->prepare("UPDATE klientet SET " . implode(', ', $sets) . " WHERE LOWER(TRIM(emri)) = ?")->execute($vals);
