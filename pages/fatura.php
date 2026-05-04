@@ -23,8 +23,10 @@ foreach ($klientet as $c) {
         $clientEmails[$key] = $c['email'];
     }
 }
-// kontrata fallback — only adds entries not already in klientet (klientet wins)
-$kontrata = $db->query("SELECT name_from_database, email FROM kontrata WHERE email IS NOT NULL AND email != ''")->fetchAll(PDO::FETCH_ASSOC);
+// kontrata fallback — only adds entries not already in klientet (klientet wins).
+// ORDER BY data DESC, id DESC so when a client has multiple kontrata rows
+// (e.g. contract renewal), the LATEST contract's email wins via the !isset check below.
+$kontrata = $db->query("SELECT name_from_database, email FROM kontrata WHERE email IS NOT NULL AND email != '' ORDER BY data DESC, id DESC")->fetchAll(PDO::FETCH_ASSOC);
 foreach ($kontrata as $c) {
     $key = mb_strtolower(trim($c['name_from_database']));
     if ($key !== '' && !isset($clientEmails[$key])) {

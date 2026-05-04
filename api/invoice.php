@@ -173,7 +173,8 @@ try {
                 'email' => 'email',
             ];
             {
-                $kStmt = $db->prepare("SELECT id, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
+                // Pick the LATEST kontrata by date when a client has multiple rows (e.g. contract renewal).
+                $kStmt = $db->prepare("SELECT id, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) ORDER BY data DESC, id DESC LIMIT 1");
                 $kStmt->execute([$client]);
                 $kontrataInfo = $kStmt->fetch(PDO::FETCH_ASSOC);
                 if ($kontrataInfo) {
@@ -214,7 +215,7 @@ try {
             require_once __DIR__ . '/../lib/InvoicePDF.php';
             // Fetch nr_fiskal from kontrata (separate from numri_unik/bisnesi number)
             $nrFiskal = '';
-            $nfStmt = $db->prepare("SELECT nr_fiskal FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND nr_fiskal IS NOT NULL AND nr_fiskal != '' LIMIT 1");
+            $nfStmt = $db->prepare("SELECT nr_fiskal FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND nr_fiskal IS NOT NULL AND nr_fiskal != '' ORDER BY data DESC, id DESC LIMIT 1");
             $nfStmt->execute([$client]);
             $nrFiskal = $nfStmt->fetchColumn() ?: '';
 
@@ -618,7 +619,8 @@ try {
                 'i_regjistruar_ne_emer' => 'biznesi', 'adresa' => 'rruga',
                 'numri_unik_identifikues' => 'numri_unik', 'telefoni' => 'nr_telefonit', 'email' => 'email',
             ];
-            $kStmt2 = $db->prepare("SELECT id, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) LIMIT 1");
+            // Pick the LATEST kontrata by date when a client has multiple rows.
+            $kStmt2 = $db->prepare("SELECT id, biznesi, numri_unik, rruga, qyteti, perfaqesuesi, nr_telefonit, email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) ORDER BY data DESC, id DESC LIMIT 1");
             $kStmt2->execute([$client]);
             $kontrataInfo2 = $kStmt2->fetch(PDO::FETCH_ASSOC);
             if ($kontrataInfo2) {
@@ -645,7 +647,7 @@ try {
 
             // Fetch nr_fiskal from kontrata
             $nrFiskal2 = '';
-            $nfStmt2 = $db->prepare("SELECT nr_fiskal FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND nr_fiskal IS NOT NULL AND nr_fiskal != '' LIMIT 1");
+            $nfStmt2 = $db->prepare("SELECT nr_fiskal FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND nr_fiskal IS NOT NULL AND nr_fiskal != '' ORDER BY data DESC, id DESC LIMIT 1");
             $nfStmt2->execute([$client]);
             $nrFiskal2 = $nfStmt2->fetchColumn() ?: '';
 
@@ -692,7 +694,8 @@ try {
             $clientEmail = $clientStmt->fetchColumn() ?: '';
 
             if (!$clientEmail) {
-                $kontrataStmt = $db->prepare("SELECT email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND email IS NOT NULL AND email != '' LIMIT 1");
+                // Pick the LATEST kontrata by date when a client has multiple rows.
+                $kontrataStmt = $db->prepare("SELECT email FROM kontrata WHERE LOWER(TRIM(name_from_database)) = LOWER(TRIM(?)) AND email IS NOT NULL AND email != '' ORDER BY data DESC, id DESC LIMIT 1");
                 $kontrataStmt->execute([$inv['klienti']]);
                 $clientEmail = $kontrataStmt->fetchColumn() ?: '';
             }
