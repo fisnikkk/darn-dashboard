@@ -304,3 +304,107 @@ git push origin master
 ```
 
 This leaves round-1 (the actual bug fix) in place while removing the UX improvements.
+
+---
+
+# Round 4 — Per-month invoice numbering (2026-05-06, fourth deploy)
+
+After Lena clarified that her business convention is per-month invoice numbering — each month restarts from #1, with the COMBINATION (number + month + year) being the unique identifier. This was the original intent suggested by the "134-02-2026" display format added in commit `24fd005` back on March 12, 2026, but the backend logic and database constraint were never updated to match. Round 4 completes that original intent.
+
+## Schema changes
+
+The migration is in `config/database.php` `runMigrations()`. Each step is idempotent (checks before acting) so it's safe to re-run.
+
+**Order matters for safety**: we ADD the new constraint first, then DROP the old one. This way the table is never without uniqueness protection.
+
+1. **Add stored generated columns**: `year_of_date_to` and `month_of_date_to` (both INT, computed from `date_to`).
+2. **Add new composite UNIQUE constraint**: `idx_invoice_number_per_month (invoice_number, year_of_date_to, month_of_date_to)`. Two rows with the same `invoice_number` are now allowed AS LONG AS they're for different month-years.
+3. **Drop the old flat constraint**: `idx_invoice_number` (UNIQUE on invoice_number alone). Only after the new constraint is in place.
+
+Verified by running `getDB()` against production: migration completes in ~1 second on a 140-row table. All existing rows now have `year_of_date_to` / `month_of_date_to` populated correctly.
+
+## Logic changes
+
+### `config/database.php` `getNextInvoiceNumber($db, $dateTo = null)`
+
+Now date-aware. If `$dateTo` is provided:
+- Returns `MAX(invoice_number for that month-year) + 1`
+- For May 2026 with no May invoices: returns 1
+- For April 2026 with #4-#143: returns 144
+
+If `$dateTo` is omitted (e.g. legacy Android calls):
+- Falls back to global flat: `max(MAX+1, counter)` — same behavior as before
+
+### `api/invoice.php case 'next_number'`
+
+Accepts a new query param `?date_to=YYYY-MM-DD` and passes it to the helper.
+
+### `api/invoice.php case 'create'`
+
+Duplicate check is now month-scoped:
+```php
+WHERE invoice_number = ? AND YEAR(date_to) = ? AND MONTH(date_to) = ?
+```
+So creating #1 for May 2026 succeeds even if #1 exists for some other month. The structured `already_exists` error message now includes the month-year (e.g. `"Fatura nr 131-02-2026 ekziston tashme"`).
+
+The `force_overwrite` path inherits the same scope — only the SAME (number, month, year) row is deleted/replaced, never an unrelated invoice in a different month.
+
+### `pages/fatura.php` frontend
+
+- `fetchNextInvoiceNumber()` now reads the current `inv-date-to` value and passes it to the backend
+- Added a `change` listener on the `inv-date-to` field — refetches the suggestion whenever the user picks/changes the date_to (so the field updates from "146" to "1" when she picks a May date)
+- Existing user-typed values are still respected (no auto-overwrite when the user has manually changed the suggestion)
+
+### `api/api_android.php handleGetInvoiceNumber` — UNCHANGED
+
+The Android app's interface doesn't pass a date with `get_invoice_number`. Calling the helper without a date triggers the legacy fallback (global flat). The Android user gets a flat suggestion which they must manually adjust on phone if they want per-month. This avoids requiring an APK rebuild.
+
+## Behavior change for Lena
+
+| Scenario | Before round 4 | After round 4 |
+|---|---|---|
+| First May 2026 invoice (suggestion) | 146 (continued from April) | **1** ✓ |
+| Second May 2026 invoice | 147 | 2 |
+| First June 2026 invoice | 148 | **1** (June restart) |
+| Trying to create #1 in May twice | Allowed (system was confused) | Blocked — UNIQUE violation, dialog offers overwrite |
+| Trying to create #1 in May AND #1 in June | Second one blocked | Both succeed — different month-year |
+
+## Existing data — left alone (Decision A1)
+
+April 2026 still has invoices #4-#143. They are not renumbered. New April invoices continue at #144 if Lena chooses to create one. Future months (May, June, etc.) start fresh at #1.
+
+The 131-145 batch (Feb-March/April 2026) also stays in place (Decision B1). They're old test/early-use data — Lena can ignore them.
+
+## Verification
+
+`verify_all_fixes.php` runs:
+- §1 PREFLIGHT: 0 duplicates in current data → migration safe to apply
+- §2 LOGIC: all 8 per-month suggestion checks pass (May→1, June→1, April→144, March→146, Feb→140, Jan→137, plus legacy fallback)
+- §3 INSERT TESTS in transactions: #1 for May succeeds, second insert blocked by constraint, #1 for June succeeds (different month), #131 for May succeeds (different month than the existing Feb #131)
+- §4 Production data unchanged (COUNT=140, MAX=145)
+
+15 / 15 assertions pass.
+
+## Round-4 rollback
+
+If anything breaks, the rollback has TWO parts:
+
+1. **Code**: `git revert <round-4-commit> --no-edit && git push` to restore the global flat logic.
+
+2. **Schema**: To restore the old flat unique constraint, run:
+   ```sql
+   ALTER TABLE invoices DROP INDEX idx_invoice_number_per_month;
+   ALTER TABLE invoices ADD UNIQUE KEY idx_invoice_number (invoice_number);
+   -- Optional: keep the generated columns; they don't hurt and might be useful later
+   ```
+   But this only works if no per-month duplicates exist. If Lena has already created e.g. #1-05-2026 AND #1-06-2026, the old flat constraint would fail. In that case, you'd have to delete one of the duplicates first — a destructive operation, so be careful.
+
+## Android coexistence note
+
+The Android app (Generate_Invoice_Fragment.java in the Modified version on dashboard.darn-group.com) still fetches `get_invoice_number` without a date, so it gets the legacy fallback (global flat suggestion). Lena will need to manually adjust the suggested number on phone to match the per-month convention for the date she picks.
+
+If the APK is ever rebuilt, two changes would make Android fully per-month-aware:
+1. `RailwayApiInterface.java`: `get_invoice_number` signature should accept a `date_to` query param
+2. `Generate_Invoice_Fragment.java`: call `get_invoice_number(dateTo, apiKey)` AFTER the user picks the date
+
+That's a follow-up for whenever the APK gets a rebuild — not in scope here.

@@ -409,12 +409,49 @@ function runMigrations($pdo) {
             INDEX idx_klienti (klienti)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-        // Invoice settings (counter)
+        // Invoice settings (counter — kept for backwards compat; per-month logic
+        // makes it largely obsolete but legacy callers without date_to still use it)
         $pdo->exec("CREATE TABLE IF NOT EXISTS invoice_settings (
             setting_key VARCHAR(100) PRIMARY KEY,
             setting_value VARCHAR(255)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $pdo->exec("INSERT IGNORE INTO invoice_settings (setting_key, setting_value) VALUES ('next_invoice_number', '131')");
+
+        // ─── Per-month invoice numbering migration ───────────────────────────
+        // Lena's business convention: invoice numbers restart each month, and
+        // the unique identifier is (number + month + year). The original schema
+        // enforced UNIQUE on invoice_number alone (flat sequential), which
+        // never matched her workflow. This migration changes the constraint to
+        // (invoice_number, year_of_date_to, month_of_date_to) so that the same
+        // number can be reused across different months.
+        //
+        // Each step is idempotent (checks before acting) so this block is safe
+        // to run on every dashboard boot.
+
+        // Step 1: add stored generated columns for year/month of date_to
+        $hasYearCol = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND COLUMN_NAME = 'year_of_date_to'")->fetchColumn();
+        if ($hasYearCol === 0) {
+            $pdo->exec("ALTER TABLE invoices
+                ADD COLUMN year_of_date_to INT GENERATED ALWAYS AS (YEAR(date_to)) STORED,
+                ADD COLUMN month_of_date_to INT GENERATED ALWAYS AS (MONTH(date_to)) STORED");
+        }
+
+        // Step 2: ADD the new composite unique constraint FIRST (so we never have
+        // a window where the table has no uniqueness protection)
+        $hasNewIdx = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND INDEX_NAME = 'idx_invoice_number_per_month'")->fetchColumn();
+        if ($hasNewIdx === 0) {
+            $pdo->exec("ALTER TABLE invoices ADD UNIQUE KEY idx_invoice_number_per_month (invoice_number, year_of_date_to, month_of_date_to)");
+        }
+
+        // Step 3: ONLY now drop the old flat constraint (after the new one is in
+        // place, so the table is never unprotected). If steps 1/2 fail, the old
+        // constraint stays in effect and the system continues to work in the
+        // pre-migration mode (flat numbering) — degraded but safe.
+        $hasOldIdx = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND INDEX_NAME = 'idx_invoice_number'")->fetchColumn();
+        if ($hasOldIdx > 0) {
+            $pdo->exec("ALTER TABLE invoices DROP INDEX idx_invoice_number");
+        }
+        // ─── End per-month migration ──────────────────────────────────────────
 
         // Dashboard shared settings (multi-user state — replaces per-browser localStorage
         // for things like 'Sipas raportit' that all finance users need to see the same value).
@@ -709,16 +746,31 @@ function buildFilterIn($filterValues, $column, $tableAlias = '') {
 }
 
 /**
- * Compute the next free invoice number, considering BOTH the actual invoices
- * table AND the legacy invoice_settings counter. Returns the higher of
- * (MAX(invoice_number)+1) and (counter), defaulting counter to 131 if the
- * row is missing/empty/zero (matches the legacy ?:130+1 behavior).
+ * Compute the next free invoice number.
  *
- * Used by api/invoice.php case 'next_number' AND api/api_android.php
- * handleGetInvoiceNumber so the dashboard and the Android app NEVER
- * suggest different numbers.
+ * If $dateTo is provided (YYYY-MM-DD), returns the next available number
+ * scoped to that month-year — Lena's per-month convention. So for May 2026
+ * with no May invoices yet, returns 1; for April 2026 with #4-#143 already
+ * used, returns 144.
+ *
+ * If $dateTo is omitted (e.g. legacy Android app calls without a date),
+ * returns the global flat next number for backwards compatibility:
+ * max(MAX(invoice_number)+1, counter), counter defaulting to 131 if missing.
+ *
+ * Used by api/invoice.php case 'next_number' (passes date_to from frontend)
+ * AND api/api_android.php handleGetInvoiceNumber (no date — legacy fallback).
  */
-function getNextInvoiceNumber($db) {
+function getNextInvoiceNumber($db, $dateTo = null) {
+    if ($dateTo) {
+        $year = (int)date('Y', strtotime($dateTo));
+        $month = (int)date('m', strtotime($dateTo));
+        if ($year > 0 && $month > 0) {
+            $stmt = $db->prepare("SELECT COALESCE(MAX(invoice_number), 0) FROM invoices WHERE YEAR(date_to) = ? AND MONTH(date_to) = ?");
+            $stmt->execute([$year, $month]);
+            return (int)$stmt->fetchColumn() + 1;
+        }
+    }
+    // Legacy fallback (no date_to provided)
     $maxFromTable = (int)$db->query("SELECT MAX(invoice_number) FROM invoices")->fetchColumn();
     $counterRaw = $db->query("SELECT setting_value FROM invoice_settings WHERE setting_key = 'next_invoice_number'")->fetchColumn();
     $counter = (int)($counterRaw ?: 131);

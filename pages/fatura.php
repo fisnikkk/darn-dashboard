@@ -179,9 +179,13 @@ document.addEventListener('click', function(e) {
 // Track the value the server suggested, so we can detect "user-typed vs auto-suggested"
 var __invSuggestedFromServer = null;
 
-// Fetch latest free invoice number, cache-busted, no-store
+// Fetch latest free invoice number, scoped to the month-year of the current
+// date_to value (per-month numbering convention). Cache-busted, no-store.
 function fetchNextInvoiceNumber(applyToField) {
-    return fetch('/api/invoice.php?action=next_number&_t=' + Date.now(), { cache: 'no-store' })
+    var dateTo = document.getElementById('inv-date-to') ? document.getElementById('inv-date-to').value : '';
+    var url = '/api/invoice.php?action=next_number&_t=' + Date.now();
+    if (dateTo) url += '&date_to=' + encodeURIComponent(dateTo);
+    return fetch(url, { cache: 'no-store' })
         .then(r => r.json())
         .then(function(d) {
             if (d.success) {
@@ -195,7 +199,9 @@ function fetchNextInvoiceNumber(applyToField) {
         });
 }
 
-// Load next invoice number on page load
+// Load next invoice number on page load (initial fetch — no date yet, so
+// returns global fallback. Once user picks a date_to, the change handler
+// below refetches with the proper month context.)
 (function() {
     fetchNextInvoiceNumber(true);
     loadHistory();
@@ -205,9 +211,23 @@ function fetchNextInvoiceNumber(applyToField) {
 // across a server-side fix deploy.
 window.addEventListener('focus', function() {
     var fld = document.getElementById('inv-number');
-    // Only auto-update if the user hasn't typed a custom value
     if (fld && (fld.value === '' || parseInt(fld.value) === __invSuggestedFromServer)) {
         fetchNextInvoiceNumber(true);
+    }
+});
+
+// Re-fetch when the user picks/changes the date_to. The suggestion must
+// reflect the month-year being invoiced — May gets #1, June gets #1, etc.
+document.addEventListener('DOMContentLoaded', function() {
+    var dateToInput = document.getElementById('inv-date-to');
+    if (dateToInput) {
+        dateToInput.addEventListener('change', function() {
+            var fld = document.getElementById('inv-number');
+            // Only auto-update if the user hasn't typed a custom value
+            if (fld && (fld.value === '' || parseInt(fld.value) === __invSuggestedFromServer)) {
+                fetchNextInvoiceNumber(true);
+            }
+        });
     }
 });
 

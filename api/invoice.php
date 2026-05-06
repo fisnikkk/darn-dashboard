@@ -22,14 +22,17 @@ try {
         // and skipped. The DB-derived value is always conflict-free with the
         // UNIQUE constraint on invoice_number.
         case 'next_number':
-            // Hard-disable caching: browsers and proxies must NEVER serve a stale
-            // suggestion. A cached "131" would re-trigger the duplicate-error loop.
+            // Hard-disable caching: a cached "146" suggestion for May would still
+            // be wrong if the user is invoicing for June (each month is its own
+            // sequence). Combined with the cache-bust query param on the JS side.
             header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
             header('Pragma: no-cache');
             header('Expires: 0');
-            // Use shared helper (config/database.php) so dashboard and Android
-            // always agree on the next number. Logic: max(MAX(invoice_number)+1, counter).
-            echo json_encode(['success' => true, 'next_number' => getNextInvoiceNumber($db)]);
+            // Per-month next-number: scoped to the month-year of date_to so May 2026
+            // starts at #1, June 2026 also starts at #1, etc. (Lena's convention.)
+            // If no date_to is provided, falls back to global flat numbering.
+            $dateToParam = $_GET['date_to'] ?? null;
+            echo json_encode(['success' => true, 'next_number' => getNextInvoiceNumber($db, $dateToParam)]);
             break;
 
         // ─── Preview transactions (no side effects) ───
@@ -84,19 +87,22 @@ try {
                 break;
             }
 
-            // Check invoice number not already used. If it IS taken, return a
-            // structured error so the frontend can offer a "delete the old one
-            // and create a new corrected version" confirmation dialog. The
-            // frontend retries with force_overwrite=true on confirmation.
-            $check = $db->prepare("SELECT id, klienti, date_from, date_to, total_amount, pdf_filename, row_ids, created_at FROM invoices WHERE invoice_number = ?");
-            $check->execute([$invoiceNum]);
+            // Per-month duplicate check: the SAME invoice_number is allowed in
+            // different month-years (Lena's convention). So #1-05-2026 and
+            // #1-06-2026 are two distinct invoices that can coexist. We only
+            // reject if THIS exact (number, month, year) combination is taken.
+            $newYear = (int)date('Y', strtotime($dateTo));
+            $newMonth = (int)date('m', strtotime($dateTo));
+            $check = $db->prepare("SELECT id, klienti, date_from, date_to, total_amount, pdf_filename, row_ids, created_at FROM invoices WHERE invoice_number = ? AND YEAR(date_to) = ? AND MONTH(date_to) = ?");
+            $check->execute([$invoiceNum, $newYear, $newMonth]);
             $existing = $check->fetch(PDO::FETCH_ASSOC);
             $forceOverwrite = !empty($input['force_overwrite']);
             if ($existing && !$forceOverwrite) {
+                $monthYearLabel = sprintf('%02d-%04d', $newMonth, $newYear);
                 echo json_encode([
                     'success' => false,
                     'error_code' => 'already_exists',
-                    'error' => "Fatura nr {$invoiceNum} ekziston tashme",
+                    'error' => "Fatura nr {$invoiceNum}-{$monthYearLabel} ekziston tashme",
                     'existing' => [
                         'id' => (int)$existing['id'],
                         'klienti' => $existing['klienti'],
