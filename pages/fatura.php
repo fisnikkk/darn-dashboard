@@ -176,15 +176,40 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// Track the value the server suggested, so we can detect "user-typed vs auto-suggested"
+var __invSuggestedFromServer = null;
+
+// Fetch latest free invoice number, cache-busted, no-store
+function fetchNextInvoiceNumber(applyToField) {
+    return fetch('/api/invoice.php?action=next_number&_t=' + Date.now(), { cache: 'no-store' })
+        .then(r => r.json())
+        .then(function(d) {
+            if (d.success) {
+                __invSuggestedFromServer = d.next_number;
+                if (applyToField) {
+                    var fld = document.getElementById('inv-number');
+                    fld.value = d.next_number;
+                }
+            }
+            return d;
+        });
+}
+
 // Load next invoice number on page load
 (function() {
-    fetch('/api/invoice.php?action=next_number')
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) document.getElementById('inv-number').value = d.next_number;
-        });
+    fetchNextInvoiceNumber(true);
     loadHistory();
 })();
+
+// Re-fetch when the user returns to the tab — protects against pages left open
+// across a server-side fix deploy.
+window.addEventListener('focus', function() {
+    var fld = document.getElementById('inv-number');
+    // Only auto-update if the user hasn't typed a custom value
+    if (fld && (fld.value === '' || parseInt(fld.value) === __invSuggestedFromServer)) {
+        fetchNextInvoiceNumber(true);
+    }
+});
 
 // Format invoice number with date: "134-02-2026"
 function formatInvoiceNumber(num, dateTo) {
@@ -272,7 +297,23 @@ function invoiceCreate() {
     var client = document.getElementById('inv-client').value;
     var dateFrom = document.getElementById('inv-date-from').value;
     var dateTo = document.getElementById('inv-date-to').value;
-    var invNum = document.getElementById('inv-number').value;
+    var fld = document.getElementById('inv-number');
+
+    // Belt-and-suspenders: if the visible value is still the auto-suggestion
+    // (user did NOT type a custom number), re-fetch the freshest free number
+    // from the server before submit. Protects against pages opened before a
+    // backend fix was deployed, where the cached suggestion would collide.
+    var currentVal = parseInt(fld.value);
+    if (fld.value === '' || currentVal === __invSuggestedFromServer) {
+        fetchNextInvoiceNumber(true).then(function(d) {
+            if (d && d.success) _proceedWithCreate(client, dateFrom, dateTo, d.next_number);
+        });
+        return;
+    }
+    _proceedWithCreate(client, dateFrom, dateTo, currentVal);
+}
+
+function _proceedWithCreate(client, dateFrom, dateTo, invNum) {
     var formattedNum = formatInvoiceNumber(invNum, dateTo);
 
     var msg = 'Jeni te sigurt qe deshironi te krijoni Faturen nr ' + formattedNum + ' per ' + client + '?';
@@ -359,8 +400,9 @@ function invoiceCreate() {
 
         status.innerHTML = successHtml;
 
-        // Update invoice number
-        document.getElementById('inv-number').value = d.invoice_number + 1;
+        // Update invoice number — refetch from server (MAX+1) instead of local +1
+        // so we don't suggest a number that's already taken in a gap.
+        fetchNextInvoiceNumber(true);
 
         // Reset create button
         document.getElementById('btn-create').disabled = false;

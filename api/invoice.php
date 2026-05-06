@@ -22,6 +22,11 @@ try {
         // and skipped. The DB-derived value is always conflict-free with the
         // UNIQUE constraint on invoice_number.
         case 'next_number':
+            // Hard-disable caching: browsers and proxies must NEVER serve a stale
+            // suggestion. A cached "131" would re-trigger the duplicate-error loop.
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('Expires: 0');
             $maxStmt = $db->query("SELECT MAX(invoice_number) FROM invoices");
             $maxNum = $maxStmt->fetchColumn();
             // Fallback to invoice_settings (or 131 default) only when invoices table is empty
