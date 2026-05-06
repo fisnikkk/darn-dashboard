@@ -27,14 +27,9 @@ try {
             header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
             header('Pragma: no-cache');
             header('Expires: 0');
-            $maxStmt = $db->query("SELECT MAX(invoice_number) FROM invoices");
-            $maxNum = $maxStmt->fetchColumn();
-            // Fallback to invoice_settings (or 131 default) only when invoices table is empty
-            if ($maxNum === null || $maxNum === false) {
-                $settingStmt = $db->query("SELECT setting_value FROM invoice_settings WHERE setting_key = 'next_invoice_number'");
-                $maxNum = ($settingStmt->fetchColumn() ?: 130);  // 130 so +1 = 131
-            }
-            echo json_encode(['success' => true, 'next_number' => intval($maxNum) + 1]);
+            // Use shared helper (config/database.php) so dashboard and Android
+            // always agree on the next number. Logic: max(MAX(invoice_number)+1, counter).
+            echo json_encode(['success' => true, 'next_number' => getNextInvoiceNumber($db)]);
             break;
 
         // ─── Preview transactions (no side effects) ───
@@ -302,9 +297,12 @@ try {
                 }
             }
 
-            // Increment invoice number counter
+            // Increment invoice number counter — advance-only.
+            // Never roll back to a lower value: the Android app may have
+            // pushed the counter higher via paper invoices not present in
+            // this table, and rolling back would risk later collisions.
             $nextNum = $invoiceNum + 1;
-            $db->prepare("UPDATE invoice_settings SET setting_value = ? WHERE setting_key = 'next_invoice_number'")->execute([$nextNum]);
+            $db->prepare("UPDATE invoice_settings SET setting_value = ? WHERE setting_key = 'next_invoice_number' AND CAST(setting_value AS UNSIGNED) < ?")->execute([$nextNum, $nextNum]);
 
             // Get client email for response
             $clientEmailForResponse = $clientInfo['email'] ?? '';

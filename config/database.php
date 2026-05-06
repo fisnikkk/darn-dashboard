@@ -707,3 +707,20 @@ function buildFilterIn($filterValues, $column, $tableAlias = '') {
         'params' => $params
     ];
 }
+
+/**
+ * Compute the next free invoice number, considering BOTH the actual invoices
+ * table AND the legacy invoice_settings counter. Returns the higher of
+ * (MAX(invoice_number)+1) and (counter), defaulting counter to 131 if the
+ * row is missing/empty/zero (matches the legacy ?:130+1 behavior).
+ *
+ * Used by api/invoice.php case 'next_number' AND api/api_android.php
+ * handleGetInvoiceNumber so the dashboard and the Android app NEVER
+ * suggest different numbers.
+ */
+function getNextInvoiceNumber($db) {
+    $maxFromTable = (int)$db->query("SELECT MAX(invoice_number) FROM invoices")->fetchColumn();
+    $counterRaw = $db->query("SELECT setting_value FROM invoice_settings WHERE setting_key = 'next_invoice_number'")->fetchColumn();
+    $counter = (int)($counterRaw ?: 131);
+    return max($maxFromTable + 1, $counter);
+}

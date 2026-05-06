@@ -438,11 +438,12 @@ function mapGoDaddyRow($row) {
  * Expected by Android: { "inv_number": "131" }
  */
 function handleGetInvoiceNumber($db) {
-    $stmt = $db->query("SELECT setting_value FROM invoice_settings WHERE setting_key = 'next_invoice_number'");
-    $val = $stmt->fetchColumn();
-
+    // Use the shared helper (defined in config/database.php) so the Android
+    // app and the dashboard ALWAYS suggest the same next invoice number.
+    // Otherwise Lena would see different suggestions on phone vs. dashboard,
+    // leading to "Fatura nr X ekziston" collisions like she saw on 2026-05-06.
     echo json_encode([
-        'inv_number' => $val ?: '1',
+        'inv_number' => (string)getNextInvoiceNumber($db),
     ]);
 }
 
@@ -461,8 +462,11 @@ function handleUpdateInvoiceNumber($db) {
         return;
     }
 
-    $stmt = $db->prepare("UPDATE invoice_settings SET setting_value = ? WHERE setting_key = 'next_invoice_number'");
-    $stmt->execute([$nextInv]);
+    // Advance-only — never roll back the counter to a lower value. If the
+    // dashboard's create flow has already advanced it past $nextInv (e.g.
+    // a higher dashboard invoice was just created), we leave it alone.
+    $stmt = $db->prepare("UPDATE invoice_settings SET setting_value = ? WHERE setting_key = 'next_invoice_number' AND CAST(setting_value AS UNSIGNED) < ?");
+    $stmt->execute([$nextInv, $nextInv]);
 
     echo json_encode([
         'inv_number' => $nextInv,
