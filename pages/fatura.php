@@ -313,16 +313,21 @@ function invoiceCreate() {
     _proceedWithCreate(client, dateFrom, dateTo, currentVal);
 }
 
-function _proceedWithCreate(client, dateFrom, dateTo, invNum) {
+function _proceedWithCreate(client, dateFrom, dateTo, invNum, forceOverwrite) {
+    forceOverwrite = forceOverwrite || false;
     var formattedNum = formatInvoiceNumber(invNum, dateTo);
 
-    var msg = 'Jeni te sigurt qe deshironi te krijoni Faturen nr ' + formattedNum + ' per ' + client + '?';
-    if (previewCashCount > 0) {
-        msg += '\n\nKjo do te:\n- Gjeneroj PDF\n- Ndryshoj ' + previewCashCount + ' statuse CASH ne "Fature te rregullte"\n- Rrisni numrin e fatures';
-    } else {
-        msg += '\n\nKjo do te:\n- Gjeneroj PDF\n- Rrisni numrin e fatures';
+    // Skip the "are you sure" dialog on overwrite-retry — the user already
+    // confirmed via the "Fatura nr X ekziston, fshini ate?" dialog below.
+    if (!forceOverwrite) {
+        var msg = 'Jeni te sigurt qe deshironi te krijoni Faturen nr ' + formattedNum + ' per ' + client + '?';
+        if (previewCashCount > 0) {
+            msg += '\n\nKjo do te:\n- Gjeneroj PDF\n- Ndryshoj ' + previewCashCount + ' statuse CASH ne "Fature te rregullte"\n- Rrisni numrin e fatures';
+        } else {
+            msg += '\n\nKjo do te:\n- Gjeneroj PDF\n- Rrisni numrin e fatures';
+        }
+        if (!confirm(msg)) return;
     }
-    if (!confirm(msg)) return;
 
     document.getElementById('btn-create').disabled = true;
     document.getElementById('btn-create').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Duke krijuar...';
@@ -334,12 +339,30 @@ function _proceedWithCreate(client, dateFrom, dateTo, invNum) {
             client: client,
             date_from: dateFrom,
             date_to: dateTo,
-            invoice_number: parseInt(invNum)
+            invoice_number: parseInt(invNum),
+            force_overwrite: forceOverwrite
         })
     })
     .then(r => r.json())
     .then(function(d) {
         if (!d.success) {
+            // If the backend reports the number is taken, offer to delete-and-recreate
+            // (Lena's "krijo perseri me te dhenat e reja" workflow for corrections).
+            if (d.error_code === 'already_exists' && !forceOverwrite) {
+                var ex = d.existing || {};
+                var totalStr = ex.total_amount ? parseFloat(ex.total_amount).toFixed(2) + ' EUR' : '?';
+                var overwriteMsg = 'Fatura nr ' + invNum + ' ekziston tashme:\n\n' +
+                    'Klienti: ' + (ex.klienti || '?') + '\n' +
+                    'Periudha: ' + (ex.date_from || '?') + ' deri ' + (ex.date_to || '?') + '\n' +
+                    'Totali: ' + totalStr + '\n' +
+                    'Krijuar me: ' + (ex.created_at || '?') + '\n\n' +
+                    'A doni ta fshini kete fature dhe te krijoni nje te re me te dhenat e reja?\n' +
+                    '(PDF-ja e vjeter do fshihet, statuset e meparshme do kthehen, dhe nje fature e re do krijohet me te njejtin numer.)';
+                if (confirm(overwriteMsg)) {
+                    _proceedWithCreate(client, dateFrom, dateTo, invNum, true);
+                    return;
+                }
+            }
             alert('Gabim: ' + d.error);
             document.getElementById('btn-create').disabled = false;
             document.getElementById('btn-create').innerHTML = '<i class="fas fa-check"></i> Krijo Faturen';

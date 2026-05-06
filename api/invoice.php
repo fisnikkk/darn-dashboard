@@ -84,11 +84,28 @@ try {
                 break;
             }
 
-            // Check invoice number not already used
-            $check = $db->prepare("SELECT id FROM invoices WHERE invoice_number = ?");
+            // Check invoice number not already used. If it IS taken, return a
+            // structured error so the frontend can offer a "delete the old one
+            // and create a new corrected version" confirmation dialog. The
+            // frontend retries with force_overwrite=true on confirmation.
+            $check = $db->prepare("SELECT id, klienti, date_from, date_to, total_amount, pdf_filename, row_ids, created_at FROM invoices WHERE invoice_number = ?");
             $check->execute([$invoiceNum]);
-            if ($check->fetch()) {
-                echo json_encode(['success' => false, 'error' => "Fatura nr {$invoiceNum} ekziston tashme"]);
+            $existing = $check->fetch(PDO::FETCH_ASSOC);
+            $forceOverwrite = !empty($input['force_overwrite']);
+            if ($existing && !$forceOverwrite) {
+                echo json_encode([
+                    'success' => false,
+                    'error_code' => 'already_exists',
+                    'error' => "Fatura nr {$invoiceNum} ekziston tashme",
+                    'existing' => [
+                        'id' => (int)$existing['id'],
+                        'klienti' => $existing['klienti'],
+                        'date_from' => $existing['date_from'],
+                        'date_to' => $existing['date_to'],
+                        'total_amount' => $existing['total_amount'],
+                        'created_at' => $existing['created_at'],
+                    ],
+                ]);
                 break;
             }
 
@@ -105,6 +122,34 @@ try {
             if (empty($rows)) {
                 echo json_encode(['success' => false, 'error' => 'Nuk ka te dhena per kete periudhe']);
                 break;
+            }
+
+            // If force_overwrite is set AND the old row exists, only NOW (after we
+            // know the new invoice has data) do we delete the old one. This keeps
+            // the operation safe — we never wipe the old invoice unless the new
+            // one is guaranteed to land. Mirrors the case 'delete' handler logic
+            // (revert CASH statuses, delete changelog, remove PDF, drop the row).
+            if ($existing && $forceOverwrite) {
+                $oldId = (int)$existing['id'];
+                $oldBatchId = 'inv_' . $invoiceNum;
+                // Revert CASH→FATURE status changes that the old invoice made
+                $oldLogRows = $db->prepare("SELECT row_id, old_value FROM changelog WHERE batch_id = ? AND field_name = 'menyra_e_pageses'");
+                $oldLogRows->execute([$oldBatchId]);
+                $revertStmt = $db->prepare("UPDATE distribuimi SET menyra_e_pageses = ? WHERE id = ?");
+                foreach ($oldLogRows as $log) {
+                    $revertStmt->execute([$log['old_value'], $log['row_id']]);
+                }
+                // Drop the old changelog entries (they belong to the deleted invoice)
+                $db->prepare("DELETE FROM changelog WHERE batch_id = ?")->execute([$oldBatchId]);
+                // Remove the old PDF file if present
+                if (!empty($existing['pdf_filename'])) {
+                    $oldFilepath = __DIR__ . '/../storage/invoices/' . $existing['pdf_filename'];
+                    if (file_exists($oldFilepath)) {
+                        unlink($oldFilepath);
+                    }
+                }
+                // Drop the old invoice row so the number is free for the new one
+                $db->prepare("DELETE FROM invoices WHERE id = ?")->execute([$oldId]);
             }
 
             // Auto-sync client data from GoDaddy before looking up (ensures fresh info)
@@ -357,8 +402,13 @@ try {
             exit;
 
         // ─── Invoice history ───
+        // Returns ALL invoices (no LIMIT). Even if a number was created long
+        // ago and falls below the recent-creates list, it must still appear,
+        // otherwise the user can't see it and gets confused when the
+        // duplicate-number guard rejects "Fatura nr X ekziston". See
+        // INVOICE_FIX_CHANGELOG.md for the underlying reasoning.
         case 'history':
-            $stmt = $db->query("SELECT id, invoice_number, klienti, date_from, date_to, total_amount, total_delivered, total_returned, status, created_at FROM invoices ORDER BY created_at DESC LIMIT 100");
+            $stmt = $db->query("SELECT id, invoice_number, klienti, date_from, date_to, total_amount, total_delivered, total_returned, status, created_at FROM invoices ORDER BY created_at DESC");
             $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'invoices' => $invoices]);
             break;

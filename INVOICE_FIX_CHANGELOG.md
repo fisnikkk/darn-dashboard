@@ -217,3 +217,90 @@ To verify rollback succeeded after revert, the file MD5s should match the pre-de
 2. Hit the diagnostic URL `https://dashboard.darn-group.com/api/diag_inv_x82j7.php?t=darn_check_2026_05_06_x82j7` to confirm live endpoint returns the right value
 3. Ask Lena to hard-refresh (Ctrl+Shift+R) and try creating an invoice
 4. After confirmation, remove `api/diag_inv_x82j7.php` (the diagnostic file)
+
+---
+
+# Round 2 — UX improvements requested by Lena (2026-05-06, second deploy)
+
+After the round-1 fix, Lena raised two follow-ups: (a) the visible history maxes out at #130 so she couldn't see #131-#145 even though they exist; (b) she wants a way to recreate an invoice with corrections (overwrite) instead of being blocked by the duplicate guard.
+
+## Change 6 — `api/invoice.php` history endpoint (line ~361)
+
+**What**: Removed the hardcoded `LIMIT 100` from the history query.
+
+**Why**: The visible history was sorted by `created_at DESC LIMIT 100`. With 140 invoices in the table, the 13 invoices in #131-#145 (created March-April 2026) fell off the list. Lena could not see them, leading to her confusion when the duplicate guard rejected #131 — from her view, the highest invoice was #130. After this change all 140 invoices appear.
+
+**Before**:
+```php
+$stmt = $db->query("SELECT ... FROM invoices ORDER BY created_at DESC LIMIT 100");
+```
+
+**After**:
+```php
+$stmt = $db->query("SELECT ... FROM invoices ORDER BY created_at DESC");
+```
+
+**Risk**: Low. With 140 rows the page renders quickly. Future-proofing concern: when the table grows past several hundred, pagination should be added. Not urgent.
+
+## Change 7 — `api/invoice.php` `case 'create'` duplicate-check (lines ~88-98)
+
+**What**: When the requested invoice number already exists AND `force_overwrite` is not set, return a structured JSON response so the frontend can offer a "delete the old one and recreate" confirmation dialog. Includes the existing invoice's metadata (client, dates, total, created_at) so the user can make an informed decision.
+
+**Why**: Lena asked for a way to recreate an invoice with corrections (e.g., wrong info on the original) under the same number. Previously the backend just returned a flat error string with no way to retry.
+
+**Before**:
+```php
+$check = $db->prepare("SELECT id FROM invoices WHERE invoice_number = ?");
+$check->execute([$invoiceNum]);
+if ($check->fetch()) {
+    echo json_encode(['success' => false, 'error' => "Fatura nr {$invoiceNum} ekziston tashme"]);
+    break;
+}
+```
+
+**After**: Structured response with `error_code: 'already_exists'` and `existing` object. Frontend retries with `force_overwrite: true`.
+
+**Risk**: Low. Backwards-compatible: callers without the new flag still get an error, just a richer one (still has `success: false` and `error` string).
+
+## Change 8 — `api/invoice.php` create-flow force-overwrite delete (after empty-rows check)
+
+**What**: When `force_overwrite=true` AND an existing invoice with that number is present, delete the old invoice fully — but only AFTER the new invoice's row data has been validated (so we never wipe the old one if the new one would fail).
+
+**The full delete mirrors `case 'delete'` exactly**: revert CASH→FATURE status changes via changelog, drop changelog entries, remove PDF file, drop the invoice row. Then the normal create flow continues and inserts the new invoice using the now-free number.
+
+**Why**: Atomic-feeling delete-and-recreate for the corrections workflow.
+
+**Risk**: Medium. If the create's INSERT step ever fails after the delete, the old invoice would be lost. Mitigated by: (1) all validation (param check, empty rows check) runs BEFORE the delete; (2) the only thing that can fail between delete and insert is the INSERT itself, which would only fail under DB connection loss (rare).
+
+## Change 9 — `pages/fatura.php` `_proceedWithCreate` overwrite handling
+
+**What**: Frontend now:
+1. Accepts a `forceOverwrite` parameter (defaults false).
+2. Skips the initial "are you sure" dialog when `forceOverwrite=true` (user already confirmed via the overwrite dialog).
+3. On `error_code === 'already_exists'`, shows a detailed confirm dialog with the existing invoice's info, and recursively calls `_proceedWithCreate(... true)` if the user accepts.
+4. Sends `force_overwrite` in the POST body.
+
+**Risk**: Low. Self-contained UI change, gracefully falls back to the existing flat-error path if the backend ever returns a non-structured error.
+
+## Verification of round-2 changes
+
+Run `verify_all_fixes.php` against the live DB (read-only, no writes):
+- §1: getNextInvoiceNumber() returns 146 ✓
+- §2: history returns all 140 invoices (no LIMIT) ✓ — confirms #131 and #145 now appear
+- §3: duplicate-check returns structured `error_code: 'already_exists'` with real existing data ✓
+- §4: force_overwrite=true bypasses the duplicate check ✓
+- §5: free numbers (#146) pass through normally ✓
+- §6: production data unchanged after test ✓
+
+All 13 round-2 assertions pass. Plus the 32 round-1 assertions in `test_option_b_final.php`. No data modified.
+
+## Round-2 rollback
+
+If round-2 causes any issue, the round-1 fix from commit `aa5bf80` is still self-contained and works without these UX changes. To revert just round 2:
+
+```bash
+git revert <round-2-commit-hash> --no-edit
+git push origin master
+```
+
+This leaves round-1 (the actual bug fix) in place while removing the UX improvements.
