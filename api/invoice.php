@@ -408,6 +408,12 @@ try {
         // duplicate-number guard rejects "Fatura nr X ekziston". See
         // INVOICE_FIX_CHANGELOG.md for the underlying reasoning.
         case 'history':
+            // Hard-disable caching: the list must always reflect current state.
+            // Otherwise a browser-cached old response (e.g. from when LIMIT 100
+            // was in effect) makes the user think recent changes didn't apply.
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('Expires: 0');
             $stmt = $db->query("SELECT id, invoice_number, klienti, date_from, date_to, total_amount, total_delivered, total_returned, status, created_at FROM invoices ORDER BY created_at DESC");
             $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'invoices' => $invoices]);

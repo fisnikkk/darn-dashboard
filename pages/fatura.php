@@ -546,7 +546,9 @@ function sendEmailFromHistory(invoiceId, clientName, dateTo) {
 }
 
 function loadHistory() {
-    fetch('/api/invoice.php?action=history')
+    // Cache-bust + no-store: ensures the list always reflects the current
+    // server state (e.g., after the LIMIT removal, after a create/delete).
+    fetch('/api/invoice.php?action=history&_t=' + Date.now(), { cache: 'no-store' })
         .then(r => r.json())
         .then(function(d) {
             if (!d.success || d.invoices.length === 0) {
