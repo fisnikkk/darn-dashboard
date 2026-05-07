@@ -748,14 +748,20 @@ function buildFilterIn($filterValues, $column, $tableAlias = '') {
 /**
  * Compute the next free invoice number.
  *
- * If $dateTo is provided (YYYY-MM-DD), returns the next available number
- * scoped to that month-year — Lena's per-month convention. So for May 2026
- * with no May invoices yet, returns 1; for April 2026 with #4-#143 already
- * used, returns 144.
+ * Per-month behavior (when $dateTo is provided):
+ *   Returns the smallest unused number strictly greater than the most recently
+ *   created invoice's number for that (year, month). Empty months start at 1.
  *
- * If $dateTo is omitted (e.g. legacy Android app calls without a date),
- * returns the global flat next number for backwards compatibility:
- * max(MAX(invoice_number)+1, counter), counter defaulting to 131 if missing.
+ *   This anchors the suggestion on the user's last action rather than the
+ *   month's MAX, so legacy outliers (e.g. an old #143 from before Lena's
+ *   bulk-import) don't push every suggestion to "MAX+1". After Lena creates
+ *   #131 in April, she sees #132 next — even if older legacy rows like
+ *   #141, #143 still exist in that month. Those legacy numbers are skipped
+ *   automatically when the sequence eventually crosses them.
+ *
+ * Legacy fallback (when $dateTo is omitted, e.g. Android):
+ *   max(MAX(invoice_number)+1, counter), counter defaulting to 131. Preserved
+ *   unchanged so the Android app keeps working without needing a rebuild.
  *
  * Used by api/invoice.php case 'next_number' (passes date_to from frontend)
  * AND api/api_android.php handleGetInvoiceNumber (no date — legacy fallback).
@@ -765,9 +771,19 @@ function getNextInvoiceNumber($db, $dateTo = null) {
         $year = (int)date('Y', strtotime($dateTo));
         $month = (int)date('m', strtotime($dateTo));
         if ($year > 0 && $month > 0) {
-            $stmt = $db->prepare("SELECT COALESCE(MAX(invoice_number), 0) FROM invoices WHERE YEAR(date_to) = ? AND MONTH(date_to) = ?");
+            $stmt = $db->prepare("SELECT invoice_number FROM invoices WHERE YEAR(date_to) = ? AND MONTH(date_to) = ?");
             $stmt->execute([$year, $month]);
-            return (int)$stmt->fetchColumn() + 1;
+            $existing = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+            if (empty($existing)) return 1;
+
+            $lastStmt = $db->prepare("SELECT invoice_number FROM invoices WHERE YEAR(date_to) = ? AND MONTH(date_to) = ? ORDER BY created_at DESC, id DESC LIMIT 1");
+            $lastStmt->execute([$year, $month]);
+            $lastCreated = (int)$lastStmt->fetchColumn();
+
+            $taken = array_flip($existing);
+            $candidate = $lastCreated + 1;
+            while (isset($taken[$candidate])) $candidate++;
+            return $candidate;
         }
     }
     // Legacy fallback (no date_to provided)
