@@ -199,12 +199,18 @@ function fetchNextInvoiceNumber(applyToField) {
         });
 }
 
-// Load next invoice number on page load (initial fetch — no date yet, so
-// returns global fallback. Once user picks a date_to, the change handler
-// below refetches with the proper month context.)
+// Load history first — that gives us the most recent invoice's dates, which
+// loadHistory pre-fills into the date inputs so the per-month next-number
+// kicks in immediately on first paint. Then fetch the suggestion. If history
+// is empty, dates stay empty and fetchNextInvoiceNumber falls back to the
+// legacy global path.
 (function() {
-    fetchNextInvoiceNumber(true);
-    loadHistory();
+    loadHistory().then(function() {
+        fetchNextInvoiceNumber(true);
+    }).catch(function() {
+        // History fetch failed for any reason — still load a suggestion.
+        fetchNextInvoiceNumber(true);
+    });
 })();
 
 // Re-fetch when the user returns to the tab — protects against pages left open
@@ -568,12 +574,30 @@ function sendEmailFromHistory(invoiceId, clientName, dateTo) {
 function loadHistory() {
     // Cache-bust + no-store: ensures the list always reflects the current
     // server state (e.g., after the LIMIT removal, after a create/delete).
-    fetch('/api/invoice.php?action=history&_t=' + Date.now(), { cache: 'no-store' })
+    // Returns the promise so callers can chain (page-load uses this to
+    // pre-fill dates before fetching the next-number suggestion).
+    return fetch('/api/invoice.php?action=history&_t=' + Date.now(), { cache: 'no-store' })
         .then(r => r.json())
         .then(function(d) {
+            // Pre-fill the date inputs from the most recent invoice — but only
+            // if the user hasn't already typed something. This makes the form
+            // show a useful per-month suggestion on first paint instead of
+            // the global fallback.
+            if (d.success && d.invoices && d.invoices.length > 0) {
+                var mostRecent = d.invoices[0];
+                var dateFromInput = document.getElementById('inv-date-from');
+                var dateToInput = document.getElementById('inv-date-to');
+                if (dateFromInput && dateFromInput.value === '' && mostRecent.date_from) {
+                    dateFromInput.value = mostRecent.date_from;
+                }
+                if (dateToInput && dateToInput.value === '' && mostRecent.date_to) {
+                    dateToInput.value = mostRecent.date_to;
+                }
+            }
+
             if (!d.success || d.invoices.length === 0) {
                 document.getElementById('history-body').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--text-secondary);">Nuk ka fatura te krijuara ende.</td></tr>';
-                return;
+                return d;
             }
 
             var html = '';
