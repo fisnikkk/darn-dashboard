@@ -110,7 +110,7 @@ $menyratPag = ['Me fature', 'Pa fature'];
 $cashBanke = ['Cash', 'Banke'];
 $furnitoret = $db->query("SELECT DISTINCT furnitori FROM plini_depo WHERE furnitori IS NOT NULL AND furnitori != '' ORDER BY furnitori")->fetchAll(PDO::FETCH_COLUMN);
 $pdKgVals = $db->query("SELECT DISTINCT kg FROM plini_depo WHERE kg IS NOT NULL ORDER BY kg")->fetchAll(PDO::FETCH_COLUMN);
-$pdCmimiVals = array_values(array_unique(array_map(fn($v) => number_format((float)$v, 2), $db->query("SELECT DISTINCT cmimi FROM plini_depo WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN))));
+$pdCmimiVals = array_values(array_unique(array_map(fn($v) => priceFmt($v), $db->query("SELECT DISTINCT cmimi FROM plini_depo WHERE cmimi IS NOT NULL ORDER BY cmimi")->fetchAll(PDO::FETCH_COLUMN))));
 $pdKomentVals = $db->query("SELECT DISTINCT koment FROM plini_depo WHERE koment IS NOT NULL AND koment != '' ORDER BY koment")->fetchAll(PDO::FETCH_COLUMN);
 $pdNrFatVals = $db->query("SELECT DISTINCT nr_i_fatures FROM plini_depo WHERE nr_i_fatures IS NOT NULL AND nr_i_fatures != '' ORDER BY nr_i_fatures")->fetchAll(PDO::FETCH_COLUMN);
 $pdFaturatVals = $db->query("SELECT DISTINCT CAST(faturat_e_pranuara AS CHAR) FROM plini_depo WHERE faturat_e_pranuara IS NOT NULL ORDER BY faturat_e_pranuara")->fetchAll(PDO::FETCH_COLUMN);
@@ -167,7 +167,7 @@ ob_start();
                 </div>
                 <div class="form-group">
                     <label>Çmimi</label>
-                    <input type="number" name="cmimi" step="0.01" id="pd_cmimi">
+                    <input type="number" name="cmimi" step="0.0001" id="pd_cmimi">
                 </div>
             </div>
             <div class="form-row">
@@ -276,7 +276,7 @@ ob_start();
                         <td class="editable" data-field="data" data-type="date"><?= $r['data'] ?></td>
                         <td class="num editable" data-field="kg" data-type="number"><?= eur($r['kg']) ?></td>
                         <td class="num editable" data-field="sasia_ne_litra" data-type="number"><?= eur($litra) ?></td>
-                        <td class="num editable" data-field="cmimi" data-type="number"><?= number_format((float)$r['cmimi'], 2) ?></td>
+                        <td class="num editable" data-field="cmimi" data-type="number" data-step="0.0001"><?= priceFmt($r['cmimi']) ?></td>
                         <td class="amount editable" data-field="faturat_e_pranuara" data-type="number"><?= eur($r['faturat_e_pranuara']) ?></td>
                         <td class="amount editable" data-field="dalje_pagesat_sipas_bankes" data-type="number"><?= eur($r['dalje_pagesat_sipas_bankes']) ?></td>
                         <td class="editable" data-field="menyra_e_pageses" data-type="select" data-options="<?= e($menyraJSON) ?>"><?= e($r['menyra_e_pageses']) ?></td>

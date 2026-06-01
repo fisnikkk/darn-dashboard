@@ -102,12 +102,13 @@ foreach ($debts as $d) {
     $noteKey = strtolower($d['klienti']);
     $note = $notes[$noteKey] ?? ['klient_bank_cash'=>'','kush_merr_borxhin'=>'','koment'=>''];
     $borxhBCNoteSet[] = cleanNote($note['klient_bank_cash'] ?? '');
-    // "Kush e merr borxhin" filter: only feed values from rows with current debt
-    // (borxhi_bank_deri > 0). Otherwise clients who paid off old debts surface
-    // stale values into the dropdown (e.g. typos like "Behari" / "beh" / "bank").
-    if ((float)$d['borxhi_bank_deri'] > 0) {
-        $borxhKushSet[] = cleanNote($note['kush_merr_borxhin'] ?? '');
-    }
+    // "Kush e merr borxhin" filter: feed from EVERY rendered debt row so the dropdown
+    // matches exactly the names shown in the column (e.g. "Ermal", who collects for
+    // clients with no current bank debt). Restores the "filters dynamic from displayed
+    // rows only" invariant (commit 851ce87) that the other two note columns still follow.
+    // Do NOT re-add a borxhi_bank_deri>0 guard here — it desyncs the dropdown from the
+    // table and makes visible names un-filterable.
+    $borxhKushSet[] = cleanNote($note['kush_merr_borxhin'] ?? '');
     $borxhKomentSet[] = cleanNote($note['koment'] ?? '');
 }
 $borxhBCNoteVals = array_unique_ci($borxhBCNoteSet);

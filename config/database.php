@@ -613,6 +613,19 @@ function e($str) {
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
 
+// Helper: format a unit price — up to 4 decimals, trailing zeros trimmed, min 2 shown.
+// The cmimi columns (plini_depo, distribuimi, stoku_zyrtar) are DECIMAL(x,4); this shows
+// the real stored precision instead of rounding to 2 (e.g. 1.2999 not "1.30", 1.195 not "1.20").
+function priceFmt($val) {
+    if ($val === null || $val === '') return '-';
+    $s = number_format((float)$val, 4, '.', '');   // 1.2999 / 0.7500 / 1.2000
+    if (strpos($s, '.') !== false) $s = rtrim(rtrim($s, '0'), '.');
+    $dot = strpos($s, '.');
+    if ($dot === false) $s .= '.00';
+    elseif (strlen($s) - $dot - 1 === 1) $s .= '0';
+    return $s;                                       // 1.2999 / 0.75 / 1.20 / 5.00
+}
+
 /**
  * Inject data-filter attributes into a <th> HTML string for Excel-like column filters.
  */

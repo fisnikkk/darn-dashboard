@@ -371,7 +371,9 @@ function startCellEdit(td) {
         if (type === 'number') {
             const stripped = rawText.replace(/[€,\s]/g, '');
             input.value = (stripped === '-' || stripped === '—' || stripped === '') ? '' : stripped;
-            input.step = '0.01';
+            // Per-cell precision: cells set data-step (e.g. cmimi -> "0.0001") to allow finer
+            // decimals; everything else keeps the 2-decimal default. Avoids a global change.
+            input.step = td.dataset.step || '0.01';
         } else {
             input.value = rawText;
         }
